@@ -1,0 +1,9 @@
+{
+  "name": "elapse",
+  "private": true,
+  "description": "You only pay what elapsed. Per-second subscriptions on Monad.",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r --if-present build"
+  }
+}

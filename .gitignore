@@ -1,0 +1,28 @@
+node_modules/
+dist/
+out/
+cache/
+broadcast/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.next/
+.vercel/
+.turbo/
+lib/
+# Foundry
+/contracts/out/
+/contracts/cache/
+# Envio
+/indexer/generated/
+/indexer/.envio/
+# Python
+__pycache__/
+.venv/
+*.egg-info/
+# Secrets
+*.pem
+whsec_*
