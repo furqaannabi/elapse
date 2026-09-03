@@ -18,7 +18,7 @@ cp .env.example .env       # fill what you need for the package you work on
 | `sdk/ts/` | — | (tests to be added per SDK FRD) | |
 | `api/`, `worker/`, `indexer/`, `cli/`, `examples/saas/` | not scaffolded yet | — | see their FRDs before creating anything |
 
-Node 20+ required. macOS, Linux, or WSL.
+Node 20+ for `web/` and the SDK; **Bun** for `api/` and `worker/` (decided by Furqaan); Foundry for `contracts/`. macOS, Linux, or WSL.
 
 ## How we work
 
@@ -34,8 +34,9 @@ Node 20+ required. macOS, Linux, or WSL.
 
 | Area | Owner |
 | --- | --- |
-| Product, contracts, API, indexer, worker, SDK, docs site | Furqaan |
+| Product direction, architecture decisions | Furqaan |
 | Web (landing, checkout, dashboard), design system | William |
+| Contracts, API, indexer, worker, SDK, docs site | Furqaan when available; William picks these up after the frontend, so the specs are written to be buildable by either |
 | Anything else | ask in the team channel; record the answer in the relevant spec |
 
 ## Milestones

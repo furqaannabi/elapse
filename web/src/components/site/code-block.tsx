@@ -1,7 +1,7 @@
 /**
  * `CodeBlock` — a monochrome code panel in the world's grammar: chart
  * paper, a placard title, and a copy control. Tokens are coloured with a
- * tiny hand-rolled highlighter (strings in pen, comments soft) so the page
+ * tiny hand-rolled highlighter (strings near-white, numbers amber, comments soft) so the page
  * does not ship a syntax-highlighting dependency.
  *
  * @param code - Source text.
@@ -54,7 +54,7 @@ function highlight(code: string, lang: Lang) {
     if (idx > last) out.push(code.slice(last, idx));
     const [text, str, comment, kw, num] = m;
     let cls = "";
-    if (str) cls = "text-pen";
+    if (str) cls = "text-foreground/85";
     else if (comment) cls = "text-ink-soft";
     else if (kw) cls = lang === "json" ? "" : "text-ink-soft";
     else if (num) cls = "text-live";

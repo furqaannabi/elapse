@@ -71,10 +71,10 @@ How Elapse fits together. Product truth is in `elapse-detailed-document.pdf` §9
 - Envio HyperIndex + Effect API as the stream → event ingest.
 - AUSD, displayed as USD, not yield-bearing. Gas sponsored.
 - Monorepo, pnpm. Docs deploy separately from the app.
+- Backend runtime: **Bun + Hono** for `api/` and `worker/`; **Foundry** for `contracts/` (Furqaan, 2026-09-03).
 
 ## Undecided (human)
 
-- Platform API framework: Hono vs Next.js route handlers.
 - Merchant auth: magic link vs passkey.
 - Deployment targets for API, worker, keeper, and web.
 - CLI transport for `listen`.

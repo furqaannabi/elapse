@@ -13,6 +13,8 @@
 - Every feature is test-driven: write failing test first, then implementation. Invoke `tdd` skill before any feature work. Components get tests too, not only pure functions.
 - Never make architecture decisions autonomously — present 2–3 options with trade-offs, human chooses.
 - Never bulk-generate code. One page, one component, one contract function at a time.
+- **Before writing more than one document, show the human the list of files and what each will contain, and wait for a yes.** Scope is theirs to set; a broad request ("write the docs") is not consent for a specific list.
+- **Every commit and every push needs its own explicit ask.** "Commit and push" once does not carry forward to later work. A push is additionally gated by a hook in `.claude/settings.json` that prompts the human before any `git push` runs.
 - Remind human to commit after each meaningful change.
 - If stuck or ambiguous: ask. Never guess on product behaviour.
 - Flag risks — security, money movement, cost, hackathon-deadline — immediately and explicitly.
@@ -36,7 +38,7 @@ Runs on Monad (chain 143 mainnet / 10143 testnet), settles in AUSD. **Subscriber
 | --- | --- | --- |
 | Detailed doc | `docs/elapse-detailed-document.pdf` | Product, objects, SDK surface (frozen), webhooks, architecture, six-week plan — source of truth |
 | Design brief | `docs/design-brief.md` | Every frontend surface, page, state, component, and the "do not" list |
-| Specs | `docs/specs/` | FRDs per surface (`FR-LND`, `FR-CHK`, `FR-DSH`, `FR-MTR`); status table in `docs/specs/README.md` |
+| Specs | `docs/specs/` | Technical design + FRDs per package (`FR-LND`, `FR-CHK`, `FR-DSH`, `FR-MTR`, `FR-CON`, `FR-API`, `FR-IDX`, `FR-WRK`, `FR-SDK`, `FR-CLI`, `FR-DOC`, `FR-EXM`); status table in `docs/specs/README.md` |
 | Design system | `DESIGN.md` | Recorded visual world: tokens, type, components, motion. All surfaces inherit it |
 | Repo map | `README.md` | Surfaces and paths |
 
@@ -46,12 +48,12 @@ Runs on Monad (chain 143 mainnet / 10143 testnet), settles in AUSD. **Subscriber
 
 | Layer | Technology |
 | --- | --- |
-| Frontend (landing + checkout + dashboard) | Next.js 15 App Router, TypeScript, Tailwind v4, `web/` |
+| Frontend (landing + checkout + dashboard) | Next.js 16 App Router, TypeScript, Tailwind v4, shadcn, Motion, `web/` |
 | Motion | Motion (framer-motion successor) — purposeful, orchestrated, no per-second blinking |
 | Subscriber auth / wallet | Privy (embedded wallet, passkey / Face ID) |
 | Chain client | viem |
-| Contracts | Solidity 0.8.24, Foundry — `AccrualStream` + `StreamFactory` |
-| Platform API | Hono (or Next.js Route Handlers) + Postgres, OpenAPI, API keys hashed at rest |
+| Contracts | Solidity 0.8.24, Foundry — `AccrualStream` + `StreamFactory` (Furqaan's call) |
+| Platform API + worker | **Bun + Hono** (Furqaan's call) + Postgres, OpenAPI, API keys hashed at rest |
 | Indexer | Envio HyperIndex on Monad |
 | Webhook delivery | Postgres queue + worker (retry 0s, 30s, 2m, 10m, 1h — cap 8). No Kafka. |
 | SDK | `@elapse/sdk` (TypeScript, Node 20+); Python if Week 5 allows |
@@ -67,7 +69,7 @@ Runs on Monad (chain 143 mainnet / 10143 testnet), settles in AUSD. **Subscriber
 ```
 elapse/
 ├── contracts/        # Foundry — AccrualStream, StreamFactory
-├── api/              # Platform REST (Hono + Postgres)
+├── api/              # Platform REST (Bun + Hono + Postgres)
 ├── indexer/          # Envio HyperIndex → platform ingest
 ├── worker/           # Webhook deliveries
 ├── sdk/ts/           # @elapse/sdk
@@ -254,4 +256,5 @@ Never abbreviate these. Never invent synonyms.
 - Ship per-second webhooks, or any chain vocabulary on the subscriber side outside judge mode.
 - Modify contract money-movement logic without human sign-off.
 - Add dependencies without justifying them.
-- Commit or push without being asked.
+- Commit or push without being asked, each time. Push is also blocked by the `.claude/settings.json` hook until the human approves the prompt.
+- Write a batch of documents without first showing the file list and getting a yes.

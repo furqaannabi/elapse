@@ -156,10 +156,11 @@ export function Hero() {
                   </Button>
                 ) : (
                   <Button
+                    variant="outline"
                     size="lg"
                     onClick={cancel}
                     disabled={!meter.running}
-                    className="h-11 border-pen/30 bg-pen-soft px-6 text-[15px] font-medium text-pen hover:bg-pen/25 focus-visible:ring-pen/30"
+                    className="h-11 px-6 text-[15px] font-medium"
                   >
                     Cancel
                   </Button>

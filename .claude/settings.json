@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); if printf '%s' \"$cmd\" | grep -qE '(^|[^[:alnum:]_-])git[[:space:]]+push'; then printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"git push needs the human'\\''s explicit approval for this exact push (CLAUDE.md: never push without being asked).\"}}'; fi",
+            "timeout": 10,
+            "statusMessage": "Checking for git push"
+          }
+        ]
+      }
+    ]
+  }
+}

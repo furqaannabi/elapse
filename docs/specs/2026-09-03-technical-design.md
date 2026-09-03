@@ -8,8 +8,8 @@ This is the "how". The "what" lives in the per-surface FRDs. Where this page say
 
 | Service | Job | Runtime | State |
 | --- | --- | --- | --- |
-| `api/` | REST for merchants and the checkout; ingest for the indexer; enqueues deliveries; drives the contract via a relayer | Node 20+, **Undecided:** Hono (recommended: tiny, OpenAPI via `@hono/zod-openapi`, runs anywhere) vs Next.js route handlers inside `web/` (fewer deploys, but couples API to the UI build) | Postgres |
-| `worker/` | Delivers webhooks from a Postgres queue with retries; runs the keeper loop for `settle()` | Node 20+, same codebase as `api/` (shared package), separate process | Postgres |
+| `api/` | REST for merchants and the checkout; ingest for the indexer; enqueues deliveries; drives the contract via a relayer | **Bun + Hono** (decided 2026-09-03, Furqaan). OpenAPI via `@hono/zod-openapi`. Separate service from `web/`. | Postgres |
+| `worker/` | Delivers webhooks from a Postgres queue with retries; runs the keeper loop for `settle()` | Bun, same codebase as `api/` (shared package), separate process | Postgres |
 | `indexer/` | Envio HyperIndex on Monad; Effect API posts events to `api/` ingest | Envio hosted or self-hosted | Envio's store |
 | `web/` | Landing, hosted checkout, merchant dashboard | Next.js 16, Vercel | none (calls `api/`) |
 | `contracts/` | `StreamFactory`, `AccrualStream` | Foundry, Monad testnet 10143 → mainnet 143 | chain |
@@ -115,7 +115,7 @@ Environments: `local` (docker Postgres, Anvil or Monad testnet), `testnet` (shar
 
 ## Undecided (human) — summary
 
-1. API framework: Hono (recommended) vs Next.js route handlers.
+1. ~~API framework~~ — decided: Bun + Hono (Furqaan, 2026-09-03).
 2. Gas sponsorship mechanism for subscriber deposits.
 3. Hosting for api/worker/Postgres.
 4. Rate-limit numbers; secret-roll overlap window; endpoint auto-disable threshold.

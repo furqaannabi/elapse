@@ -8,7 +8,8 @@
  * Elapse design tokens — Strip-Chart Recorder world.
  *
  * Default (dark): neutral near-black, off-white ink, white primary actions,
- * amber only for the live meter, red pen for the trace and Cancel.
+ * one amber accent for the meter (pen trace, live amount, proof numbers).
+ * No red on the landing; --destructive is reserved for dashboard actions.
  * Light: neutral white with the same roles, amber darkened for contrast.
  * Ruling is reserved for the instrument strip only; never a page texture.
  * Every semantic shadcn token maps onto these five materials so the
@@ -84,8 +85,8 @@
   --ink-soft: #666666;
   --grid: rgba(0, 0, 0, 0.06);
   --grid-major: rgba(0, 0, 0, 0.12);
-  --pen: #e5484d;
-  --pen-soft: rgba(229, 72, 77, 0.12);
+  --pen: #b45309;
+  --pen-soft: rgba(180, 83, 9, 0.12);
   --live: #b45309;
   --live-soft: rgba(180, 83, 9, 0.12);
   --live-deep: #171717;
@@ -106,7 +107,7 @@
   --muted-foreground: var(--ink-soft);
   --accent: #ebebeb;
   --accent-foreground: var(--ink);
-  --destructive: var(--pen);
+  --destructive: #d92d20;
   --border: rgba(0, 0, 0, 0.1);
   --input: rgba(0, 0, 0, 0.14);
   --ring: rgba(0, 0, 0, 0.35);
@@ -135,8 +136,8 @@
   --ink-soft: #a1a1a1;
   --grid: rgba(255, 255, 255, 0.06);
   --grid-major: rgba(255, 255, 255, 0.12);
-  --pen: #f04a4a;
-  --pen-soft: rgba(240, 74, 74, 0.16);
+  --pen: #f5b74a;
+  --pen-soft: rgba(245, 183, 74, 0.14);
   --live: #f5b74a;
   --live-soft: rgba(245, 183, 74, 0.16);
   --live-deep: #ededed;
@@ -157,7 +158,7 @@
   --muted-foreground: var(--ink-soft);
   --accent: #1f1f1f;
   --accent-foreground: var(--ink);
-  --destructive: var(--pen);
+  --destructive: #f04a4a;
   --border: rgba(255, 255, 255, 0.12);
   --input: rgba(255, 255, 255, 0.16);
   --ring: rgba(255, 255, 255, 0.4);
