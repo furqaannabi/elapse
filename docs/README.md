@@ -26,7 +26,7 @@ Elapse is Stripe Billing for things that should charge by the second. A merchant
 | Webhook worker | `worker/` | `specs/…-worker-frd.md` | Empty |
 | SDK (TS) | `sdk/ts/` | `specs/…-sdk-frd.md` | `constructEvent` only; no build, no tests |
 | CLI | `cli/` | `specs/…-cli-frd.md` | Empty |
-| Web (landing, checkout, dashboard) | `web/` | `specs/…-landing-frd.md`, `…-checkout-frd.md`, `…-dashboard-frd.md` | Landing built and reviewed; checkout next |
+| Web (landing, checkout, dashboard) | `web/` | `specs/…-landing-frd.md`, `…-checkout-frd.md`, `…-dashboard-frd.md` | Landing built and reviewed; hosted checkout built against the mock API (all states, judge mode); dashboard next |
 | Docs site | (separate deploy) | `specs/…-docs-site-frd.md` | Not started |
 | Example merchant | `examples/saas/` | `specs/…-examples-frd.md` | Empty |
 

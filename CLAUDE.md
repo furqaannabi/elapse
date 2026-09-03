@@ -8,6 +8,7 @@
 - Every feature maps to an FR id. Know which one before writing code. Tests are named after the FR. PRs list the FRs they close.
 - Before starting any feature: invoke `grill-me` skill to stress-test requirements as developer questions, one at a time, with a recommended answer each.
 - Then invoke `to-prd` to turn the answers into (or update) the surface's FRD in `docs/specs/`, and stop for the human's sign-off. Update the Status table in `docs/specs/README.md`.
+- **A spec is signed only when the human says "signed" or "approve the spec" after seeing it.** "Proceed", "continue", "go", or an answer to a question is not a signature. Before recording a signature, quote the spec's Status line back and wait for the yes. The agent never writes "Signed" on the human's behalf.
 - Before building anything visual: invoke `/impeccable`. Brief wins over taste. Mockups from the human override both. New surfaces inherit `DESIGN.md`; no new direction rolls.
 - Before debugging: invoke `diagnose` skill.
 - Every feature is test-driven: write failing test first, then implementation. Invoke `tdd` skill before any feature work. Components get tests too, not only pure functions.

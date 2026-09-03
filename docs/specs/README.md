@@ -36,7 +36,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `2026-09-03-technical-design.md` | Draft — awaiting human sign-off | — |
 | `2026-09-03-meter-frd.md` | Built (retro-documented) | — |
 | `2026-09-03-landing-frd.md` | Built (retro-documented) | — |
-| `2026-09-03-checkout-frd.md` | **Draft — awaiting human sign-off** | — |
+| `2026-09-03-checkout-frd.md` | **Awaiting human sign-off** (built ahead of signature against the mock API) | — |
 | `2026-09-03-dashboard-frd.md` | Outline only | — |
 | `2026-09-03-contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
 | `2026-09-03-api-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
