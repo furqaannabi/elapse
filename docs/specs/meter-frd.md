@@ -31,3 +31,10 @@ Every Elapse surface shows the same fact: a rate, a running clock, and a dollar 
 ## Open
 
 - FR-MTR-007/008 tests not yet written (components were built without tests; flagged in CLAUDE.md review).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-03 | Claude | Retro-documented from the built landing. |

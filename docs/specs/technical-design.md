@@ -120,3 +120,10 @@ Environments: `local` (docker Postgres, Anvil or Monad testnet), `testnet` (shar
 3. Hosting for api/worker/Postgres.
 4. Rate-limit numbers; secret-roll overlap window; endpoint auto-disable threshold.
 5. Correction events on reorg (recommend none in MVP).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-03 | Furqaan (via William) | Bun + Hono decided for api/worker; Foundry for contracts ([ADR](../decisions/2026-09-03-bun-hono-backend.md)). |

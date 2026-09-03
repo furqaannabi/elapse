@@ -1,6 +1,6 @@
 # Hosted checkout (`/c/[session]`) — FRD
 
-Status: **Awaiting human sign-off** — built ahead of signature on 2026-09-03 using the agent's five recommendations (Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap). The human has not signed; the build stands or changes on their review. · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
+Status: **Signed 2026-09-03 (William)** — approved after review; built against the mock API. Decisions taken: Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap. May be revisited. · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
 
 ## Problem
 
@@ -68,3 +68,10 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 
 - Privy app id and bounty requirements (Week 3).
 - Whether the subscriber `/account` page ships before 13 Oct.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-03 | William | Reviewed and signed; five open questions settled with the agent's recommendations; FR-CHK-014/015 added. |

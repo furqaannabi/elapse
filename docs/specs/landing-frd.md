@@ -43,3 +43,10 @@ A merchant engineer, or a judge, arrives with no context and must understand per
 
 - Docs, dashboard, status, X URLs are placeholders in `web/src/lib/site.ts`.
 - FR-LND-001–005 have no automated tests yet (Playwright e2e planned: load → cancel → card shows numbers).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-03 | Claude | Retro-documented from the built landing. |

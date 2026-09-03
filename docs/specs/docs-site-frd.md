@@ -100,3 +100,9 @@ examples/saas/src/*.ts    include-by-region source for Quickstart snippets
 - OpenAPI ownership and location (`api/openapi.json` assumed; API FRD to confirm).
 - Testnet faucet/funding for the CI merchant account.
 - Whether the docs site also hosts the status page link target.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

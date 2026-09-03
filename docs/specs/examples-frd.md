@@ -106,3 +106,9 @@ Listening on :3000
 - Whether the platform offers a "send test Delivery" endpoint the CI job (FR-EXM-031) can call, or CI relies on `demo:check` only.
 - Merchant display name/logo in the checkout for this example ("Acme GPU") — needs dashboard branding (FR-DSH-080s).
 - Publish the example as a GitHub template repo in addition to the monorepo folder.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

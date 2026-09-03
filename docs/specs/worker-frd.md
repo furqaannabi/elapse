@@ -120,3 +120,9 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 - Whether `X-Elapse-Delivery` (or an `Idempotency-Key`) header is worth adding to the docs; the SDK ignores it today.
 - Whether "Send test event" ids should be `evt_test_…` or ordinary `evt_…` with `livemode: false` (Stripe uses ordinary ids).
 - Rate limiting deliveries per endpoint (e.g. max 20 in flight) — not needed at MVP volume; note for post-hackathon.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

@@ -33,3 +33,9 @@ Fill in after the checkout is signed and built. The doc's MVP bar is "three page
 
 - Merchant auth: email magic link vs passkey.
 - Whether Customers and Invoices ship for 13 Oct.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

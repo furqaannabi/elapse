@@ -156,3 +156,9 @@ Env: `DATABASE_URL`, `MONAD_RPC_URL`, `CHAIN_ID`, `RELAYER_PRIVATE_KEY`, `INGEST
 - `checkout.session.completed` fires on `StreamStarted` here; doc §5.1 says "subscriber finished Face ID checkout" — confirm it should not fire earlier (at deposit).
 - Merchant `payout_address` is the `merchant` argument to `StreamFactory.create`; changing it after streams exist only affects new streams — document.
 - Whether Customers and Invoices endpoints are dashboard-visible for 13 Oct (dashboard FRD).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

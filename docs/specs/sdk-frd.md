@@ -110,3 +110,9 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 - API FRD must confirm the `/v1` paths, auth header, and error body shape (`{ error: { type, code, message, request_id } }` assumed).
 - npm org `@elapse` availability; GitHub Packages fallback config.
 - Whether `sdk/ts` moves to the pnpm workspace root `package.json` (§13 monorepo).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

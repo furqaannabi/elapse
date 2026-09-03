@@ -119,3 +119,9 @@ Ingest body (shared type in `packages/shared` with the API): see FR-IDX-020; `ev
 - Confirm HyperSync coverage for Monad testnet 10143 and mainnet 143 at Week 1 start; if absent, RPC mode with `MONAD_RPC_URL`.
 - Envio API surface (`experimental_createEffect`, `contractRegister`) is version-specific — pin the `envio` version in `indexer/package.json` and record it here.
 - Whether `Deposited` should trigger a platform update at all (API FRD FR-API-071 says yes, no merchant Event).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

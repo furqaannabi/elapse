@@ -13,6 +13,7 @@
 - Before debugging: invoke `diagnose` skill.
 - Every feature is test-driven: write failing test first, then implementation. Invoke `tdd` skill before any feature work. Components get tests too, not only pure functions.
 - Never make architecture decisions autonomously — present 2–3 options with trade-offs, human chooses.
+- When the human (or Furqaan) makes an architecture or product decision, record it as a dated ADR in `docs/decisions/` (`YYYY-MM-DD-title.md`, format in that folder's README) and link it from the affected spec's Revision table. Never edit an existing record; write a new one that supersedes it.
 - Never bulk-generate code. One page, one component, one contract function at a time.
 - **Before writing more than one document, show the human the list of files and what each will contain, and wait for a yes.** Scope is theirs to set; a broad request ("write the docs") is not consent for a specific list.
 - **Every commit and every push needs its own explicit ask.** "Commit and push" once does not carry forward to later work. A push is additionally gated by a hook in `.claude/settings.json` that prompts the human before any `git push` runs.
@@ -40,6 +41,7 @@ Runs on Monad (chain 143 mainnet / 10143 testnet), settles in AUSD. **Subscriber
 | Detailed doc | `docs/elapse-detailed-document.pdf` | Product, objects, SDK surface (frozen), webhooks, architecture, six-week plan — source of truth |
 | Design brief | `docs/design-brief.md` | Every frontend surface, page, state, component, and the "do not" list |
 | Specs | `docs/specs/` | Technical design + FRDs per package (`FR-LND`, `FR-CHK`, `FR-DSH`, `FR-MTR`, `FR-CON`, `FR-API`, `FR-IDX`, `FR-WRK`, `FR-SDK`, `FR-CLI`, `FR-DOC`, `FR-EXM`); status table in `docs/specs/README.md` |
+| Decisions | `docs/decisions/` | Dated ADRs (`YYYY-MM-DD-title.md`), never edited after the fact; specs in `docs/specs/` carry no dates and end with a Revision table |
 | Design system | `DESIGN.md` | Recorded visual world: tokens, type, components, motion. All surfaces inherit it |
 | Repo map | `README.md` | Surfaces and paths |
 

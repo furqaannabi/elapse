@@ -143,3 +143,9 @@ Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeE
 - Doc §5.2 names the first event `StreamOpened`; §9 and the code say `StreamStarted`. This FRD uses `StreamStarted`; docs must be corrected.
 - Merchant-initiated pause (doc §5.1 "Pause / resume / rate change") — rate change is **out** (FR-CON-053); confirm.
 - Whether `StreamCanceled` should also carry `amountRefunded` for the receipt (would extend the §5.3 payload).
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

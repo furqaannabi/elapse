@@ -109,3 +109,9 @@ Ready. Forwarding to http://localhost:3000/webhooks
 - API FRD: CLI session endpoint, resend endpoint, Delivery frame schema.
 - Whether `listen` also prints Deliveries to the merchant's *other* registered endpoints (observability) or only its own session.
 - Name collision check for `elapse` on npm and PyPI.
+
+## Revision
+
+| Date | Who | Change |
+| --- | --- | --- |
+| 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |

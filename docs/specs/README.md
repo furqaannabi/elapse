@@ -27,25 +27,27 @@ Spec-driven development for the whole project. **No code without a signed spec.*
 | `FR-EXM-nnn` | `examples/saas` reference merchant |
 | `BR-xxx-nnn` | Business rules the surface must enforce (money, security, copy) |
 
+**Naming.** Specs are living documents, so file names carry no date: `checkout-frd.md`, `technical-design.md`. Each ends with a Revision table (date, who, change). Dated files belong in `docs/decisions/` (ADRs), which never change after they are written.
+
 FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints ("Amounts never round up"). Both are testable.
 
 ## Status
 
 | Spec | Status | Signed |
 | --- | --- | --- |
-| `2026-09-03-technical-design.md` | Draft — awaiting human sign-off | — |
-| `2026-09-03-meter-frd.md` | Built (retro-documented) | — |
-| `2026-09-03-landing-frd.md` | Built (retro-documented) | — |
-| `2026-09-03-checkout-frd.md` | **Awaiting human sign-off** (built ahead of signature against the mock API) | — |
-| `2026-09-03-dashboard-frd.md` | Outline only | — |
-| `2026-09-03-contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `2026-09-03-api-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `2026-09-03-indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `2026-09-03-worker-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `2026-09-03-sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `2026-09-03-cli-frd.md` | Draft — awaiting human sign-off | — |
-| `2026-09-03-docs-site-frd.md` | Draft — awaiting human sign-off | — |
-| `2026-09-03-examples-frd.md` | Draft — awaiting human sign-off | — |
+| `technical-design.md` | Draft — awaiting human sign-off | — |
+| `meter-frd.md` | Built (retro-documented) | — |
+| `landing-frd.md` | Built (retro-documented) | — |
+| `checkout-frd.md` | **Signed** · built against the mock API | William, 2026-09-03 |
+| `dashboard-frd.md` | Outline only | — |
+| `contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `api-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `worker-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `cli-frd.md` | Draft — awaiting human sign-off | — |
+| `docs-site-frd.md` | Draft — awaiting human sign-off | — |
+| `examples-frd.md` | Draft — awaiting human sign-off | — |
 
 ## Process
 
