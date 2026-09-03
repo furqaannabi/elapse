@@ -1,0 +1,279 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Elapse design tokens — Strip-Chart Recorder world.
+ *
+ * Default (dark): warm near-black night, bone-white ink, amber for "live"
+ * (running, primary, links), coral pen for the trace and Cancel.
+ * Light: bone paper with the same roles, amber darkened for contrast.
+ * Ruling is reserved for the instrument strip only; never a page texture.
+ * Every semantic shadcn token maps onto these five materials so the
+ * dashboard primitives inherit the world without per-component overrides.
+ */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-heading: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  /* World materials */
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-grid: var(--grid);
+  --color-grid-major: var(--grid-major);
+  --color-pen: var(--pen);
+  --color-pen-soft: var(--pen-soft);
+  --color-live: var(--live);
+  --color-live-soft: var(--live-soft);
+  --color-live-deep: var(--live-deep);
+  --color-caution: var(--caution);
+  --color-caution-soft: var(--caution-soft);
+
+  /* shadcn semantic tokens */
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  --ease-arrive: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  /* Materials — light (bone paper; the secondary theme) */
+  --paper: #f7f3ec;
+  --ink: #1a1613;
+  --ink-soft: #6a6157;
+  --grid: rgba(26, 22, 19, 0.06);
+  --grid-major: rgba(26, 22, 19, 0.12);
+  --pen: #e5483c;
+  --pen-soft: rgba(229, 72, 60, 0.12);
+  --live: #a8660f;
+  --live-soft: rgba(168, 102, 15, 0.14);
+  --live-deep: #2b1f0a;
+  --caution: #b8741c;
+  --caution-soft: rgba(184, 116, 28, 0.16);
+
+  /* Semantic */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #fdfbf7;
+  --card-foreground: var(--ink);
+  --popover: #fdfbf7;
+  --popover-foreground: var(--ink);
+  --primary: var(--live);
+  --primary-foreground: #fffaf0;
+  --secondary: #eee8dd;
+  --secondary-foreground: var(--ink);
+  --muted: #efe9de;
+  --muted-foreground: var(--ink-soft);
+  --accent: #eae3d6;
+  --accent-foreground: var(--ink);
+  --destructive: var(--pen);
+  --border: rgba(26, 22, 19, 0.12);
+  --input: rgba(26, 22, 19, 0.16);
+  --ring: rgba(168, 102, 15, 0.45);
+  --chart-1: var(--pen);
+  --chart-2: var(--live);
+  --chart-3: var(--ink-soft);
+  --chart-4: var(--caution);
+  --chart-5: var(--ink);
+  --radius: 0.5rem;
+  --sidebar: #f1ece3;
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--live);
+  --sidebar-primary-foreground: #fffaf0;
+  --sidebar-accent: #e8e1d4;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: rgba(26, 22, 19, 0.1);
+  --sidebar-ring: rgba(168, 102, 15, 0.45);
+
+  color-scheme: light;
+}
+
+.dark {
+  /* Materials — dark (night; the default theme) */
+  --paper: #141210;
+  --ink: #f4efe6;
+  --ink-soft: #a69e90;
+  --grid: rgba(244, 239, 230, 0.06);
+  --grid-major: rgba(244, 239, 230, 0.12);
+  --pen: #ff5c4d;
+  --pen-soft: rgba(255, 92, 77, 0.16);
+  --live: #f5b74a;
+  --live-soft: rgba(245, 183, 74, 0.16);
+  --live-deep: #3a2a08;
+  --caution: #f5b74a;
+  --caution-soft: rgba(245, 183, 74, 0.16);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #1b1815;
+  --card-foreground: var(--ink);
+  --popover: #1f1b18;
+  --popover-foreground: var(--ink);
+  --primary: var(--live);
+  --primary-foreground: #1a1204;
+  --secondary: #26221d;
+  --secondary-foreground: var(--ink);
+  --muted: #201d19;
+  --muted-foreground: var(--ink-soft);
+  --accent: #2a2621;
+  --accent-foreground: var(--ink);
+  --destructive: var(--pen);
+  --border: rgba(244, 239, 230, 0.12);
+  --input: rgba(244, 239, 230, 0.16);
+  --ring: rgba(245, 183, 74, 0.45);
+  --chart-1: var(--pen);
+  --chart-2: var(--live);
+  --chart-3: var(--ink-soft);
+  --chart-4: var(--caution);
+  --chart-5: var(--ink);
+  --sidebar: #100e0c;
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--live);
+  --sidebar-primary-foreground: #1a1204;
+  --sidebar-accent: #201d19;
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: rgba(244, 239, 230, 0.1);
+  --sidebar-ring: rgba(245, 183, 74, 0.45);
+
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: var(--live-soft);
+  }
+  a:not([class]) {
+    color: var(--live);
+    text-underline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  /*
+   * Chart-paper ruling. Minor line every 8px, major every 40px.
+   * Backgrounds only — never a texture on text containers.
+   */
+  .chart-grid {
+    background-image:
+      linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px),
+      linear-gradient(to right, var(--grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    background-size:
+      40px 40px,
+      40px 40px,
+      8px 8px,
+      8px 8px;
+    background-position: -1px -1px;
+  }
+  .chart-grid-fine {
+    background-image:
+      linear-gradient(to right, var(--grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+    background-size: 8px 8px;
+  }
+  /* Plate: the one section that commits to the live colour at page scale. */
+  .plate {
+    background-color: var(--live-deep);
+    color: #f4efe6;
+    --ring: rgba(245, 183, 74, 0.5);
+  }
+  .plate ::selection {
+    background: rgba(245, 183, 74, 0.3);
+  }
+  /* Instrument numerals: tabular, slashed zero off, no ligatures. */
+  .numerals {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum", "lnum";
+    letter-spacing: -0.01em;
+  }
+  /* Engraved placard caps used for labels on instruments and tables. */
+  .placard {
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-variation-settings: "wdth" 112;
+    color: var(--ink-soft);
+  }
+  /* Case-preserving mono label for file names, headers, ids. */
+  .code-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1;
+    letter-spacing: 0;
+    color: var(--ink-soft);
+  }
+  .display-wide {
+    font-variation-settings: "wdth" 112;
+  }
+  .display-narrow {
+    font-variation-settings: "wdth" 88;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

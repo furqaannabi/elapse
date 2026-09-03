@@ -12,7 +12,7 @@ Track 2 · Monad Metropolis · Consumer Products & Payments.
 |---|---|---|
 | Protocol | `contracts/` | Accrue AUSD per second; cancel; settle elapsed only |
 | API | `api/` | Products, checkout sessions, webhook endpoints |
-| Checkout | `checkout/` | Face ID, live USD ticker, no chain words |
+| Web | `web/` | Landing, hosted checkout (Face ID, live USD ticker, no chain words), merchant dashboard |
 | SDK | `sdk/ts` | `@elapse/sdk` |
 | CLI | `cli/` | `elapse listen --forward` |
 | Indexer | `indexer/` | Envio HyperIndex → platform ingest |

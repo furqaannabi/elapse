@@ -2,6 +2,6 @@ packages:
   - "sdk/ts"
   - "cli"
   - "api"
-  - "checkout"
+  - "web"
   - "docs"
   - "examples/saas"
