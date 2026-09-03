@@ -16,7 +16,7 @@ Track 2 · Monad Metropolis · Consumer Products & Payments.
 | SDK | `sdk/ts` | `@elapse/sdk` |
 | CLI | `cli/` | `elapse listen --forward` |
 | Indexer | `indexer/` | Envio HyperIndex → platform ingest |
-| Docs | `docs/` | Quickstart, webhooks, OpenAPI |
+| Docs | `docs/` | **Start here:** `docs/README.md` — product doc, architecture, glossary, specs, onboarding |
 | Example | `examples/saas/` | Merchant in the demo video |
 
 ## SDK (target)

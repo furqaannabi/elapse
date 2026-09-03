@@ -38,8 +38,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#141210" },
-    { media: "(prefers-color-scheme: dark)", color: "#141210" },
+    { media: "(prefers-color-scheme: light)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
   width: "device-width",
   initialScale: 1,
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/*
           DIRECTION CONTRACT — seed d3eb4e9d
           THESIS: Time is a strip of chart paper pulled at constant speed; the pen only draws while the meter runs, and cancel lifts the pen. Refuses the dev-tool landing of headline-left, code-block-right on a dark glow.
-          OWN-WORLD: Night by default: warm near-black ground, bone-white ink, amber for live state, primary actions and links, coral pen for the trace and Cancel, one deep-amber plate section. The strip is the only ruled surface; no graph paper on the page. Archivo (width axis) for prose and placard caps, Martian Mono for tabular numerals. Light mode is bone paper with the same roles. (Revised 2026-09-03 at the human's direction: cool grid world read as clinical; blue read as plain.)
+          OWN-WORLD: Neutral near-black by default (Vercel register), off-white ink, white primary actions, amber reserved for the live meter, red pen for the trace and Cancel; the close inverts to a white plate. The strip is the only ruled surface. Archivo (width axis) for prose and placard caps, Martian Mono for tabular numerals. Light mode is neutral white with the same roles. (Revised 2026-09-03 at the human's direction: warm/cream read as off-niche.)
           STORY: A merchant engineer sees a meter accrue, presses Cancel, watches the pen lift and the readout lock at 83 seconds / $0.33, and understands the product before reading. They copy npm install.
           FIRST VIEWPORT: Headline top-left with "Read the docs" beneath; a full-width strip runs under it, scrolling left, red trace accruing from load; the live readout sits huge at right with a Cancel control; the install placard closes the viewport.
           FORM: Strip-chart recorder, candidate 3 of 7 on the grounded list, assigned by seed d3eb4e9d.

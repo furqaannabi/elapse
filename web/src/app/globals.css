@@ -7,9 +7,9 @@
 /*
  * Elapse design tokens — Strip-Chart Recorder world.
  *
- * Default (dark): warm near-black night, bone-white ink, amber for "live"
- * (running, primary, links), coral pen for the trace and Cancel.
- * Light: bone paper with the same roles, amber darkened for contrast.
+ * Default (dark): neutral near-black, off-white ink, white primary actions,
+ * amber only for the live meter, red pen for the trace and Cancel.
+ * Light: neutral white with the same roles, amber darkened for contrast.
  * Ruling is reserved for the instrument strip only; never a page texture.
  * Every semantic shadcn token maps onto these five materials so the
  * dashboard primitives inherit the world without per-component overrides.
@@ -78,103 +78,102 @@
 }
 
 :root {
-  /* Materials — light (bone paper; the secondary theme) */
-  --paper: #f7f3ec;
-  --ink: #1a1613;
-  --ink-soft: #6a6157;
-  --grid: rgba(26, 22, 19, 0.06);
-  --grid-major: rgba(26, 22, 19, 0.12);
-  --pen: #e5483c;
-  --pen-soft: rgba(229, 72, 60, 0.12);
-  --live: #a8660f;
-  --live-soft: rgba(168, 102, 15, 0.14);
-  --live-deep: #2b1f0a;
-  --caution: #b8741c;
-  --caution-soft: rgba(184, 116, 28, 0.16);
+  /* Materials — light (the secondary theme): neutral white */
+  --paper: #fafafa;
+  --ink: #171717;
+  --ink-soft: #666666;
+  --grid: rgba(0, 0, 0, 0.06);
+  --grid-major: rgba(0, 0, 0, 0.12);
+  --pen: #e5484d;
+  --pen-soft: rgba(229, 72, 77, 0.12);
+  --live: #b45309;
+  --live-soft: rgba(180, 83, 9, 0.12);
+  --live-deep: #171717;
+  --caution: #b45309;
+  --caution-soft: rgba(180, 83, 9, 0.14);
 
-  /* Semantic */
   --background: var(--paper);
   --foreground: var(--ink);
-  --card: #fdfbf7;
+  --card: #ffffff;
   --card-foreground: var(--ink);
-  --popover: #fdfbf7;
+  --popover: #ffffff;
   --popover-foreground: var(--ink);
-  --primary: var(--live);
-  --primary-foreground: #fffaf0;
-  --secondary: #eee8dd;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f0f0f0;
   --secondary-foreground: var(--ink);
-  --muted: #efe9de;
+  --muted: #f5f5f5;
   --muted-foreground: var(--ink-soft);
-  --accent: #eae3d6;
+  --accent: #ebebeb;
   --accent-foreground: var(--ink);
   --destructive: var(--pen);
-  --border: rgba(26, 22, 19, 0.12);
-  --input: rgba(26, 22, 19, 0.16);
-  --ring: rgba(168, 102, 15, 0.45);
+  --border: rgba(0, 0, 0, 0.1);
+  --input: rgba(0, 0, 0, 0.14);
+  --ring: rgba(0, 0, 0, 0.35);
   --chart-1: var(--pen);
   --chart-2: var(--live);
   --chart-3: var(--ink-soft);
   --chart-4: var(--caution);
   --chart-5: var(--ink);
   --radius: 0.5rem;
-  --sidebar: #f1ece3;
+  --sidebar: #f5f5f5;
   --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--live);
-  --sidebar-primary-foreground: #fffaf0;
-  --sidebar-accent: #e8e1d4;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #ebebeb;
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: rgba(26, 22, 19, 0.1);
-  --sidebar-ring: rgba(168, 102, 15, 0.45);
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: rgba(0, 0, 0, 0.35);
 
   color-scheme: light;
 }
 
 .dark {
-  /* Materials — dark (night; the default theme) */
-  --paper: #141210;
-  --ink: #f4efe6;
-  --ink-soft: #a69e90;
-  --grid: rgba(244, 239, 230, 0.06);
-  --grid-major: rgba(244, 239, 230, 0.12);
-  --pen: #ff5c4d;
-  --pen-soft: rgba(255, 92, 77, 0.16);
+  /* Materials — dark (the default theme): neutral near-black */
+  --paper: #0a0a0a;
+  --ink: #ededed;
+  --ink-soft: #a1a1a1;
+  --grid: rgba(255, 255, 255, 0.06);
+  --grid-major: rgba(255, 255, 255, 0.12);
+  --pen: #f04a4a;
+  --pen-soft: rgba(240, 74, 74, 0.16);
   --live: #f5b74a;
   --live-soft: rgba(245, 183, 74, 0.16);
-  --live-deep: #3a2a08;
+  --live-deep: #ededed;
   --caution: #f5b74a;
   --caution-soft: rgba(245, 183, 74, 0.16);
 
   --background: var(--paper);
   --foreground: var(--ink);
-  --card: #1b1815;
+  --card: #111111;
   --card-foreground: var(--ink);
-  --popover: #1f1b18;
+  --popover: #141414;
   --popover-foreground: var(--ink);
-  --primary: var(--live);
-  --primary-foreground: #1a1204;
-  --secondary: #26221d;
+  --primary: #ededed;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
   --secondary-foreground: var(--ink);
-  --muted: #201d19;
+  --muted: #161616;
   --muted-foreground: var(--ink-soft);
-  --accent: #2a2621;
+  --accent: #1f1f1f;
   --accent-foreground: var(--ink);
   --destructive: var(--pen);
-  --border: rgba(244, 239, 230, 0.12);
-  --input: rgba(244, 239, 230, 0.16);
-  --ring: rgba(245, 183, 74, 0.45);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: rgba(255, 255, 255, 0.4);
   --chart-1: var(--pen);
   --chart-2: var(--live);
   --chart-3: var(--ink-soft);
   --chart-4: var(--caution);
   --chart-5: var(--ink);
-  --sidebar: #100e0c;
+  --sidebar: #0a0a0a;
   --sidebar-foreground: var(--ink);
-  --sidebar-primary: var(--live);
-  --sidebar-primary-foreground: #1a1204;
-  --sidebar-accent: #201d19;
+  --sidebar-primary: #ededed;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1a1a1a;
   --sidebar-accent-foreground: var(--ink);
-  --sidebar-border: rgba(244, 239, 230, 0.1);
-  --sidebar-ring: rgba(245, 183, 74, 0.45);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: rgba(255, 255, 255, 0.4);
 
   color-scheme: dark;
 }
@@ -195,7 +194,9 @@
     background: var(--live-soft);
   }
   a:not([class]) {
-    color: var(--live);
+    color: var(--ink);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent);
     text-underline-offset: 3px;
   }
 }
@@ -224,14 +225,15 @@
       linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
     background-size: 8px 8px;
   }
-  /* Plate: the one section that commits to the live colour at page scale. */
+  /* Plate: the closing section inverts — ink ground, paper text. */
   .plate {
-    background-color: var(--live-deep);
-    color: #f4efe6;
-    --ring: rgba(245, 183, 74, 0.5);
+    background-color: var(--ink);
+    color: var(--paper);
+    --border: color-mix(in srgb, var(--paper) 15%, transparent);
+    --ring: color-mix(in srgb, var(--paper) 50%, transparent);
   }
   .plate ::selection {
-    background: rgba(245, 183, 74, 0.3);
+    background: color-mix(in srgb, var(--paper) 25%, transparent);
   }
   /* Instrument numerals: tabular, slashed zero off, no ligatures. */
   .numerals {

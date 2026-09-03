@@ -1,12 +1,12 @@
 # Elapse specs
 
-Spec-driven development for the frontend. **No code without a signed spec.**
+Spec-driven development for the whole project. **No code without a signed spec.**
 
 ## Hierarchy
 
 1. `docs/elapse-detailed-document.pdf` — the product and build doc. What Elapse is, the frozen SDK surface, webhooks, architecture, six-week plan. Source of truth for product behaviour.
 2. `docs/design-brief.md` — every surface, page, state, and rule for the frontend.
-3. `docs/specs/*-frd.md` — **functional requirements per surface.** Numbered FRs and BRs that every feature, test, and PR maps to. Written by the agent from 1 and 2 (via `to-prd`), signed by the human before any build.
+3. `docs/specs/*-frd.md` — **functional requirements per package or surface**, plus `…-technical-design.md` for the platform's data model, API, auth, webhook pipeline and environments. Numbered FRs and BRs that every feature, test, and PR maps to. Written by the agent from 1 and 2 (via `to-prd`), signed by the human before any build.
 4. `DESIGN.md` — the recorded visual world. Tokens, type, components, motion. Every surface inherits it.
 
 ## Id scheme
@@ -17,6 +17,14 @@ Spec-driven development for the frontend. **No code without a signed spec.**
 | `FR-CHK-nnn` | Hosted checkout (`/c/[session]`) |
 | `FR-DSH-nnn` | Merchant dashboard (`/dashboard/*`) |
 | `FR-MTR-nnn` | Meter primitives (math, `useMeter`, `Readout`, `ChartStrip`) shared by all surfaces |
+| `FR-CON-nnn` | Contracts (`StreamFactory`, `AccrualStream`) |
+| `FR-API-nnn` | Platform API |
+| `FR-IDX-nnn` | Indexer (Envio HyperIndex → ingest) |
+| `FR-WRK-nnn` | Webhook worker and keeper |
+| `FR-SDK-nnn` | `@elapse/sdk` TypeScript (and `elapse` Python stretch) |
+| `FR-CLI-nnn` | `@elapse/cli` (`listen --forward`, login, resend) |
+| `FR-DOC-nnn` | Docs site (docs.elapse.dev) |
+| `FR-EXM-nnn` | `examples/saas` reference merchant |
 | `BR-xxx-nnn` | Business rules the surface must enforce (money, security, copy) |
 
 FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints ("Amounts never round up"). Both are testable.
@@ -25,10 +33,19 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 
 | Spec | Status | Signed |
 | --- | --- | --- |
+| `2026-09-03-technical-design.md` | Draft — awaiting human sign-off | — |
 | `2026-09-03-meter-frd.md` | Built (retro-documented) | — |
 | `2026-09-03-landing-frd.md` | Built (retro-documented) | — |
 | `2026-09-03-checkout-frd.md` | **Draft — awaiting human sign-off** | — |
 | `2026-09-03-dashboard-frd.md` | Outline only | — |
+| `2026-09-03-contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `2026-09-03-api-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `2026-09-03-indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `2026-09-03-worker-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `2026-09-03-sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `2026-09-03-cli-frd.md` | Draft — awaiting human sign-off | — |
+| `2026-09-03-docs-site-frd.md` | Draft — awaiting human sign-off | — |
+| `2026-09-03-examples-frd.md` | Draft — awaiting human sign-off | — |
 
 ## Process
 
