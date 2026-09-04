@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/dashboard-e2e.mjs",
+    "shots:dashboard": "node scripts/dashboard-shots.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

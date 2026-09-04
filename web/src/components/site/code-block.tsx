@@ -7,6 +7,8 @@
  * @param code - Source text.
  * @param title - Placard label, e.g. "server.ts".
  * @param lang - "ts" | "json" | "sh". Drives the highlighter.
+ * @param wrap - Wrap long lines below `md` instead of scrolling (dashboard).
+ * @param copyLabel - Accessible name of the copy control.
  */
 import { CopyButton } from "./copy-button";
 import { cn } from "@/lib/utils";
@@ -17,11 +19,15 @@ export function CodeBlock({
   code,
   title,
   lang = "ts",
+  wrap = false,
+  copyLabel,
   className,
 }: {
   code: string;
   title?: string;
   lang?: Lang;
+  wrap?: boolean;
+  copyLabel?: string;
   className?: string;
 }) {
   return (
@@ -33,9 +39,9 @@ export function CodeBlock({
     >
       <div className="flex h-9 items-center justify-between border-b border-border pl-3 pr-1">
         <span className="code-title truncate">{title ?? lang}</span>
-        <CopyButton text={code} label={`Copy ${title ?? "code"}`} />
+        <CopyButton text={code} label={copyLabel ?? `Copy ${title ?? "code"}`} />
       </div>
-      <pre className="overflow-x-auto p-4 text-[13px] leading-[1.6]">
+      <pre className={cn("overflow-x-auto p-4 text-[13px] leading-[1.6]", wrap && "whitespace-pre-wrap break-words md:whitespace-pre")}>
         <code className="font-mono">{highlight(code, lang)}</code>
       </pre>
     </div>
