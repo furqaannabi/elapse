@@ -26,3 +26,4 @@ What this makes easier, what it rules out, what to watch.
 | --- | --- | --- |
 | 2026-09-03 | [Bun + Hono for the platform API and worker; Foundry for contracts](./2026-09-03-bun-hono-backend.md) | Furqaan |
 | 2026-09-03 | [Neutral dark default theme, amber as the only accent, no red](./2026-09-03-neutral-dark-palette.md) | William |
+| 2026-09-04 | [Subscribers fund by card; Elapse funds escrow from its own AUSD float](./2026-09-04-subscriber-funding-card-and-ausd-float.md) (proposed, awaiting Furqaan) | William |
