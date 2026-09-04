@@ -44,12 +44,12 @@ for (const seed of ["two-merchants", "empty", "low-balance", "signed-out"]) {
   await ctx.close();
 }
 
-{
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
+for (const [name, width] of [["tablet", 768], ["desktop", 1440]]) {
+  const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: "dark" });
   const page = await ctx.newPage();
   await page.goto(`${base}/account?as=two-merchants`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
-  await page.screenshot({ path: path.join(out, "desktop.png") });
+  await page.screenshot({ path: path.join(out, `${name}.png`) });
   await ctx.close();
 }
 

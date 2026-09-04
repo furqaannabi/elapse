@@ -35,12 +35,14 @@ export function RunningTotal({ meters }: { meters: AccountMeter[] }) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card px-5 py-4">
-      <p className="placard">
-        {meters.length} {meters.length === 1 ? "meter" : "meters"} running
-      </p>
-      <p className="numerals mt-1 text-[2rem] leading-none text-live">{formatUsd(accrued, 3)}</p>
-      <p className="numerals mt-2 text-sm text-ink-soft">
+    <section className="rounded-xl border border-border bg-card px-5 py-4 lg:flex lg:items-end lg:justify-between lg:gap-6">
+      <div>
+        <p className="placard">
+          {meters.length} {meters.length === 1 ? "meter" : "meters"} running
+        </p>
+        <p className="numerals mt-1 text-[2rem] leading-none text-live">{formatUsd(accrued, 3)}</p>
+      </div>
+      <p className="numerals mt-2 text-sm text-ink-soft lg:mt-0">
         {formatUsd(perHour(rate))} / hour while they run
       </p>
     </section>

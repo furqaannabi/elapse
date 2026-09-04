@@ -4,6 +4,9 @@
  * stop. Deliberately compact: a subscriber may have several running, and
  * three tall cards would push the newest one off a phone screen.
  *
+ * The card is the same at every width; a wide screen shows more of them
+ * side by side (FR-CHK-024) rather than stretching these.
+ *
  * Maps to: FR-CHK-018, FR-CHK-021, FR-CHK-006, FR-CHK-024; BR-CHK-001.
  */
 "use client";
@@ -43,9 +46,9 @@ export function MeterRow({
     <article
       role="group"
       aria-label={`${m.merchant.name} · ${m.product.name}`}
-      className="rounded-xl border border-border bg-card"
+      className="flex h-full flex-col rounded-xl border border-border bg-card"
     >
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex flex-1 items-center gap-3 px-4 py-3">
         <MerchantMark name={m.merchant.name} logoUrl={m.merchant.logoUrl} size={28} />
 
         <div className="min-w-0 flex-1">
@@ -77,7 +80,7 @@ export function MeterRow({
       </div>
 
       {low && (
-        <p role="status" className="border-t border-live/30 bg-live-soft px-4 py-2 text-xs">
+        <p role="status" className="mt-auto border-t border-live/30 bg-live-soft px-4 py-2 text-xs">
           About {formatRuntimeShort(remaining)} left of your {formatCap(m.maxDurationSeconds)}. The
           meter stops there.
         </p>

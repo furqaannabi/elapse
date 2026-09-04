@@ -45,8 +45,12 @@ export function ReceiptRow({ receipt: r, onOpen }: { receipt: AccountReceipt; on
           </span>
         </span>
         <span className="mt-0.5 block truncate text-xs text-ink-soft">
-          {r.merchant.name} · {r.product.name} · <span className="numerals">{day(r.settledAt)}</span>
+          {r.merchant.name} · {r.product.name}
+          <span className="numerals lg:hidden"> · {day(r.settledAt)}</span>
         </span>
+      </span>
+      <span className="numerals hidden shrink-0 text-xs text-ink-soft lg:block">
+        {day(r.settledAt)}
       </span>
     </button>
   );

@@ -3,7 +3,10 @@
  * branded: the page spans merchants, so it cannot honestly wear one
  * merchant's colours (ADR 2026-09-04, account page cross-merchant).
  *
- * Same narrow column as the checkout so the two feel like one product.
+ * Same column as the checkout on a phone and on a tablet. From `lg` it
+ * widens to exactly two of those columns, so a subscriber with several
+ * meters sees more of them at once and every card keeps the width it was
+ * designed at — narrower cells truncate the figures (FR-CHK-024).
  */
 import { Lock } from "lucide-react";
 import { Logo } from "@/components/site/logo";
@@ -18,15 +21,15 @@ export function AccountFrame({
 }) {
   return (
     <div className={cn("flex min-h-dvh flex-col bg-background text-foreground", className)}>
-      <header className="mx-auto flex w-full max-w-[440px] items-center gap-3 px-5 pt-6 pb-2">
+      <header className="mx-auto flex w-full max-w-[440px] items-center gap-3 px-5 pt-6 pb-2 lg:max-w-[888px]">
         <Logo size={16} />
       </header>
 
-      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-5 pt-3 pb-6">
+      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-5 pt-3 pb-6 lg:max-w-[888px]">
         {children}
       </main>
 
-      <footer className="mx-auto w-full max-w-[440px] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <footer className="mx-auto w-full max-w-[440px] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:max-w-[888px]">
         <p className="flex items-center justify-center gap-2 py-3 text-xs text-ink-soft">
           <Lock className="size-3.5" aria-hidden />
           <span>Only you can see this page.</span>

@@ -143,7 +143,7 @@ export function AccountPage({ api }: { api: AccountApi }) {
           <RunningTotal meters={meters} />
 
           {meters.length > 0 && (
-            <section className="flex flex-col gap-2">
+            <section className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {meters.map((m) => (
                 <MeterRow
                   key={m.subscription}
