@@ -82,7 +82,7 @@ describe("SettingsPage", () => {
     const preview = screen.getByTestId("checkout-preview");
     expect(preview).toHaveTextContent("Nimbus");
     expect(preview).toHaveTextContent(/powered by\s*elapse/i);
-    const accent = screen.getByLabelText(/accent colour/i);
+    const accent = screen.getByLabelText(/^accent colour$/i);
     await user.clear(accent);
     await user.type(accent, "#1a1a1a");
     expect(await screen.findByText(/hard to see/i)).toBeInTheDocument();
@@ -90,6 +90,26 @@ describe("SettingsPage", () => {
     await user.type(accent, "#3b82f6");
     await waitFor(() => expect(screen.queryByText(/hard to see/i)).not.toBeInTheDocument());
     expect(screen.getByText(/layout and copy are always ours/i)).toBeInTheDocument();
+  });
+
+  it("offers a colour picker on the swatch that stays in sync with the hex field and the preview (FR-DSH-103)", async () => {
+    const user = userEvent.setup();
+    const m = await signIn(api);
+    mount(api, m);
+    const picker = screen.getByLabelText(/pick accent colour/i) as HTMLInputElement;
+    expect(picker.type).toBe("color");
+    const hex = screen.getByLabelText(/^accent colour$/i) as HTMLInputElement;
+    await user.clear(hex);
+    await user.type(hex, "#3b82f6");
+    expect(picker.value).toBe("#3b82f6");
+    expect(screen.getByTestId("checkout-preview").querySelector("[style]")?.getAttribute("style")).toContain("#3b82f6");
+    // Picking from the palette writes the hex back and re-tints the preview.
+    await user.click(picker);
+    // jsdom has no palette UI; a change event stands in for the pick.
+    picker.value = "#2563eb";
+    picker.dispatchEvent(new Event("input", { bubbles: true }));
+    await waitFor(() => expect(hex.value).toBe("#2563eb"));
+    expect(screen.getByTestId("checkout-preview").querySelector("[style]")?.getAttribute("style")).toContain("#2563eb");
   });
 
   it("toggles the two email notifications (FR-DSH-105)", async () => {

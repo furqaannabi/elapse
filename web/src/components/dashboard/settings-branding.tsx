@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckoutFrame } from "@/components/checkout/checkout-frame";
 import { RatePanel } from "@/components/checkout/rate-panel";
-import { contrastRatio, PAPER } from "@/lib/dashboard/color";
+import { contrastRatio, PAPER, parseHex } from "@/lib/dashboard/color";
 import { newIdempotencyKey } from "@/lib/dashboard/idempotency";
 import { useMerchant } from "./merchant-context";
 import { Section } from "./settings-sections";
@@ -65,6 +65,13 @@ export function BrandingSection() {
     }
   };
 
+  // The native picker only speaks #rrggbb; feed it the current accent when
+  // that parses, otherwise the default amber, and write picks back as hex.
+  const pickerValue = (() => {
+    const rgb = accent ? parseHex(accent) : null;
+    return rgb ? `#${rgb.map((c) => c.toString(16).padStart(2, "0")).join("")}` : "#f5b74a";
+  })();
+
   const preview = { name: name || "Your business", logoUrl, accent: lowContrast ? undefined : accent || undefined, supportUrl: supportUrl || undefined };
 
   return (
@@ -88,10 +95,23 @@ export function BrandingSection() {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="brand-accent">Accent colour</Label>
             <div className="flex items-center gap-2">
-              <span aria-hidden className="size-8 shrink-0 rounded-lg border border-border" style={{ background: accent && !lowContrast ? accent : "var(--live)" }} />
+              <label
+                className="relative size-10 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border transition-colors hover:border-foreground/40 focus-within:ring-3 focus-within:ring-ring/50"
+                style={{ background: accent && !lowContrast ? accent : "var(--live)" }}
+                title="Pick a colour"
+              >
+                <input
+                  type="color"
+                  aria-label="Pick accent colour"
+                  value={pickerValue}
+                  onInput={(e) => setAccent((e.target as HTMLInputElement).value)}
+                  onChange={(e) => setAccent(e.target.value)}
+                  className="absolute inset-0 size-full cursor-pointer opacity-0"
+                />
+              </label>
               <Input id="brand-accent" value={accent} onChange={(e) => setAccent(e.target.value)} placeholder="#f5b74a" spellCheck={false} className="numerals h-10 max-w-[10rem] text-[13px]" />
             </div>
-            <p className="text-[12px] text-ink-soft">{lowContrast ? <span className="text-caution">Hard to see against a light or dark page. Pick something with more contrast; the default amber is used until then.</span> : "Used for the live amount and the start button, in light and dark. Leave empty for the default amber."}</p>
+            <p className="text-[12px] text-ink-soft">{lowContrast ? <span className="text-caution">Hard to see against a light or dark page. Pick something with more contrast; the default amber is used until then.</span> : "Click the swatch to pick, or type a hex. The preview follows as you go. Leave empty for the default amber."}</p>
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="brand-support">Support URL</Label>
