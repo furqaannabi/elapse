@@ -27,8 +27,9 @@ A merchant engineer who already uses Stripe must be able to `npm install @elapse
 | FR-SDK-003 | `products.retrieve(id)` and `products.list()` return one Product and a `{ object: "list", data: Product[] }` page respectively. | Mocked `GET /v1/products/:id`, `GET /v1/products`. |
 | FR-SDK-004 | `checkout.sessions.create({ product, successUrl, cancelUrl })` returns a Checkout session with `id` prefixed `cs_`, `url` (hosted checkout), `status: "open" \| "complete" \| "expired"`, `success_url`, `cancel_url`, `product`. | Mocked `POST /v1/checkout/sessions`; `session.url` matches `/\/c\/cs_/`. |
 | FR-SDK-005 | `subscriptions.retrieve(id)` returns a Subscription with `id` `sub_`, `status` in `incomplete \| active \| paused \| canceled`, `product`, `customer`, `started_at`, `canceled_at`, `rate_usd_per_second`; `subscriptions.cancel(id)` returns it with `status: "canceled"`, `seconds_elapsed`, `amount_settled`. | Mocked `GET`/`POST …/cancel`; status union is a TS type, not `string`. |
+| FR-SDK-008 | `subscriptions.list({ customer?, product?, status?, limit?, startingAfter? })` returns a `{ object: "list", data: Subscription[], has_more }` page over `GET /v1/subscriptions` (API FR-API-041), newest first, following the cursor convention of FR-SDK-003. Filters are passed as the query string; an unknown `status` throws `ElapseInvalidRequestError` before any request. Added 2026-09-04 (William) so a merchant can render a customer's running meters inside their own product without keeping their own index of `sub_` ids — the gap recorded in the [ADR 2026-09-04 account page](../decisions/2026-09-04-account-page-cross-merchant.md). | Mocked `GET /v1/subscriptions?customer=cus_…&status=active`; filters appear in the query string; bad status throws locally; cursor test across two pages. |
 | FR-SDK-006 | `customers.retrieve(id)` returns a Customer (`cus_`, `email`). `invoices.list({ subscription? })` returns Invoices (`period`, `seconds`, `amount_settled`, `currency`). | Mocked endpoints; list filters are passed as query string. |
-| FR-SDK-007 | No other resource or method is exported. The public surface is exactly: `Elapse`, the six resource namespaces above, `webhooks.constructEvent`, the error classes, and the types. | Test snapshots `Object.keys` of the built module and of an `Elapse` instance against a frozen list. |
+| FR-SDK-007 | No other resource or method is exported. The public surface is exactly: `Elapse`, the six resource namespaces above, `webhooks.constructEvent`, the error classes, and the types. Ten methods: `products.create/retrieve/list`, `checkout.sessions.create`, `subscriptions.retrieve/list/cancel`, `customers.retrieve`, `invoices.list`, `webhooks.constructEvent`. Pause and resume are deliberately absent (dashboard decision 7; API FR-API-043). | Test snapshots `Object.keys` of the built module and of an `Elapse` instance against a frozen list. |
 
 ### Transport (§4.2 "REST under the hood", §9)
 
@@ -89,6 +90,7 @@ products.retrieve(id)      GET  /v1/products/:id
 products.list()            GET  /v1/products
 checkout.sessions.create   POST /v1/checkout/sessions            { product, success_url, cancel_url }
 subscriptions.retrieve(id) GET  /v1/subscriptions/:id
+subscriptions.list(params)  GET  /v1/subscriptions?customer=cus_…&product=prod_…&status=active
 subscriptions.cancel(id)   POST /v1/subscriptions/:id/cancel
 customers.retrieve(id)     GET  /v1/customers/:id
 invoices.list(params)      GET  /v1/invoices?subscription=sub_…
@@ -117,3 +119,4 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | Undecided 2 closed from dashboard decision 9: FR-SDK-020/021 accept multiple `v1` values and an array of secrets, constant-time over every pair. |
+| 2026-09-04 | Claude (for William) | FR-SDK-008 `subscriptions.list` added to the frozen surface, approved by William; FR-SDK-007 restated as ten methods and records that pause/resume stay out. Follows [ADR 2026-09-04 account page](../decisions/2026-09-04-account-page-cross-merchant.md). |

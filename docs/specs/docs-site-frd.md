@@ -45,6 +45,7 @@ The demo opens on the docs (§10, 0:00–0:35) and the judging bar is "clone `ex
 | FR-DOC-023 | Contracts page lists the testnet (and, if live, mainnet) `StreamFactory` address, `AccrualStream` events (`StreamCreated, StreamStarted, StreamPaused, StreamCanceled, Settled(seconds, amount)`), and settle semantics. Addresses are read from `contracts/deployments/*.json` at build time. | Build fails on missing deployment file; addresses match. |
 | FR-DOC-024 | Test clocks page documents how to fast-forward demo rates for the video. Content depends on Undecided 3. | Page exists with at least the "high-rate testnet product" recipe. |
 | FR-DOC-025 | If Aurora lands (§11), a page "Accept any-chain, bill in dollars" is added under Checkout; otherwise it is absent (no "coming soon" pages). | Nav contains no placeholder pages. |
+| FR-DOC-026 | Subscriptions page carries a "Build the meter in your own product" section: `subscriptions.list` to find a customer's running meters, `subscriptions.retrieve` for `rate_usd_per_second` and `started_at`, the client-side tick, and `subscriptions.cancel` behind the merchant's own button — with the note that a merchant-initiated cancel refunds the subscriber exactly as their own cancel would (dashboard decision 7). It also states plainly that Elapse hosts one page in the flow, the checkout, and that the subscriber account page is optional for merchants and Elapse-branded across merchants ([ADR 2026-09-04 account page](../decisions/2026-09-04-account-page-cross-merchant.md)). | Section present; snippets compile; no per-second polling shown. |
 
 ### Webhooks (§4.4, §5.1–§5.3, §6 item 5)
 
@@ -59,7 +60,7 @@ The demo opens on the docs (§10, 0:00–0:35) and the judging bar is "clone `ex
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-DOC-040 | SDKs page has tabs TypeScript · cURL (· Python only if `elapse` is published) for each of the frozen methods; the TS tab is the §4.2 snippet. | Tab set snapshot; Python tab gated by a build flag. |
+| FR-DOC-040 | SDKs page has tabs TypeScript · cURL (· Python only if `elapse` is published) for each of the ten frozen methods (SDK FR-SDK-007, including `subscriptions.list`); the TS tab is the §4.2 snippet. | Tab set snapshot; Python tab gated by a build flag; the ten methods match the SDK export list. |
 | FR-DOC-041 | API reference is generated from `api/openapi.json` at build time; hand-written reference pages are forbidden. | Build fails if the spec is missing or invalid. |
 | FR-DOC-042 | Every SDK method in the docs maps to one operation in the OpenAPI spec and vice versa for the frozen surface; a CI check diffs the SDK's exported method list against the docs' method list and the spec's `operationId`s. | `docs/ci/surface-check.ts` passes; adding a doc for a non-SDK method fails. |
 | FR-DOC-043 | Every TS snippet has a cURL equivalent beside it (tab or adjacent block) showing the same request. | Lint rule: TS block without cURL sibling fails. |
@@ -106,3 +107,4 @@ examples/saas/src/*.ts    include-by-region source for Quickstart snippets
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-04 | Claude (for William) | FR-DOC-026 "build the meter in your own product" section; FR-DOC-040 counts ten frozen methods after `subscriptions.list`. |

@@ -29,3 +29,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-03 | [Percentage platform fee taken inside settle, default 1 percent, owner-adjustable](./2026-09-03-settlement-fee.md) (contract change awaiting Furqaan) | William |
 | 2026-09-03 | [Dashboard scope for 13 October](./2026-09-03-dashboard-scope.md) | William |
 | 2026-09-04 | [Subscribers hold AUSD; subscriber authorizes by permit, Elapse relayer signs the session](./2026-09-04-subscriber-permit-relayer-signs.md) | Furqaan |
+| 2026-09-04 | [The subscriber account page stays Elapse-branded across merchants](./2026-09-04-account-page-cross-merchant.md) | William |
