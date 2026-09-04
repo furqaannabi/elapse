@@ -38,13 +38,13 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `technical-design.md` | Draft — awaiting human sign-off | — |
 | `meter-frd.md` | Built (retro-documented) | — |
 | `landing-frd.md` | Built (retro-documented) | — |
-| `checkout-frd.md` | **Signed** · built against the mock API | William, 2026-09-03 |
+| `checkout-frd.md` | **Signed** · built against the mock API · Surface 4 `/account` (FR-CHK-016–026) added 2026-09-04, awaiting signature | William, 2026-09-03 |
 | `dashboard-frd.md` | **Signed** · built against the mock API (all FR-DSH except the subscriber `/account` which lives in the checkout spec) | William, 2026-09-03 |
-| `contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `api-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `worker-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
-| `sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) | — |
+| `contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) · fee split added 2026-09-04 | — |
+| `api-frd.md` | Draft — awaiting human sign-off (Furqaan) · dashboard and account routes added 2026-09-04 | — |
+| `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) · ledger entity added 2026-09-04 | — |
+| `worker-frd.md` | Draft — awaiting human sign-off (Furqaan) · per-roll grace and notifications 2026-09-04 | — |
+| `sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) · multi-signature verify decided 2026-09-04 | — |
 | `cli-frd.md` | Draft — awaiting human sign-off | — |
 | `docs-site-frd.md` | Draft — awaiting human sign-off | — |
 | `examples-frd.md` | Draft — awaiting human sign-off | — |

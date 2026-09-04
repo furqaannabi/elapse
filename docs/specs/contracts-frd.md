@@ -1,6 +1,6 @@
 # Contracts (`contracts/` — StreamFactory + AccrualStream) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Protocol (Solidity 0.8.24, Foundry, Monad) · Sources: detailed doc §2 "What Elapse is / is not", §3 Objects, §9 Architecture + "Contracts", §12 Week 1 (kill gate) and Week 5, §14, §15; `contracts/src/AccrualStream.sol`; `contracts/foundry.toml`; checkout FRD BR-CHK-002/003; meter FRD FR-MTR-004.
+Status: **Draft — awaiting human sign-off** · Fee split (FR-CON-006, FR-CON-024, FR-CON-030, FR-CON-072, BR-CON-006) added 2026-09-04 from [ADR 2026-09-03 settlement fee](../decisions/2026-09-03-settlement-fee.md); it touches money movement, so Furqaan reviews before build. · Surface: Protocol (Solidity 0.8.24, Foundry, Monad) · Sources: detailed doc §2 "What Elapse is / is not", §3 Objects, §9 Architecture + "Contracts", §12 Week 1 (kill gate) and Week 5, §14, §15; `contracts/src/AccrualStream.sol`; `contracts/foundry.toml`; checkout FRD BR-CHK-002/003; meter FRD FR-MTR-004.
 
 > **P0 — funding gap in the current contract.** `AccrualStream.cancel()` calls `token.transfer(merchant, amount)` but nothing ever moves tokens *into* the contract: there is no deposit/escrow function and no `approve`/`transferFrom` path. On any real token `cancel()` reverts (or silently returns `false`, which is not checked). There is also no `settle()`, no `pause`/`resume`, no refund, no `StreamFactory`, no SafeERC20, and no tests. The Week-1 kill gate (start → cancel mid-stream → settle elapsed on testnet, doc §12) cannot pass on this code. FR-CON-010–014 and FR-CON-030 close the gap.
 
@@ -28,6 +28,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | FR-CON-003 | The factory emits `StreamCreated(address indexed stream, address indexed merchant, address indexed subscriber, address token, uint256 ratePerSecond)`. This is the event the indexer uses to discover clones (indexer FRD FR-IDX-002). | `vm.expectEmit` test. |
 | FR-CON-004 | The factory exposes `implementation()`, `keeper()` and `owner()`; `setKeeper` is owner-only. Clones read `keeper` from the factory at call time. | Owner test; non-owner `setKeeper` reverts. |
 | FR-CON-005 | `initialize` can be called once per clone and never on the implementation. | Re-init reverts `AlreadyInitialized`; implementation is initialised with dead values in its constructor. |
+| FR-CON-006 | The factory holds the platform fee: `feeBps()` (default **100** = 1 %) and `treasury()` (the address that receives fees), both set by `setFee(uint16 bps, address treasury)`, owner-only, `bps ≤ MAX_FEE_BPS` (Undecided 8), `treasury != 0`. Clones read both from the factory at settle time (ADR 2026-09-03 settlement fee; see Undecided 9 for snapshot-at-create). Emits `FeeChanged(bps, treasury)`. | Owner test; non-owner `setFee` reverts; `bps > MAX_FEE_BPS` reverts; default `feeBps() == 100`. |
 
 ### Escrow deposit (doc §9 "Escrow per subscription is simpler for MVP: cancel refunds unspent")
 
@@ -47,7 +48,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | FR-CON-021 | `start()` requires `Created` and `deposited >= ratePerSecond` (at least one affordable second); sets `startedAt = block.timestamp`; emits `StreamStarted(merchant, subscriber, ratePerSecond, startedAt)`. | `start` with empty pot reverts `InsufficientDeposit`. |
 | FR-CON-022 | `pause()` requires `Active`; accrual stops at `block.timestamp`; emits `StreamPaused(uint256 at, uint8 reason)` with `reason = 0` (manual). | `accruedSeconds()` is constant across `vm.warp` while paused. |
 | FR-CON-023 | `resume()` requires `Paused` and remaining affordable seconds ≥ 1; starts a new active segment; paused wall-time is not billed. Emits `StreamResumed(uint256 at)` (see Undecided 3). | Pause 10 s, warp 100 s, resume, warp 5 s → `accruedSeconds() == 15`. |
-| FR-CON-024 | `cancel()` from `Active`, `Paused` or `Created`: settles unsettled whole seconds to the Merchant (FR-CON-030), refunds `refundable()` to the Subscriber, sets `Canceled`; emits `Settled(secs, amount)` (chunk) then `StreamCanceled(uint256 at, uint256 secondsElapsed, uint256 amountSettled)` with **cumulative** totals (matches the §5.3 payload `seconds_elapsed: 83, amount_settled: "0.33"`). Current code emits the chunk, not the total — fix. | Deposit 1 000 000, rate 4 000, warp 83 s, cancel → merchant +332 000, subscriber +668 000, event args (83, 332 000). |
+| FR-CON-024 | `cancel()` from `Active`, `Paused` or `Created`: settles unsettled whole seconds (FR-CON-030: net to the Merchant, fee to the treasury), refunds `refundable()` to the Subscriber, sets `Canceled`; emits `Settled(secs, amount, fee)` (chunk) then `StreamCanceled(uint256 at, uint256 secondsElapsed, uint256 amountSettled)` with **cumulative gross** totals (matches the §5.3 payload `seconds_elapsed: 83, amount_settled: "0.33"`; the merchant's net is derivable from `Settled`). Current code emits the chunk, not the total — fix. | Deposit 1 000 000, rate 4 000, fee 100 bps, warp 83 s, cancel → merchant +328 680, treasury +3 320, subscriber +668 000, `StreamCanceled` args (83, 332 000). |
 | FR-CON-025 | Cancel from `Created` refunds the full deposit and emits `StreamCanceled(at, 0, 0)`; no `Settled` event. | Test. |
 | FR-CON-026 | All functions are no-ops-by-revert after `Canceled` (`AlreadyCanceled`). | One test per function. |
 
@@ -55,7 +56,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-CON-030 | `settle()` computes `secs = accruedSeconds() − settledSeconds`, `amount = secs × ratePerSecond`, transfers `amount` to `merchant` with `safeTransfer`, updates `settledSeconds`/`settledAmount`, emits `Settled(uint256 seconds, uint256 amount)`. Callable in `Active`, `Paused`, and (as part of) cancel. | After `settle`, `settledSeconds == accruedSeconds()`; token balance of merchant increases by exactly `amount`. |
+| FR-CON-030 | `settle()` computes `secs = accruedSeconds() − settledSeconds`, `amount = secs × ratePerSecond` (gross), `fee = amount × feeBps / 10 000` (integer division, rounds down in the merchant's favour), transfers `amount − fee` to `merchant` and `fee` to `treasury` with `safeTransfer` (the fee transfer is skipped when `fee == 0`), updates `settledSeconds`/`settledAmount` (gross)/`settledFee`, emits `Settled(uint256 seconds, uint256 amount, uint256 fee)`. Callable in `Active`, `Paused`, and (as part of) cancel. The fee is a share of settled seconds only; refunds (FR-CON-014) carry no fee. | After `settle`, `settledSeconds == accruedSeconds()`; merchant balance +`amount − fee`, treasury +`fee`; fuzz: `fee ≤ amount`, `(amount − fee) + fee == amount`. |
 | FR-CON-031 | `accruedSeconds()` counts **whole seconds** of active time only: `min(activeSeconds, maxSeconds())`, where `activeSeconds` = sum of closed active segments + current open segment. Never negative; 0 before start. | Fuzz (`vm.warp` sequences of pause/resume) against a reference model in the test. |
 | FR-CON-032 | `settle()` with `secs == 0` is a no-op that still succeeds (keeper batches must not revert on idle streams) and emits nothing. | Test. |
 | FR-CON-033 | `StreamFactory.settleBatch(address[] streams)` calls `settle()` on each, continuing past individual failures (`try/catch`), so one bad stream cannot block a batch. | Batch of 3 with one canceled stream: two `Settled` events, no revert. |
@@ -74,7 +75,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-CON-050 | `start`, `pause`, `resume`, `cancel`: `msg.sender ∈ {subscriber, merchant}`; else `NotParty`. | Test per function with a stranger. |
-| FR-CON-051 | `settle` and `settleBatch` are permissionless (they can only move accrued funds to the Merchant); the keeper role is a convenience, not a gate. | Stranger can `settle`; funds still go to `merchant`. |
+| FR-CON-051 | `settle` and `settleBatch` are permissionless (they can only move accrued funds to the Merchant and the fee to the treasury); the keeper role is a convenience, not a gate. | Stranger can `settle`; funds still go to `merchant` and `treasury`. |
 | FR-CON-052 | `deposit` is permissionless; refunds always go to `subscriber` regardless of who deposited (supports Aurora/any-chain deposits landing from a bridge address, doc §11). | Third party deposits; cancel refunds `subscriber`. |
 | FR-CON-053 | No admin can withdraw, change `ratePerSecond`, `merchant`, `subscriber` or `token` after `initialize`. No upgradeability. | Storage layout review; no setter exists. |
 
@@ -94,7 +95,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | --- | --- | --- |
 | FR-CON-070 | Foundry unit tests for every FR above, named `test_FR_CON_nnn_*`. | `forge test` green; coverage ≥ 90 % lines on `AccrualStream`, `StreamFactory`. |
 | FR-CON-071 | Fuzz tests over `deposited ∈ [0, 1e30]`, `rate ∈ [1, 1e24]`, warp sequences of up to 16 pause/resume/settle steps: elapsed math against a Solidity reference model in the test. | `forge test --fuzz-runs 10000` green. |
-| FR-CON-072 | Invariant test (`forge invariant`): `settledAmount ≤ accruedSeconds() × rate ≤ deposited`, `tokenBalance(stream) == deposited − settledAmount` before cancel, `== 0` after. | Handler contract with random actor actions. |
+| FR-CON-072 | Invariant test (`forge invariant`): `settledAmount ≤ accruedSeconds() × rate ≤ deposited`, `settledFee ≤ settledAmount × feeBps / 10 000`, `tokenBalance(stream) == deposited − settledAmount` before cancel (`settledAmount` is gross: merchant net + treasury fee), `== 0` after; `merchantReceived + treasuryReceived == settledAmount`. | Handler contract with random actor actions, including `setFee` between steps. |
 | FR-CON-073 | **Kill-gate milestone (end of Week 1):** on Monad testnet 10143 with MockUSD or AUSD: `create → deposit → start → warp/wait ≥ 83 s → cancel` yields Merchant balance == `83 × rate` (± the seconds actually elapsed) and Subscriber refund == remainder; `StreamCanceled` and `Settled` visible in the explorer and indexed by Envio (indexer FRD FR-IDX-050). | Recorded tx hashes in `contracts/README.md`; if this fails, doc §12: do not pivot to a monthly wrapper. |
 
 ## Business rules
@@ -106,7 +107,7 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | BR-CON-003 | Paused time is never billed; pot-empty pauses are back-dated to the exhaustion second, not to the settling block. |
 | BR-CON-004 | No transaction per second: nothing in the protocol requires periodic on-chain writes; the UI derives the live figure from `ratePerSecond` and `startedAt`. |
 | BR-CON-005 | `ratePerSecond` is in token base units per second (doc §3 "ratePerSecond wei"); the API must refuse a `rate_usd_per_second` that is not exactly representable in the token's decimals rather than round (API FRD BR-API-004). |
-| BR-CON-006 | Money leaves a stream only to `merchant` (settle) or `subscriber` (refund). There is no owner sweep. |
+| BR-CON-006 | Money leaves a stream only to `merchant` (settle, net), `treasury` (settle, fee) or `subscriber` (refund). There is no owner sweep: the fee is only ever a share of settled seconds, never of the deposit, and the owner cannot move escrow (ADR 2026-09-03 settlement fee). |
 | BR-CON-007 | Escrow earns no yield and is never lent (doc §9, §14 "Yield on escrow: OUT"). |
 | BR-CON-008 | Events are the contract's API to the platform: every state change emits exactly one lifecycle event, and `Settled` is emitted for every non-zero pull. |
 
@@ -116,13 +117,14 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 StreamFactory
   create(merchant, subscriber, token, ratePerSecond) → stream      event StreamCreated(stream, merchant, subscriber, token, ratePerSecond)
   settleBatch(address[] streams)                                     setKeeper(address) · keeper() · implementation()
+  setFee(uint16 bps, address treasury) · feeBps() · treasury()        event FeeChanged(bps, treasury)
 AccrualStream (clone)
   storage: merchant, subscriber, token, ratePerSecond, status, startedAt, segmentStart, closedActiveSeconds,
-           pausedAt, pauseReason, deposited, settledSeconds, settledAmount
+           pausedAt, pauseReason, deposited, settledSeconds, settledAmount (gross), settledFee
   views:   status() accruedSeconds() unsettledSeconds() maxSeconds() exhaustedAt() refundable()
   writes:  initialize deposit start pause resume settle cancel
   events:  Deposited(from, amount, total) StreamStarted(merchant, subscriber, ratePerSecond, startedAt)
-           StreamPaused(at, reason) StreamResumed(at) Settled(seconds, amount) StreamCanceled(at, secondsElapsed, amountSettled)
+           StreamPaused(at, reason) StreamResumed(at) Settled(seconds, amount, fee) StreamCanceled(at, secondsElapsed, amountSettled)
   errors:  NotParty AlreadyInitialized InvalidState ZeroAmount InsufficientDeposit AlreadyCanceled
 ```
 
@@ -137,6 +139,8 @@ Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeE
 5. **Who calls `StreamFactory.create`.** (a) the platform relayer at checkout; (b) the Subscriber's wallet; (c) permissionless. **Recommend (a)**, with `create` left permissionless so (b)/(c) stay possible.
 6. **Keeper cadence K.** 60 s, 5 min, or only on cancel for the demo. **Recommend 5 min** on testnet; the demo relies on cancel-time settlement.
 7. **AUSD testnet address and decimals.** Unknown from the doc; confirm on Monad testnet in Week 1, else `MockUSD` (FR-CON-063).
+8. **Fee cap `MAX_FEE_BPS`.** (a) 1 000 (10 %); (b) 500 (5 %); (c) no cap. **Recommend (a)** — a cap bounds the damage of a compromised owner key; the dashboard copy "Contact us for volume pricing" only ever lowers the rate.
+9. **When the fee rate binds.** (a) read from the factory at each settle, as the [fee ADR](../decisions/2026-09-03-settlement-fee.md) says, so a rate change applies to running streams at their next settle; (b) snapshot `feeBps` into the clone at `create`, so a running stream keeps the rate it started under and a change applies to new streams only. William and Furqaan decide; (a) stands until then.
 
 ## Open
 
@@ -149,3 +153,4 @@ Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeE
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-04 | Claude (for William) | Fee split from [ADR 2026-09-03 settlement fee](../decisions/2026-09-03-settlement-fee.md) (dashboard decision 4b): FR-CON-006 factory `feeBps`/`treasury`, FR-CON-024/030 net + fee transfers, FR-CON-051, FR-CON-072 invariant, BR-CON-006, `Settled` gains `fee`, Undecided 8–9. Awaiting Furqaan's review. |

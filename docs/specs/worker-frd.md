@@ -58,8 +58,9 @@ Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant web
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-WRK-040 | After `roll_secret`, for the overlap window (Undecided 2, default 24 h) the worker signs every request with **both** secrets: header `t=<t>,v1=<hmac_new>,v1=<hmac_old>`. After `previous_secret_expires_at` only the new secret is used and `previous_secret_enc` is nulled. | Header carries two `v1` entries during overlap; one after. |
-| FR-WRK-041 | **SDK dependency (P1):** `constructEvent` currently builds `Object.fromEntries(...)`, so a second `v1` overwrites the first — during overlap it would verify only the *last* `v1`. `sdk/ts` must be changed to collect all `v1` values and accept if **any** matches (constant-time each) — already raised as SDK FRD Undecided 2 (FR-SDK-020/021). Until merged, the worker places the **old** secret's `v1` last so un-migrated merchants keep verifying. | SDK test: header with two `v1`s verifies against either secret; old SDK behaviour documented in CHANGELOG. |
+| FR-WRK-040 | After `roll_secret`, for the overlap window the Merchant chose at roll time (`previous_secret_expires_at` = now + 0 / 1 h / 24 h, dashboard decision 9, API FR-API-105) the worker signs every request with **both** secrets: header `t=<t>,v1=<hmac_new>,v1=<hmac_old>`. After `previous_secret_expires_at` only the new secret is used and `previous_secret_enc` is nulled. A roll with grace 0 nulls the old secret immediately. | Header carries two `v1` entries during overlap; one after; grace 0 → one from the first attempt. |
+| FR-WRK-041 | **SDK dependency (P1):** `constructEvent` currently builds `Object.fromEntries(...)`, so a second `v1` overwrites the first — during overlap it would verify only the *last* `v1`. `sdk/ts` collects all `v1` values and accepts if **any** matches (constant-time each) — decided 2026-09-04, SDK FRD FR-SDK-020/021. Until merged, the worker places the **old** secret's `v1` last so un-migrated merchants keep verifying. | SDK test: header with two `v1`s verifies against either secret; old SDK behaviour documented in CHANGELOG. |
+| FR-WRK-042 | Expiry notices: a scheduler in the worker (runs every minute) writes a `notifications` row (API FR-API-109) for each API key or endpoint secret whose `expires_at` / `previous_secret_expires_at` falls within the next 24 h and again within the next 1 h, once per (target, threshold); and an email through the API's sender when the Merchant's "key or secret about to expire" switch is on (dashboard FR-DSH-105). Endpoint auto-disable (FR-WRK-050) writes the "endpoint stopped retrying" notification and email the same way. | Two rows per rolled key over 24 h, never a third on re-run; email mock called once per row when the switch is on. |
 
 ### Endpoint health and auto-disable (design brief §3.9 "Disabled-endpoint state")
 
@@ -110,7 +111,7 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 ## Undecided (human)
 
 1. **Delays for attempts 6–8.** The doc lists five delays and a cap of eight. (a) repeat `1h` (total ≈ 4 h 13 m); (b) `2h, 4h, 8h` (≈ 15 h); (c) cap at 5 and ignore "8". **Recommend (a)** — matches the README literally and finishes within a demo day.
-2. **Secret-rotation overlap window.** 1 h / 24 h / until the Merchant confirms. **Recommend 24 h** (Stripe's default), contingent on the SDK fix in FR-WRK-041.
+2. ~~**Secret-rotation overlap window.**~~ **Decided 2026-09-03 (dashboard decision 9):** the Merchant picks per roll: now, 1 h, or 24 h (FR-WRK-040); the SDK fix in FR-WRK-041 is decided too.
 3. **Auto-disable threshold N.** (a) 3 consecutive exhausted Deliveries; (b) 10; (c) time-based, 3 days of failures (Stripe). **Recommend (a)** — at hackathon volume, time-based never triggers.
 4. **Worker process shape.** (a) separate `worker/` Node process sharing the API's DB package; (b) in-process loop inside the API; (c) cron-invoked. **Recommend (a)** for isolation; (b) is acceptable for Week 2's "retry once" skeleton.
 5. **CLI `listen --forward` transport (Week 4; CLI FRD FR-CLI-010–013 requires byte-identical forwarding with the platform's real signature).** (a) CLI registers a temporary test-mode Webhook endpoint whose URL is a platform relay; the worker delivers to the relay normally and the CLI long-polls `GET /v1/cli/deliveries`; (b) WebSocket push of the same Deliveries; (c) CLI runs a public tunnel itself. **Recommend (a)** — reuses this worker unchanged and the CLI prints that endpoint's `whsec_`.
@@ -126,3 +127,4 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-04 | Claude (for William) | Dashboard decision 9 applied: FR-WRK-040 overlap window is chosen per roll (0 / 1 h / 24 h), Undecided 2 closed; FR-WRK-041 SDK change marked decided; FR-WRK-042 expiry and exhaustion notifications for the dashboard bell and emails (decision 14). |

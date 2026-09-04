@@ -23,7 +23,7 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | --- | --- | --- |
 | FR-IDX-001 | `indexer/config.yaml` declares one network per deployment: chain id **10143** (testnet) now, **143** (mainnet) in Week 5; `start_block` = factory deployment block from `contracts/deployments/<chainId>.json`. Contract `StreamFactory` at that address with event `StreamCreated`. | `pnpm envio codegen && pnpm envio dev` starts and reaches the head on testnet. |
 | FR-IDX-002 | Dynamic contract registration: the `StreamFactory.StreamCreated` contract-register handler calls `context.addAccrualStream(event.params.stream)` so every clone is indexed from its creation block. | Test: create a stream after the indexer started; its `StreamStarted` is indexed. |
-| FR-IDX-003 | `AccrualStream` ABI events indexed: `Deposited`, `StreamStarted`, `StreamPaused`, `StreamResumed`, `Settled`, `StreamCanceled` (contracts FRD Data block). The ABI is copied from `contracts/out` by a script, never hand-edited. | `pnpm sync-abi` diff is empty in CI. |
+| FR-IDX-003 | `AccrualStream` ABI events indexed: `Deposited`, `StreamStarted`, `StreamPaused`, `StreamResumed`, `Settled(seconds, amount, fee)`, `StreamCanceled` (contracts FRD Data block); `StreamFactory.FeeChanged` is indexed into `Factory`. The ABI is copied from `contracts/out` by a script, never hand-edited. | `pnpm sync-abi` diff is empty in CI. |
 | FR-IDX-004 | Envio HyperSync is the data source for Monad (no RPC polling); `MONAD_RPC_URL` is fallback only. | Config review; sync from `start_block` to head < 2 min on testnet. |
 
 ### Entities (what the indexer stores; doc §9 "Envio + our event log")
@@ -33,7 +33,8 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | FR-IDX-010 | `Stream` entity keyed by clone address: `factory, merchant, subscriber, token, ratePerSecond, status (Created|Active|Paused|Canceled), pauseReason, startedAt, pausedAt, canceledAt, deposited, settledSeconds, settledAmount, createdBlock, updatedBlock`. Each handler updates it. | After the kill-gate cancel (FR-CON-073), `Stream.status == Canceled` and `settledSeconds == 83`. |
 | FR-IDX-011 | `StreamEvent` entity keyed `${chainId}_${txHash}_${logIndex}`: `stream, name, args (json), blockNumber, blockHash, blockTimestamp, txHash, logIndex, ingestStatus (pending|sent|failed|duplicate), ingestAttempts, lastIngestAt`. | One row per log; ingest status visible in GraphQL. |
 | FR-IDX-012 | `Settlement` entity per `Settled` event: `stream, seconds, amount, blockTimestamp, txHash` — mirrors the platform's Invoice and lets judge mode query "settled this session". | Row per `Settled`. |
-| FR-IDX-013 | `Factory` singleton: `streamCount, activeCount, totalSettled` aggregate counters. | Counters match a raw count query. |
+| FR-IDX-013 | `Factory` singleton: `streamCount, activeCount, totalSettled, totalFees, feeBps, treasury` aggregate counters and current fee parameters. | Counters match a raw count query. |
+| FR-IDX-014 | `LedgerEntry` entity, one per money movement, keyed `${chainId}_${txHash}_${logIndex}_${kind}`: `stream, kind (deposit \| settlement \| fee \| refund), amount, from, to, blockNumber, blockHash, blockTimestamp, txHash, logIndex`. Derivation: `Deposited` → one `deposit` (from `from`, to the stream); `Settled` → one `settlement` (`amount − fee`, to `merchant`) and, when `fee > 0`, one `fee` (to `treasury`); `StreamCanceled` → one `refund` (`Stream.deposited − Stream.settledAmount` at that point, to `subscriber`; see Open on carrying `amountRefunded` in the event). This is the source of the dashboard's Balance & payouts ledger (dashboard decision 11, FR-DSH-122) and is posted to ingest as part of the same `postIngest` body (`ledger: [...]`). | Kill-gate cancel yields four rows: deposit, settlement, fee, refund; amounts sum to zero against the stream balance. |
 
 ### Ingest via Effect API (doc §5.2 step 2 "Effect API, cache: false"; §11)
 
@@ -53,6 +54,7 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | FR-IDX-030 | Every ingest carries `block_hash`; the platform stores it. Envio `rollback_on_reorg` follows Undecided 2; if enabled, a rolled-back `StreamEvent` re-posts after the reorg with the new `block_hash`, and the platform treats the old `(tx_hash, log_index)` as a duplicate unless the hash differs (API decides). | Simulated reorg fixture; no duplicate merchant Event. |
 | FR-IDX-031 | Handlers are pure functions of event params + entity state; no wall-clock reads, no ordering assumptions across streams. Within a stream, events are processed in `(blockNumber, logIndex)` order (HyperIndex guarantee). | Replay from `start_block` produces identical entities (deterministic). |
 | FR-IDX-032 | Unknown or malformed logs (ABI mismatch after a redeploy) are logged and skipped, never thrown. | Corrupt-ABI test. |
+| FR-IDX-033 | Reversal marking: ledger rows are never deleted downstream. If a log is re-posted with the same `(tx_hash, log_index)` but a different `block_hash` (a reorg under Undecided 2 option a, or a manual reconcile after one), the platform keeps the earlier `ledger_entries` row, marks it `reversed_by = <new row id>`, and inserts the replacement; the dashboard shows "Reversed" with a link (FR-DSH-124). The indexer's only obligation is to always send `block_hash` (FR-IDX-030). | Reorg fixture: two ingests, one reversed row, one live row, ledger totals count the live row only. |
 
 ### Health, lag and judge mode (doc §7 "Envio query", checkout FRD FR-CHK-011)
 
@@ -118,10 +120,12 @@ Ingest body (shared type in `packages/shared` with the API): see FR-IDX-020; `ev
 
 - Confirm HyperSync coverage for Monad testnet 10143 and mainnet 143 at Week 1 start; if absent, RPC mode with `MONAD_RPC_URL`.
 - Envio API surface (`experimental_createEffect`, `contractRegister`) is version-specific — pin the `envio` version in `indexer/package.json` and record it here.
-- Whether `Deposited` should trigger a platform update at all (API FRD FR-API-071 says yes, no merchant Event).
+- Whether `Deposited` should trigger a platform update at all (API FRD FR-API-071 says yes, no merchant Event). It must at least produce the `deposit` ledger row (FR-IDX-014).
+- `StreamCanceled` does not carry `amountRefunded`; the `refund` ledger row is computed from entity state (FR-IDX-014). Contracts FRD Open asks whether to add it to the event, which would make the row a pure function of the log.
 
 ## Revision
 
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-04 | Claude (for William) | Dashboard decisions 4b and 11 applied: `Settled` carries `fee`, `Factory` tracks fee parameters, FR-IDX-014 `LedgerEntry` with the four kinds, FR-IDX-033 reversal marking for FR-DSH-124. |

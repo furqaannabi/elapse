@@ -1,6 +1,6 @@
 # Hosted checkout (`/c/[session]`) — FRD
 
-Status: **Signed 2026-09-03 (William)** — approved after review; built against the mock API. Decisions taken: Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap. May be revisited. · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
+Status: **Signed 2026-09-03 (William)** — approved after review; built against the mock API. Decisions taken: Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap. May be revisited. **Surface 4 (`/account`, FR-CHK-016–026) added 2026-09-04 — awaiting signature for that section only.** · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
 
 ## Problem
 
@@ -36,6 +36,38 @@ A subscriber is sent a link by a merchant. On a phone, with no account and no cr
 | FR-CHK-014 | Merchant branding renders from the session: business name, logo, accent colour (falls back to the default amber), support/terms link. Layout and copy are never merchant-controlled. | Session with branding shows logo + name + accent; session without shows defaults. |
 | FR-CHK-015 | Until the API exists, the page runs against an in-memory mock that seeds sessions for every state (open, running, low balance, out of funds, canceled, expired, already used, archived) so each screen is reachable by URL. | `/c/cs_demo`, `/c/cs_expired`, `/c/cs_used`, `/c/cs_archived`, `/c/cs_lowbal`, `/c/cs_empty` render their states. |
 
+
+## Surface 4 — Subscriber account (`/account`)
+
+Decided 2026-09-04 (grill round, William): specced here per dashboard decision 16; built after the dashboard, first cut if the deadline bites. Same rules as the checkout: no chain words, no red, mobile first. Funds (FR-CHK-021) follow the [funding ADR](../decisions/2026-09-04-subscriber-funding-card-and-ausd-float.md), which is proposed and awaiting Furqaan; that requirement is marked **proposed** and its mock shapes may change.
+
+| Id | Requirement | Acceptance |
+| --- | --- | --- |
+| FR-CHK-016 | Sign-in is the same passkey / Face ID identity the subscriber created at their first checkout (Privy), with the same email fallback as FR-CHK-002 and no separate credential. Signed-out `/account` shows one sentence and a Sign in button; after sign-in the page loads in place. | `AuthProvider` reused; signed-out state test; mock resolves after the confirm sheet. |
+| FR-CHK-017 | Entry points: a "Manage your meters" link in the checkout footer once signed in, on the receipt (FR-CHK-008), and in the email receipt. No other navigation to `/account` exists. | Link present in meter and receipt states, absent before sign-in; email template carries the URL. |
+| FR-CHK-018 | Running meters: a list across merchants of every `active` or `paused` subscription for this identity (API FR-API-121): merchant logo and name, product, an inline `Readout` ticking at 100 ms from `rate × (now − started_at)`, remaining runtime ("≈ 41 min left"), Add funds, and Cancel. Sorted by started time, newest first. Low-balance and out-of-funds states reuse FR-CHK-006/007 copy per row. | Two merchants in the mock render two rows; ticker math shares `lib/meter/math`. |
+| FR-CHK-019 | Cancel from the list opens a confirm sheet: "Stop the meter at {merchant}?" with "You'll pay N seconds so far · $X" live, a neutral Cancel meter button and a Keep running button. Confirming calls the same cancel path as the checkout; the row becomes its receipt line in place. Checkout's own Cancel stays one tap (FR-CHK-008). | Sheet names the merchant; confirm produces the receipt; dismiss leaves the meter running. |
+| FR-CHK-020 | Receipts: every settled or canceled subscription, newest first, one line each: merchant, "You paid N seconds · $X", date. Tapping opens the FR-CHK-008 receipt with "Email receipt". Per-second detail only; never a fee line (subscribers pay gross). | List from mock invoices; detail matches the checkout receipt component. |
+| FR-CHK-021 | **Proposed (funding ADR).** Balance block at the top: "Your balance $9.67", Add funds (card / Apple Pay / Google Pay via Stripe in dollars), Return to card (Stripe refund on request, "usually 5–10 days"). Add funds on a meter row moves money from the balance into that meter's escrow; if the balance is short it offers the card first. Unused escrow on cancel lands in the balance: "$9.67 returned to your balance". | Mock balance math: cancel refund increments the balance; Return to card decrements it; no chain words in any copy. |
+| FR-CHK-022 | Identity: meters are grouped by the passkey wallet address (API FR-API-121). The address itself is never displayed. No new object or id prefix. | Render test asserts no `0x` string. |
+| FR-CHK-023 | Empty state: "No meters yet. When a merchant sends you a link, your meters show up here." with nothing else. | Empty mock renders the sentence only. |
+| FR-CHK-024 | Mobile 390 first, one hand, ≥ 44 px targets; the list is a card stack, never a table. Light and dark; reduced motion honoured; tickers keep ticking. | Screenshot review at 390 and 1440. |
+| FR-CHK-025 | Runs against the same in-memory mock as the checkout (FR-CHK-015) with seeded identities: `/account?as=two-merchants`, `?as=empty`, `?as=low-balance`, `?as=signed-out`. | Each seed reachable by URL. |
+| FR-CHK-026 | No judge mode on `/account` for 13 Oct; the panel lives on the checkout only (FR-CHK-011). | No `?judge=1` handling on the route. |
+
+Business rule: BR-CHK-007 — `/account` inherits BR-CHK-001 to BR-CHK-006 unchanged.
+
+Account data (mocked until the API exists):
+
+```
+AccountMeter    { subscription: sub_…, merchant: { name, logo_url, support_url }, product: { name, rate_usd_per_second },
+                  status, started_at, paused_at, funded_usd, settled_usd }
+AccountReceipt  { invoice: in_…, merchant: { name }, seconds, amount_settled, settled_at, subscription: sub_… }
+AccountBalance  { balance_usd }                                 // proposed, FR-CHK-021
+```
+
+Grill-me questions (settled 2026-09-04): sign-in same passkey as checkout · entry via checkout links and the email receipt · contents are meters, receipts, and funds · funds shape is one Elapse balance plus per-meter escrow (proposed) · cancel through a confirm sheet naming the merchant · identity is the passkey wallet address, no new object.
+
 ## Business rules
 
 | Id | Rule |
@@ -67,7 +99,7 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 ## Open
 
 - Privy app id and bounty requirements (Week 3).
-- Whether the subscriber `/account` page ships before 13 Oct.
+- `/account` is built after the dashboard and is the first cut if the deadline bites (dashboard decision 16). FR-CHK-021 waits on the funding ADR.
 
 ## Revision
 
@@ -75,3 +107,4 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-03 | William | Reviewed and signed; five open questions settled with the agent's recommendations; FR-CHK-014/015 added. |
+| 2026-09-04 | Claude (for William) | Surface 4 subscriber account from the 2026-09-04 grill round: FR-CHK-016–026, BR-CHK-007, account data shapes. FR-CHK-021 marked proposed pending the funding ADR. Awaiting signature. |
