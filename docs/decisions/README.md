@@ -28,4 +28,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-03 | [Neutral dark default theme, amber as the only accent, no red](./2026-09-03-neutral-dark-palette.md) | William |
 | 2026-09-03 | [Percentage platform fee taken inside settle, default 1 percent, owner-adjustable](./2026-09-03-settlement-fee.md) (contract change awaiting Furqaan) | William |
 | 2026-09-03 | [Dashboard scope for 13 October](./2026-09-03-dashboard-scope.md) | William |
-| 2026-09-04 | [Subscribers hold AUSD; the SDK signs the session with a merchant server-side key](./2026-09-04-subscriber-holds-ausd-sdk-signs.md) | Furqaan |
+| 2026-09-04 | [Subscribers hold AUSD; subscriber authorizes by permit, Elapse relayer signs the session](./2026-09-04-subscriber-permit-relayer-signs.md) | Furqaan |
