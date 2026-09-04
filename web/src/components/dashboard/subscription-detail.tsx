@@ -79,7 +79,9 @@ export function SubscriptionDetail({ subscriptionId }: { subscriptionId: string 
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-[1.125rem] font-semibold tracking-[-0.01em]">{s.product.name}</h2>
         <StatusChip tone={SUB_TONE[s.status]}>{subWord(s.status)}</StatusChip>
-        {s.status === "paused" && s.pauseReason === "out_of_funds" && <span className="text-[12px] text-caution">Out of funds</span>}
+        {s.endedReason === "cap_reached" && (
+          <span className="text-[12px] text-caution">Reached its limit</span>
+        )}
       </div>
       <p className="numerals mt-1 flex items-center gap-1 text-[12px] text-ink-soft">
         {s.id}

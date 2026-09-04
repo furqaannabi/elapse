@@ -1,18 +1,75 @@
 /**
- * Funding math for the hosted checkout — how long a deposit lasts, when
- * to warn, what comes back. Pure functions over bigint nano-dollars.
+ * Cap and runtime math for the hosted checkout — how long a cap lasts,
+ * what it costs at most, when to warn, what comes back. Pure functions
+ * over bigint nano-dollars.
+ *
+ * The subscriber chooses a duration, not an amount: the cap is the pot,
+ * it cannot be raised mid-session, and the meter ends when it runs out
+ * (FR-CHK-003, FR-CHK-007).
  *
  * Maps to: FR-CHK-003, FR-CHK-006, FR-CHK-007, FR-CHK-008, BR-CHK-002.
  */
 import { NANO, formatUsd } from "@/lib/meter/math";
 
-/** Dollar presets the fund step offers (FR-CHK-003). */
-export const FUND_PRESETS_USD = ["5", "10", "25"] as const;
+/** Duration presets the cap step offers, in seconds (FR-CHK-003). */
+export const CAP_PRESETS_SECONDS = [3600, 14_400] as const;
 
 /** Warn when less than this much runtime remains (FR-CHK-006). */
 export const LOW_BALANCE_MS = 5 * 60_000;
 
 const USD_PATTERN = /^\$?(\d+)(?:\.(\d{1,9}))?$/;
+const MINUTES_PATTERN = /^(\d+)$/;
+
+/**
+ * The most a cap can cost: `rate × seconds`, exact in nano-dollars. This
+ * is the number the subscriber signs for and the ceiling the contract
+ * enforces (BR-CHK-002).
+ */
+export function maxEscrowNano(capSeconds: number, rateNano: bigint): bigint {
+  if (capSeconds <= 0) return 0n;
+  return BigInt(Math.floor(capSeconds)) * rateNano;
+}
+
+/**
+ * Names a cap the way the copy says it: "1 hour", "4 hours", "25 min".
+ * Used inside sentences ("About 5 min left of your 1 hour"), so it never
+ * carries a ≈ or a leading capital.
+ */
+export function formatCap(capSeconds: number): string {
+  const s = Math.floor(capSeconds);
+  if (s < 60) return `${s} ${s === 1 ? "second" : "seconds"}`;
+  const min = Math.floor(s / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const rem = min % 60;
+  if (rem) return `${h} h ${rem} min`;
+  return `${h} ${h === 1 ? "hour" : "hours"}`;
+}
+
+/**
+ * Parses a custom cap typed in whole minutes.
+ * @throws on empty, zero, negative, or non-numeric input.
+ */
+export function parseCapMinutes(input: string): number {
+  const m = MINUTES_PATTERN.exec(input.trim());
+  if (!m) throw new Error(`Invalid duration "${input}"`);
+  const minutes = Number(m[1]);
+  if (minutes <= 0) throw new Error(`Invalid duration "${input}"`);
+  return minutes * 60;
+}
+
+/**
+ * The instant a running meter uses up its cap, or `null` when the rate
+ * cannot exhaust it. This is where the session ends (FR-CHK-007).
+ */
+export function capEndsAt(
+  startedAt: number,
+  capNano: bigint,
+  rateNano: bigint,
+): number | null {
+  const runtime = runtimeMsFor(capNano, rateNano);
+  return runtime === Infinity ? null : startedAt + runtime;
+}
 
 /**
  * Parses a USD amount ("10", "0.50", "$25") into nano-dollars.
@@ -25,7 +82,7 @@ export function parseUsd(input: string): bigint {
   return BigInt(whole) * NANO + BigInt(fraction.padEnd(9, "0"));
 }
 
-/** Milliseconds a deposit buys at a rate. Infinity when the rate is zero. */
+/** Milliseconds a cap buys at a rate. Infinity when the rate is zero. */
 export function runtimeMsFor(fundedNano: bigint, rateNano: bigint): number {
   if (rateNano <= 0n) return Infinity;
   return Number((fundedNano * 1000n) / rateNano);
@@ -46,7 +103,7 @@ export function isLowBalance(remainingMs: number): boolean {
   return remainingMs < LOW_BALANCE_MS;
 }
 
-/** Unused escrow returned on cancel: funded − settled, floored at zero. */
+/** Unused escrow returned on cancel: cap − settled, floored at zero. */
 export function refundNano(fundedNano: bigint, settledNano: bigint): bigint {
   const r = fundedNano - settledNano;
   return r > 0n ? r : 0n;

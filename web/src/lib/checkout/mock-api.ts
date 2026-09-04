@@ -4,11 +4,13 @@
  * the real service, so swapping is a one-line change.
  *
  * Seeds one session per screen (FR-CHK-015) so any state is reachable by
- * URL: /c/cs_demo, /c/cs_ready, /c/cs_running, /c/cs_lowbal, /c/cs_empty,
+ * URL: /c/cs_demo, /c/cs_ready, /c/cs_running, /c/cs_lowbal, /c/cs_capped,
  * /c/cs_paused, /c/cs_done, /c/cs_expired, /c/cs_used, /c/cs_archived.
  *
- * Money rules mirror the contract: cancel settles whole seconds × rate and
- * refunds the rest (BR-CHK-002, BR-CHK-003). Nothing here knows a secret key.
+ * Money rules mirror the contract: the cap is the pot, reaching it ends
+ * the session at that second (FR-CHK-007, contracts FR-CON-041), and any
+ * stop settles whole seconds × rate and returns the rest (BR-CHK-002,
+ * BR-CHK-003). Nothing here knows a secret key.
  */
 import {
   formatUsd,
@@ -17,8 +19,8 @@ import {
   wholeSeconds,
   elapsedMs as elapsedMsOf,
 } from "@/lib/meter/math";
-import { formatReceiptUsd, parseUsd, refundNano } from "./funding";
-import type { CheckoutSession, Customer, Subscription } from "./types";
+import { capEndsAt, formatReceiptUsd, maxEscrowNano, parseUsd, refundNano } from "./funding";
+import type { CheckoutSession, Customer, EndedReason, Subscription } from "./types";
 
 export type Receipt = {
   secondsElapsed: number;
@@ -27,7 +29,34 @@ export type Receipt = {
   startedAt: number;
   canceledAt: number;
   rateUsdPerSecond: string;
+  endedReason: EndedReason;
 };
+
+/**
+ * Builds the receipt for a subscription that has stopped. Pure, so the
+ * page can render a receipt for a session it opened after the fact and
+ * get the same numbers the API reported (BR-CHK-003).
+ */
+export function buildReceipt(sub: Subscription): Receipt {
+  const startedAt = sub.startedAt ?? 0;
+  const canceledAt = sub.canceledAt ?? startedAt;
+  const seconds = wholeSeconds(
+    elapsedMsOf({ startedAt, now: canceledAt, pausedAt: sub.pausedAt }),
+  );
+  const rate = parseRate(sub.rateUsdPerSecond);
+  const cap = parseUsd(sub.fundedUsd);
+  let settled = settledNano(rate, seconds);
+  if (settled > cap) settled = cap; // BR-CHK-002
+  return {
+    secondsElapsed: seconds,
+    amountSettledUsd: formatReceiptUsd(settled),
+    refundedUsd: formatReceiptUsd(refundNano(cap, settled)),
+    startedAt,
+    canceledAt,
+    rateUsdPerSecond: sub.rateUsdPerSecond,
+    endedReason: sub.endedReason ?? "canceled",
+  };
+}
 
 export type Delivery = {
   id: string;
@@ -59,11 +88,16 @@ export class CheckoutApiError extends Error {
 export interface CheckoutApi {
   getSession(id: string): Promise<CheckoutSession>;
   signIn(id: string, input: { email?: string }): Promise<CheckoutSession>;
-  fund(id: string, usd: string): Promise<CheckoutSession>;
+  /** Authorise a cap in seconds. Escrow is rate × cap; it replaces any earlier choice. */
+  setCap(id: string, seconds: number): Promise<CheckoutSession>;
   start(id: string): Promise<CheckoutSession>;
   pause(id: string): Promise<CheckoutSession>;
   resume(id: string): Promise<CheckoutSession>;
   cancel(id: string): Promise<{ session: CheckoutSession; receipt: Receipt }>;
+  /** The receipt for a stopped session, however it stopped. */
+  getReceipt(id: string): Promise<Receipt>;
+  /** A fresh session for the same product, after one ended at its cap. */
+  startAgain(id: string): Promise<CheckoutSession>;
   emailReceipt(id: string, email: string): Promise<{ sent: true }>;
   getJudgeData(id: string): Promise<JudgeData>;
 }
@@ -73,7 +107,7 @@ export const SEEDED_SESSION_IDS = [
   "cs_ready",
   "cs_running",
   "cs_lowbal",
-  "cs_empty",
+  "cs_capped",
   "cs_paused",
   "cs_done",
   "cs_expired",
@@ -110,6 +144,7 @@ function sub(over: Partial<Subscription>): Subscription {
     startedAt: null,
     pausedAt: null,
     canceledAt: null,
+    maxDurationSeconds: 0,
     fundedUsd: "0",
     rateUsdPerSecond: PRODUCT.rateUsdPerSecond,
     ...over,
@@ -127,34 +162,31 @@ function seed(now: number): Record<string, CheckoutSession> {
     expiresAt: now + 24 * 3_600_000,
     ...over,
   });
-  // $10 at $0.004/s = 2500 s of runtime.
+  // A one-hour cap at $0.004/s is $14.40 of escrow.
+  const CAP = { maxDurationSeconds: 3600, fundedUsd: "14.4" };
   return {
     cs_demo: open("cs_demo"),
-    cs_ready: open("cs_ready", { customer: CUSTOMER, subscription: sub({ fundedUsd: "10" }) }),
+    cs_ready: open("cs_ready", { customer: CUSTOMER, subscription: sub({ ...CAP }) }),
     cs_running: open("cs_running", {
       customer: CUSTOMER,
-      subscription: sub({ status: "active", fundedUsd: "10", startedAt: now - 83_000 }),
+      subscription: sub({ ...CAP, status: "active", startedAt: now - 83_000 }),
     }),
     cs_lowbal: open("cs_lowbal", {
       customer: CUSTOMER,
-      subscription: sub({ status: "active", fundedUsd: "10", startedAt: now - 2_260_000 }),
+      subscription: sub({ ...CAP, status: "active", startedAt: now - 3_400_000 }),
     }),
-    cs_empty: open("cs_empty", {
+    // Started long enough ago to have used its whole cap; the first read
+    // finalises it (FR-CHK-007).
+    cs_capped: open("cs_capped", {
       customer: CUSTOMER,
-      subscription: sub({
-        status: "paused",
-        fundedUsd: "10",
-        startedAt: now - 2_600_000,
-        pausedAt: now - 100_000,
-        pauseReason: "out_of_funds",
-      }),
+      subscription: sub({ ...CAP, status: "active", startedAt: now - 3_700_000 }),
     }),
     cs_paused: open("cs_paused", {
       product: { ...PRODUCT, allowPause: true },
       customer: CUSTOMER,
       subscription: sub({
+        ...CAP,
         status: "paused",
-        fundedUsd: "10",
         startedAt: now - 300_000,
         pausedAt: now - 60_000,
         pauseReason: "user",
@@ -164,8 +196,9 @@ function seed(now: number): Record<string, CheckoutSession> {
       status: "complete",
       customer: CUSTOMER,
       subscription: sub({
+        ...CAP,
         status: "canceled",
-        fundedUsd: "10",
+        endedReason: "canceled",
         startedAt: now - 90_000,
         pausedAt: now - 6_600,
         canceledAt: now - 6_600,
@@ -189,10 +222,38 @@ export function createMockCheckoutApi(
   const wait = () =>
     latency > 0 ? new Promise<void>((r) => setTimeout(r, latency)) : Promise.resolve();
 
+  /**
+   * The contract ends a stream the first time anyone observes it past its
+   * cap, back-dated to that second (contracts FR-CON-041). Every read and
+   * every write goes through here, so the mock can never show a meter that
+   * has run past what the subscriber authorised.
+   */
+  const finalizeIfCapped = (s: CheckoutSession): CheckoutSession => {
+    const sb = s.subscription;
+    if (!sb || sb.status !== "active" || sb.startedAt === null) return s;
+    const endsAt = capEndsAt(sb.startedAt, parseUsd(sb.fundedUsd), parseRate(sb.rateUsdPerSecond));
+    if (endsAt === null || now() < endsAt) return s;
+    const ended: CheckoutSession = {
+      ...s,
+      status: "complete",
+      subscription: {
+        ...sb,
+        status: "canceled",
+        endedReason: "cap_reached",
+        pausedAt: endsAt,
+        canceledAt: endsAt,
+      },
+    };
+    store[s.id] = ended;
+    record(s.id, "invoice.payment_failed");
+    record(s.id, "subscription.canceled");
+    return ended;
+  };
+
   const get = (id: string): CheckoutSession => {
     const s = store[id];
     if (!s) throw new CheckoutApiError("not_found", `No checkout session ${id}`);
-    return s;
+    return finalizeIfCapped(s);
   };
   const put = (s: CheckoutSession) => {
     store[s.id] = s;
@@ -221,35 +282,32 @@ export function createMockCheckoutApi(
       });
     },
 
-    async fund(id, usd) {
+    async setCap(id, seconds) {
       await wait();
       const s = get(id);
       if (!s.customer) throw new CheckoutApiError("invalid_state", "Sign in first");
-      let add: bigint;
-      try {
-        add = parseUsd(usd);
-      } catch {
-        throw new CheckoutApiError("invalid_amount", "Enter a valid amount");
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        throw new CheckoutApiError("invalid_amount", "Choose how long the meter may run");
       }
-      if (add <= 0n) throw new CheckoutApiError("invalid_amount", "Amount must be above zero");
       const existing = s.subscription ?? sub({});
-      const funded = parseUsd(existing.fundedUsd) + add;
-      const fundedUsd = formatUsd(funded, 3, { symbol: false }).replace(/\.?0+$/, "");
-      // If we were paused for funds, top-up resumes the meter.
-      const resumed =
-        existing.status === "paused" && existing.pauseReason === "out_of_funds"
-          ? { status: "active" as const, pausedAt: null, pauseReason: undefined }
-          : {};
-      const next = put({ ...s, subscription: { ...existing, fundedUsd, ...resumed } });
-      if (resumed.status) record(id, "subscription.updated");
-      return next;
+      if (existing.status !== "incomplete") {
+        // The cap is signed for once and cannot be raised mid-session.
+        throw new CheckoutApiError("invalid_state", "The meter is already running");
+      }
+      const capSeconds = Math.floor(seconds);
+      const escrow = maxEscrowNano(capSeconds, parseRate(existing.rateUsdPerSecond));
+      const fundedUsd = formatUsd(escrow, 3, { symbol: false }).replace(/\.?0+$/, "");
+      return put({
+        ...s,
+        subscription: { ...existing, maxDurationSeconds: capSeconds, fundedUsd },
+      });
     },
 
     async start(id) {
       await wait();
       const s = get(id);
       if (!s.subscription || parseUsd(s.subscription.fundedUsd) <= 0n) {
-        throw new CheckoutApiError("invalid_state", "Add funds before starting");
+        throw new CheckoutApiError("invalid_state", "Choose how long the meter may run first");
       }
       if (s.subscription.status !== "incomplete") {
         throw new CheckoutApiError("invalid_state", "Already started");
@@ -308,29 +366,39 @@ export function createMockCheckoutApi(
         throw new CheckoutApiError("invalid_state", "Nothing to cancel");
       }
       const t = now();
-      const elapsed = elapsedMsOf({ startedAt: sb.startedAt, now: t, pausedAt: sb.pausedAt });
-      const seconds = wholeSeconds(elapsed);
-      const rate = parseRate(sb.rateUsdPerSecond);
-      const funded = parseUsd(sb.fundedUsd);
-      let settled = settledNano(rate, seconds);
-      if (settled > funded) settled = funded; // BR-CHK-002
-      const refund = refundNano(funded, settled);
-      const receipt: Receipt = {
-        secondsElapsed: seconds,
-        amountSettledUsd: formatReceiptUsd(settled),
-        refundedUsd: formatReceiptUsd(refund),
-        startedAt: sb.startedAt,
+      const stopped: Subscription = {
+        ...sb,
+        status: "canceled",
+        endedReason: "canceled",
+        pausedAt: sb.pausedAt ?? t,
         canceledAt: t,
-        rateUsdPerSecond: sb.rateUsdPerSecond,
       };
-      const session = put({
-        ...s,
-        status: "complete",
-        subscription: { ...sb, status: "canceled", pausedAt: sb.pausedAt ?? t, canceledAt: t },
-      });
+      const session = put({ ...s, status: "complete", subscription: stopped });
       record(id, "subscription.canceled");
       record(id, "invoice.settled");
-      return { session, receipt };
+      return { session, receipt: buildReceipt(stopped) };
+    },
+
+    async getReceipt(id) {
+      await wait();
+      const sb = get(id).subscription;
+      if (!sb || sb.status !== "canceled") {
+        throw new CheckoutApiError("invalid_state", "This session has not stopped");
+      }
+      return buildReceipt(sb);
+    },
+
+    async startAgain(id) {
+      await wait();
+      const s = get(id);
+      const next: CheckoutSession = {
+        ...s,
+        id: `cs_${Math.random().toString(36).slice(2, 9)}`,
+        status: "open",
+        subscription: null,
+        expiresAt: now() + 24 * 3_600_000,
+      };
+      return put(next);
     },
 
     async emailReceipt(id) {

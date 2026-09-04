@@ -1,6 +1,6 @@
 /**
  * Screenshot harness for the hosted checkout: every seeded state at 390px,
- * plus the sign-in → fund → start → cancel flow driven end to end, plus one
+ * plus the sign-in → cap → start → cancel flow driven end to end, plus one
  * desktop capture and judge mode.
  *
  * Usage: node scripts/checkout-shots.mjs <baseUrl> <outDir>
@@ -20,7 +20,7 @@ const mobile = {
   colorScheme: "dark",
 };
 
-const states = ["cs_demo", "cs_ready", "cs_running", "cs_lowbal", "cs_empty", "cs_paused", "cs_done", "cs_expired", "cs_used", "cs_archived", "cs_missing"];
+const states = ["cs_demo", "cs_ready", "cs_running", "cs_lowbal", "cs_capped", "cs_paused", "cs_done", "cs_expired", "cs_used", "cs_archived", "cs_missing"];
 const errors = [];
 
 for (const id of states) {
@@ -44,7 +44,7 @@ for (const id of states) {
   await ctx.close();
 }
 
-// The flow: sign in (email) → fund $10 → start → cancel.
+// The flow: sign in (email) → choose a cap → start → cancel.
 {
   const ctx = await browser.newContext(mobile);
   const page = await ctx.newPage();
@@ -58,8 +58,8 @@ for (const id of states) {
   await page.waitForTimeout(600);
   await page.screenshot({ path: path.join(out, `flow-2-scanning.png`) });
   await page.waitForTimeout(1400);
-  await page.screenshot({ path: path.join(out, `flow-3-fund.png`) });
-  await page.getByRole("button", { name: /Add \$10/ }).click();
+  await page.screenshot({ path: path.join(out, `flow-3-cap.png`) });
+  await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(out, `flow-4-ready.png`) });
   await page.getByRole("button", { name: "Start" }).click();

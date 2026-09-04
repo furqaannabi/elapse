@@ -10,7 +10,13 @@
 
 export type SubscriptionStatus = "incomplete" | "active" | "paused" | "canceled";
 export type SessionStatus = "open" | "complete" | "expired";
-export type PauseReason = "user" | "out_of_funds";
+/**
+ * Pause is only ever manual. A meter that reaches its cap ends; it never
+ * pauses, because the cap cannot be raised mid-session (FR-CHK-007).
+ */
+export type PauseReason = "user";
+/** Why a subscription ended: the subscriber stopped it, or its cap ran out. */
+export type EndedReason = "canceled" | "cap_reached";
 
 /** What a merchant may brand on the hosted page. Layout and copy are ours. */
 export type Branding = {
@@ -37,7 +43,13 @@ export type Subscription = {
   pausedAt: number | null;
   canceledAt: number | null;
   pauseReason?: PauseReason;
-  /** Escrow deposited for this subscription, USD decimal string. */
+  endedReason?: EndedReason;
+  /**
+   * The cap the subscriber authorised, in seconds. The session ends here
+   * (FR-CHK-007) and it is immutable once the meter is running.
+   */
+  maxDurationSeconds: number;
+  /** Escrow held for this subscription (rate × cap), USD decimal string. */
   fundedUsd: string;
   /** Snapshot of the product rate at start. */
   rateUsdPerSecond: string;
@@ -65,10 +77,9 @@ export type CheckoutView =
   | "used"
   | "archived"
   | "signin"
-  | "fund"
+  | "cap"
   | "ready"
   | "running"
   | "low_balance"
-  | "out_of_funds"
   | "paused"
   | "canceled";

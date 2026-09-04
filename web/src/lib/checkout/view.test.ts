@@ -3,8 +3,8 @@
  * session plus "now" into the screen to show.
  *
  * FR-CHK-004 (start → running), FR-CHK-006 (low balance), FR-CHK-007
- * (out of funds pauses), FR-CHK-008 (canceled → receipt), FR-CHK-010
- * (expired / used / archived), FR-CHK-002 (sign-in first).
+ * (the session ends at its cap), FR-CHK-008 (canceled → receipt),
+ * FR-CHK-010 (expired / used / archived), FR-CHK-002 (sign-in first).
  */
 import { describe, expect, it } from "vitest";
 import type { CheckoutSession, Subscription } from "./types";
@@ -38,6 +38,7 @@ const sub = (over: Partial<Subscription> = {}): Subscription => ({
   startedAt: null,
   pausedAt: null,
   canceledAt: null,
+  maxDurationSeconds: 0,
   fundedUsd: "0",
   rateUsdPerSecond: "0.004",
   ...over,
@@ -63,14 +64,14 @@ describe("deriveView", () => {
     expect(deriveView(base, NOW)).toBe("signin");
   });
 
-  it("customer but nothing funded → fund", () => {
+  it("customer but no cap chosen → cap", () => {
     const s = { ...base, customer: { id: "cus_1" as const } };
-    expect(deriveView(s, NOW)).toBe("fund");
-    expect(deriveView({ ...s, subscription: sub() }, NOW)).toBe("fund");
+    expect(deriveView(s, NOW)).toBe("cap");
+    expect(deriveView({ ...s, subscription: sub() }, NOW)).toBe("cap");
   });
 
-  it("funded, not started → ready", () => {
-    const s = { ...base, customer: { id: "cus_1" as const }, subscription: sub({ fundedUsd: "10" }) };
+  it("cap chosen, not started → ready", () => {
+    const s = { ...base, customer: { id: "cus_1" as const }, subscription: sub({ maxDurationSeconds: 2500, fundedUsd: "10" }) };
     expect(deriveView(s, NOW)).toBe("ready");
   });
 
@@ -78,7 +79,7 @@ describe("deriveView", () => {
     const s = {
       ...base,
       customer: { id: "cus_1" as const },
-      subscription: sub({ status: "active", fundedUsd: "10", startedAt: NOW - 10_000 }),
+      subscription: sub({ status: "active", maxDurationSeconds: 2500, fundedUsd: "10", startedAt: NOW - 10_000 }),
     };
     expect(deriveView(s, NOW)).toBe("running");
   });
@@ -88,40 +89,34 @@ describe("deriveView", () => {
     const s = {
       ...base,
       customer: { id: "cus_1" as const },
-      subscription: sub({ status: "active", fundedUsd: "10", startedAt: NOW - 2_201_000 }),
+      subscription: sub({ status: "active", maxDurationSeconds: 2500, fundedUsd: "10", startedAt: NOW - 2_201_000 }),
     };
     expect(deriveView(s, NOW)).toBe("low_balance");
   });
 
-  it("active but funds exhausted → out_of_funds (client-side, before the API pauses)", () => {
+  it("active past its cap → canceled: the session ends, it never pauses (FR-CHK-007)", () => {
     const s = {
       ...base,
       customer: { id: "cus_1" as const },
-      subscription: sub({ status: "active", fundedUsd: "10", startedAt: NOW - 2_600_000 }),
+      subscription: sub({ status: "active", maxDurationSeconds: 2500, fundedUsd: "10", startedAt: NOW - 2_600_000 }),
     };
-    expect(deriveView(s, NOW)).toBe("out_of_funds");
+    expect(deriveView(s, NOW)).toBe("canceled");
   });
 
-  it("paused by the system for funds → out_of_funds; paused by the user → paused", () => {
-    const common = { ...base, customer: { id: "cus_1" as const } };
-    expect(
-      deriveView(
-        {
-          ...common,
-          subscription: sub({ status: "paused", fundedUsd: "10", startedAt: NOW - 5000, pausedAt: NOW - 1000, pauseReason: "out_of_funds" }),
-        },
-        NOW,
-      ),
-    ).toBe("out_of_funds");
-    expect(
-      deriveView(
-        {
-          ...common,
-          subscription: sub({ status: "paused", fundedUsd: "10", startedAt: NOW - 5000, pausedAt: NOW - 1000, pauseReason: "user" }),
-        },
-        NOW,
-      ),
-    ).toBe("paused");
+  it("paused is only ever a manual pause", () => {
+    const s = {
+      ...base,
+      customer: { id: "cus_1" as const },
+      subscription: sub({
+        status: "paused",
+        maxDurationSeconds: 2500,
+        fundedUsd: "10",
+        startedAt: NOW - 5000,
+        pausedAt: NOW - 1000,
+        pauseReason: "user",
+      }),
+    };
+    expect(deriveView(s, NOW)).toBe("paused");
   });
 
   it("canceled → canceled receipt, even when the session is complete", () => {
@@ -129,7 +124,7 @@ describe("deriveView", () => {
       ...base,
       status: "complete" as const,
       customer: { id: "cus_1" as const },
-      subscription: sub({ status: "canceled", fundedUsd: "10", startedAt: NOW - 90_000, canceledAt: NOW - 7_000 }),
+      subscription: sub({ status: "canceled", maxDurationSeconds: 2500, fundedUsd: "10", startedAt: NOW - 90_000, canceledAt: NOW - 7_000 }),
     };
     expect(deriveView(s, NOW)).toBe("canceled");
   });

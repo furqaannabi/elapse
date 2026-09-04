@@ -406,18 +406,24 @@ export function seedMerchantData(opts: {
         });
       }
       sub.canceledAt = at;
+      // A session that used its whole cap ends by itself; the merchant is
+      // told with invoice.payment_failed before the cancel (API FR-API-051).
+      const capReached = r() < 0.3;
+      sub.endedReason = capReached ? "cap_reached" : "canceled";
+      if (capReached) {
+        push("invoice.payment_failed", sub.id, at, { subscription: sub.id, reason: "cap_reached" });
+      }
       push("subscription.canceled", sub.id, at, {
         subscription: sub.id,
         seconds_elapsed: runSeconds,
         amount_settled: formatUsd(settledTotal, 3, { symbol: false }),
+        ended_reason: sub.endedReason,
       });
     } else if (status === "paused") {
       const at = sub.startedAt! + runSeconds * 1000;
       sub.pausedAt = at;
-      const exhausted = r() < 0.5;
-      sub.pauseReason = exhausted ? "out_of_funds" : "user";
-      if (exhausted) push("invoice.payment_failed", sub.id, at, { subscription: sub.id, reason: "pot_empty" });
-      else push("subscription.updated", sub.id, at, { subscription: sub.id, status: "paused" });
+      sub.pauseReason = "user";
+      push("subscription.updated", sub.id, at, { subscription: sub.id, status: "paused" });
     }
     sub.settledUsd = formatUsd(settledTotal, 3, { symbol: false });
     settledByCustomer.set(customer.id, (settledByCustomer.get(customer.id) ?? 0n) + settledTotal);

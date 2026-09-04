@@ -89,7 +89,10 @@ export type Customer = {
 };
 
 export type SubscriptionStatus = "incomplete" | "active" | "paused" | "canceled";
-export type PauseReason = "user" | "out_of_funds";
+/** Pause is only ever manual; a meter that reaches its cap ends (FR-CHK-007). */
+export type PauseReason = "user";
+/** Why a subscription ended: the subscriber stopped it, or its cap ran out. */
+export type EndedReason = "canceled" | "cap_reached";
 
 export type Subscription = {
   id: `sub_${string}`;
@@ -102,6 +105,7 @@ export type Subscription = {
   pausedAt: number | null;
   canceledAt: number | null;
   pauseReason?: PauseReason;
+  endedReason?: EndedReason;
   fundedUsd: string;
   settledUsd: string;
   checkoutSession: `cs_${string}`;

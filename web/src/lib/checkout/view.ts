@@ -5,6 +5,10 @@
  * never branches on raw statuses; it renders the view this returns, so
  * every state is testable without a browser.
  *
+ * A meter that has used its whole cap reads as `canceled`: the session
+ * ends there (FR-CHK-007), so the page shows the receipt without waiting
+ * for the server to agree.
+ *
  * Maps to: FR-CHK-002, FR-CHK-004, FR-CHK-006, FR-CHK-007, FR-CHK-008,
  * FR-CHK-010.
  */
@@ -22,19 +26,16 @@ export function deriveView(session: CheckoutSession, now: number): CheckoutView 
   if (!session.customer) return "signin";
 
   const funded = sub ? parseUsd(sub.fundedUsd) : 0n;
-  if (!sub || funded <= 0n) return "fund";
+  if (!sub || funded <= 0n) return "cap";
 
   if (sub.status === "incomplete") return "ready";
-
-  if (sub.status === "paused") {
-    return sub.pauseReason === "out_of_funds" ? "out_of_funds" : "paused";
-  }
+  if (sub.status === "paused") return "paused";
 
   // active
   const rate = parseRate(sub.rateUsdPerSecond);
   const elapsed = elapsedMs({ startedAt: sub.startedAt ?? now, now, pausedAt: sub.pausedAt });
   const remaining = remainingRuntimeMs(funded, rate, elapsed);
-  if (remaining <= 0) return "out_of_funds";
+  if (remaining <= 0) return "canceled";
   if (isLowBalance(remaining)) return "low_balance";
   return "running";
 }

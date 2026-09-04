@@ -2,8 +2,9 @@
  * The in-memory checkout API used until the real one exists.
  *
  * FR-CHK-015 (seeded sessions for every state), FR-CHK-002 (sign in),
- * FR-CHK-003/004 (fund → start), FR-CHK-007 (pause reason), FR-CHK-008
- * (cancel settles whole seconds and refunds the rest), BR-CHK-003.
+ * FR-CHK-003/004 (choose a cap → start), FR-CHK-007 (the session ends at
+ * its cap), FR-CHK-008 (cancel settles whole seconds and refunds the
+ * rest), BR-CHK-003.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { createMockCheckoutApi, SEEDED_SESSION_IDS } from "./mock-api";
@@ -25,7 +26,7 @@ describe("mock checkout api", () => {
       cs_ready: "ready",
       cs_running: "running",
       cs_lowbal: "low_balance",
-      cs_empty: "out_of_funds",
+      cs_capped: "canceled",
       cs_paused: "paused",
       cs_done: "canceled",
       cs_expired: "expired",
@@ -47,13 +48,14 @@ describe("mock checkout api", () => {
     const s = await api.signIn("cs_demo", { email: "ada@example.com" });
     expect(s.customer?.id).toMatch(/^cus_/);
     expect(s.customer?.email).toBe("ada@example.com");
-    expect(deriveView(s, now)).toBe("fund");
+    expect(deriveView(s, now)).toBe("cap");
   });
 
-  it("fund creates the subscription escrow; start records started_at (FR-CHK-003/004)", async () => {
+  it("setCap escrows rate x duration; start records started_at (FR-CHK-003/004)", async () => {
     await api.signIn("cs_demo", {});
-    let s = await api.fund("cs_demo", "10");
-    expect(s.subscription?.fundedUsd).toBe("10");
+    let s = await api.setCap("cs_demo", 3600);
+    expect(s.subscription?.maxDurationSeconds).toBe(3600);
+    expect(s.subscription?.fundedUsd).toBe("14.4"); // 3600 x $0.004
     expect(deriveView(s, now)).toBe("ready");
     s = await api.start("cs_demo");
     expect(s.subscription?.status).toBe("active");
@@ -61,16 +63,63 @@ describe("mock checkout api", () => {
     expect(deriveView(s, now)).toBe("running");
   });
 
-  it("funding again adds to the escrow", async () => {
+  it("choosing a cap again replaces it; it never adds up (FR-CHK-007)", async () => {
     await api.signIn("cs_demo", {});
-    await api.fund("cs_demo", "5");
-    const s = await api.fund("cs_demo", "5");
-    expect(s.subscription?.fundedUsd).toBe("10");
+    await api.setCap("cs_demo", 3600);
+    const s = await api.setCap("cs_demo", 14_400);
+    expect(s.subscription?.maxDurationSeconds).toBe(14_400);
+    expect(s.subscription?.fundedUsd).toBe("57.6");
+  });
+
+  it("a cap cannot be raised once the meter is running (FR-CHK-007)", async () => {
+    await api.signIn("cs_demo", {});
+    await api.setCap("cs_demo", 3600);
+    await api.start("cs_demo");
+    await expect(api.setCap("cs_demo", 14_400)).rejects.toMatchObject({ code: "invalid_state" });
+  });
+
+  it("reaching the cap ends the session at that second, it never pauses (FR-CHK-007)", async () => {
+    await api.signIn("cs_demo", {});
+    await api.setCap("cs_demo", 3600);
+    const started = now;
+    await api.start("cs_demo");
+    now += 4_000_000; // well past the 3 600 s cap
+    const s = await api.getSession("cs_demo");
+    expect(s.subscription?.status).toBe("canceled");
+    expect(s.subscription?.endedReason).toBe("cap_reached");
+    expect(s.subscription?.canceledAt).toBe(started + 3_600_000);
+    expect(deriveView(s, now)).toBe("canceled");
+  });
+
+  it("a cap-ended session settles exactly the cap and returns nothing", async () => {
+    await api.signIn("cs_demo", {});
+    await api.setCap("cs_demo", 3600);
+    await api.start("cs_demo");
+    now += 4_000_000;
+    await api.getSession("cs_demo");
+    const r = await api.getReceipt("cs_demo");
+    expect(r.secondsElapsed).toBe(3600);
+    expect(r.amountSettledUsd).toBe("14.40");
+    expect(r.refundedUsd).toBe("0.00");
+    expect(r.endedReason).toBe("cap_reached");
+  });
+
+  it("start again opens a fresh session for the same product (FR-CHK-007)", async () => {
+    await api.signIn("cs_demo", {});
+    await api.setCap("cs_demo", 3600);
+    await api.start("cs_demo");
+    now += 4_000_000;
+    await api.getSession("cs_demo");
+    const next = await api.startAgain("cs_demo");
+    expect(next.id).not.toBe("cs_demo");
+    expect(next.product.id).toBe("prod_gpu4090");
+    expect(next.subscription).toBeNull();
+    expect(deriveView(next, now)).toBe("cap");
   });
 
   it("cancel settles whole seconds and reports the refund (FR-CHK-008, BR-CHK-003)", async () => {
     await api.signIn("cs_demo", {});
-    await api.fund("cs_demo", "10");
+    await api.setCap("cs_demo", 2500);
     await api.start("cs_demo");
     now += 83_400; // 83.4 s
     const { session, receipt } = await api.cancel("cs_demo");
@@ -80,11 +129,12 @@ describe("mock checkout api", () => {
     expect(receipt.secondsElapsed).toBe(83);
     expect(receipt.amountSettledUsd).toBe("0.332"); // 83 × 0.004, shown exactly
     expect(receipt.refundedUsd).toBe("9.668");
+    expect(receipt.endedReason).toBe("canceled");
   });
 
   it("pause and resume freeze and continue elapsed time", async () => {
     await api.signIn("cs_demo", {});
-    await api.fund("cs_demo", "10");
+    await api.setCap("cs_demo", 2500);
     await api.start("cs_demo");
     now += 10_000;
     let s = await api.pause("cs_demo");

@@ -1,14 +1,17 @@
 /**
  * `Receipt` — what happened, in one line and a short breakdown. The hero
- * line is the product's promise: "You paid 83 seconds · $0.33". Then the
- * merchant's success URL and a mocked email receipt.
+ * line is the product's promise: "You paid 83 seconds · $0.33". A session
+ * that used its whole cap says so and offers another, since the cap is
+ * fixed once signed (FR-CHK-007). Then the merchant's success URL and a
+ * mocked email receipt.
  *
- * Maps to: FR-CHK-008, FR-CHK-009; BR-CHK-003.
+ * Maps to: FR-CHK-007, FR-CHK-008, FR-CHK-009; BR-CHK-003.
  */
 "use client";
 
-import { ArrowRight, Mail } from "lucide-react";
+import { ArrowRight, Mail, RotateCcw } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { formatCap } from "@/lib/checkout/funding";
 import type { Receipt as ReceiptData } from "@/lib/checkout/mock-api";
 import type { Branding, Product } from "@/lib/checkout/types";
 import { cn } from "@/lib/utils";
@@ -18,6 +21,9 @@ export function Receipt({
   product,
   merchant,
   successHref,
+  maxDurationSeconds,
+  onStartAgain,
+  startBusy,
   onEmail,
   emailBusy,
 }: {
@@ -25,17 +31,27 @@ export function Receipt({
   product: Product;
   merchant: Branding;
   successHref: string;
+  /** The cap this session ran under, for the "your 1 hour is up" line. */
+  maxDurationSeconds?: number;
+  onStartAgain?: () => void;
+  startBusy?: boolean;
   onEmail: () => void;
   emailBusy?: boolean;
 }) {
   const time = (ms: number) =>
     new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
   const s = receipt.secondsElapsed;
+  const cappedOut = receipt.endedReason === "cap_reached";
 
   return (
     <section className="flex flex-1 flex-col gap-4">
       <div className="rounded-xl border border-border bg-card px-5 py-6">
         <p className="placard">Stopped</p>
+        {cappedOut && maxDurationSeconds !== undefined && (
+          <p className="mt-2 text-sm text-ink-soft">
+            Your {formatCap(maxDurationSeconds)} is up.
+          </p>
+        )}
         <p className="display-wide mt-2 text-balance text-[1.9rem] font-semibold leading-tight tracking-[-0.025em]">
           You paid{" "}
           <span className="whitespace-nowrap">{s} {s === 1 ? "second" : "seconds"} ·</span>{" "}
@@ -58,6 +74,18 @@ export function Receipt({
       </div>
 
       <div className="mt-auto flex flex-col gap-2 pt-2">
+        {cappedOut && onStartAgain && (
+          <Button
+            size="lg"
+            variant="outline"
+            onClick={onStartAgain}
+            disabled={startBusy}
+            className="h-12 w-full text-base"
+          >
+            <RotateCcw data-icon="inline-start" className="size-4" />
+            {startBusy ? "Opening…" : "Start again"}
+          </Button>
+        )}
         <a href={successHref} className={cn(buttonVariants({ size: "lg" }), "h-12 w-full text-base")}>
           Back to {merchant.name}
           <ArrowRight data-icon="inline-end" className="size-4" />

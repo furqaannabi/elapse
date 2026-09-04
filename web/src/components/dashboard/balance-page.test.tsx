@@ -40,7 +40,9 @@ describe("Balance & payouts", () => {
     const m = await signIn(api);
     mount(api, m);
     const b = await api.getBalance("test");
-    expect(await screen.findByText(`$${b.ausdUsd}`)).toBeInTheDocument();
+    // Scoped by its own label: the month total can equal the all-time total.
+    const label = await screen.findByText("At your payout address");
+    expect(label.closest("div")).toHaveTextContent(`$${b.ausdUsd}`);
     expect(screen.getByText(/0x7a3f…8a90/)).toBeInTheDocument();
     expect(screen.getByText(/settled this month/i).closest("div")).toHaveTextContent(`$${b.settledThisMonthNetUsd}`);
     expect(document.body.textContent).not.toMatch(/elapse balance/i);

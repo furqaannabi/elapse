@@ -5,27 +5,34 @@
  * to its screen. All money and state rules live in `lib/checkout`; this
  * file only wires actions to the API and decides which sheet is open.
  *
+ * The subscriber authorises a cap once (FR-CHK-003); the meter ends when
+ * that cap is used up (FR-CHK-007). Nothing here adds funds.
+ *
  * Judge mode opens from `?judge=1` or a triple tap on the footer.
  *
  * Maps to: FR-CHK-001…015.
  */
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { getCheckoutApi } from "@/lib/checkout/client";
-import { CheckoutApiError, type JudgeData, type Receipt as ReceiptData } from "@/lib/checkout/mock-api";
+import {
+  CheckoutApiError,
+  buildReceipt,
+  type JudgeData,
+  type Receipt as ReceiptData,
+} from "@/lib/checkout/mock-api";
 import type { CheckoutSession, CheckoutView } from "@/lib/checkout/types";
 import { deriveView } from "@/lib/checkout/view";
-import { formatUsd, parseRate, settledNano, wholeSeconds, elapsedMs } from "@/lib/meter/math";
-import { formatReceiptUsd, parseUsd, refundNano } from "@/lib/checkout/funding";
+import { formatUsd, parseRate } from "@/lib/meter/math";
+import { capEndsAt, formatCap, parseUsd } from "@/lib/checkout/funding";
 import { CheckoutFrame } from "./checkout-frame";
 import { FaceIdSheet, type AuthResult } from "./face-id-sheet";
-import { FundStep } from "./fund-step";
+import { CapStep } from "./cap-step";
 import { JudgePanel } from "./judge-panel";
 import { MeterView } from "./meter-view";
 import { RatePanel } from "./rate-panel";
@@ -41,11 +48,11 @@ type Load =
 export function CheckoutPage({ sessionId }: { sessionId: string }) {
   const api = getCheckoutApi();
   const params = useSearchParams();
+  const router = useRouter();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [topupOpen, setTopupOpen] = useState(false);
   const [judgeOpen, setJudgeOpen] = useState(params.get("judge") === "1");
   const [judge, setJudge] = useState<JudgeData | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -74,7 +81,7 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
     setReloadKey((k) => k + 1);
   }, []);
 
-  // Re-derive the view once a second so low-balance / out-of-funds flip
+  // Re-derive the view once a second so low balance and the cap end flip
   // without a server round trip; the meter itself ticks at 100 ms inside.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -129,29 +136,34 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
   const view: CheckoutView = deriveView(session, now);
   const successHref = `${session.merchant.successUrl}${session.merchant.successUrl.includes("?") ? "&" : "?"}session_id=${session.id}`;
 
-  // A canceled session opened later still gets a receipt, reconstructed
-  // from the subscription (BR-CHK-003).
-  const shownReceipt: ReceiptData | null =
-    receipt ??
-    (view === "canceled" && session.subscription?.startedAt && session.subscription.canceledAt
-      ? (() => {
-          const sb = session.subscription;
-          const secs = wholeSeconds(
-            elapsedMs({ startedAt: sb.startedAt!, now: sb.canceledAt!, pausedAt: sb.pausedAt }),
-          );
-          const rate = parseRate(sb.rateUsdPerSecond);
-          const funded = parseUsd(sb.fundedUsd);
-          const settled = settledNano(rate, secs) > funded ? funded : settledNano(rate, secs);
-          return {
-            secondsElapsed: secs,
-            amountSettledUsd: formatReceiptUsd(settled),
-            refundedUsd: formatReceiptUsd(refundNano(funded, settled)),
-            startedAt: sb.startedAt!,
-            canceledAt: sb.canceledAt!,
-            rateUsdPerSecond: sb.rateUsdPerSecond,
-          };
-        })()
-      : null);
+  // A session that has stopped still gets a receipt when opened later,
+  // rebuilt from the subscription (BR-CHK-003). A meter that ran past its
+  // cap is treated as ended at that second even before the API agrees
+  // (FR-CHK-007).
+  const stopped = ((): { sub: NonNullable<CheckoutSession["subscription"]> } | null => {
+    const sb = session.subscription;
+    if (!sb || sb.startedAt === null) return null;
+    if (sb.status === "canceled" && sb.canceledAt !== null) return { sub: sb };
+    if (view !== "canceled") return null;
+    const endsAt = capEndsAt(sb.startedAt, parseUsd(sb.fundedUsd), parseRate(sb.rateUsdPerSecond));
+    if (endsAt === null) return null;
+    return {
+      sub: { ...sb, status: "canceled", endedReason: "cap_reached", pausedAt: endsAt, canceledAt: endsAt },
+    };
+  })();
+  const shownReceipt: ReceiptData | null = receipt ?? (stopped ? buildReceipt(stopped.sub) : null);
+
+  const startAgain = async () => {
+    setBusy(true);
+    try {
+      const next = await api.startAgain(sessionId);
+      router.push(`/c/${next.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not open a new session");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <CheckoutFrame merchant={session.merchant} onJudgeGesture={() => setJudgeOpen(true)}>
@@ -185,13 +197,13 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {view === "fund" && (
+      {view === "cap" && (
         <div className="flex flex-1 flex-col gap-5">
           <RatePanel product={session.product} />
-          <FundStep
+          <CapStep
             rateUsdPerSecond={session.product.rateUsdPerSecond}
             busy={busy}
-            onFund={(usd) => run(() => api.fund(sessionId, usd))}
+            onChoose={(seconds) => run(() => api.setCap(sessionId, seconds))}
           />
         </div>
       )}
@@ -201,18 +213,16 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
           <RatePanel product={session.product} />
           <div className="rounded-xl border border-border bg-card px-5 py-4 text-sm">
             <div className="flex items-baseline justify-between">
-              <span className="text-ink-soft">Loaded</span>
+              <span className="text-ink-soft">
+                Up to {formatCap(session.subscription.maxDurationSeconds)}
+              </span>
               <span className="numerals text-lg">
                 {formatUsd(parseUsd(session.subscription.fundedUsd))}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setTopupOpen(true)}
-              className="mt-1 text-xs text-ink-soft underline underline-offset-3 hover:text-foreground"
-            >
-              Add more
-            </button>
+            <p className="mt-1 text-xs text-ink-soft">
+              The most this session can cost. You pay only the seconds you use.
+            </p>
           </div>
           <div className="mt-auto flex flex-col gap-2 pt-2">
             <Button
@@ -230,7 +240,7 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {(view === "running" || view === "low_balance" || view === "out_of_funds" || view === "paused") &&
+      {(view === "running" || view === "low_balance" || view === "paused") &&
         session.subscription && (
           <MeterView
             product={session.product}
@@ -251,7 +261,6 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             }}
             onPause={() => run(() => api.pause(sessionId))}
             onResume={() => run(() => api.resume(sessionId))}
-            onAddFunds={() => setTopupOpen(true)}
           />
         )}
 
@@ -261,6 +270,9 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
           product={session.product}
           merchant={session.merchant}
           successHref={successHref}
+          maxDurationSeconds={session.subscription?.maxDurationSeconds}
+          onStartAgain={startAgain}
+          startBusy={busy}
           emailBusy={busy}
           onEmail={async () => {
             setBusy(true);
@@ -273,23 +285,6 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
           }}
         />
       )}
-
-      <Sheet open={topupOpen} onOpenChange={setTopupOpen}>
-        <SheetContent side="bottom" className="mx-auto max-w-[480px] rounded-t-xl border-border bg-card px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <SheetHeader className="px-0 pt-4">
-            <SheetTitle className="text-base">Add funds</SheetTitle>
-          </SheetHeader>
-          <FundStep
-            mode="topup"
-            rateUsdPerSecond={session.product.rateUsdPerSecond}
-            busy={busy}
-            onFund={async (usd) => {
-              await run(() => api.fund(sessionId, usd));
-              setTopupOpen(false);
-            }}
-          />
-        </SheetContent>
-      </Sheet>
 
       <JudgePanel open={judgeOpen} onOpenChange={setJudgeOpen} data={judge} />
     </CheckoutFrame>
