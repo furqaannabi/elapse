@@ -69,6 +69,14 @@ describe("Receipt", () => {
     expect(screen.queryByRole("button", { name: /start again/i })).toBeNull();
   });
 
+  it("links to the account page so the subscriber can find their meters (FR-CHK-017)", () => {
+    render(<Receipt {...props} receipt={receipt()} />);
+    expect(screen.getByRole("link", { name: /manage your meters/i })).toHaveAttribute(
+      "href",
+      "/account",
+    );
+  });
+
   it("uses no chain words", () => {
     const { container } = render(<Receipt {...props} receipt={receipt({ endedReason: "cap_reached" })} maxDurationSeconds={3600} />);
     expect(container.textContent).not.toMatch(/wallet|token|permit|transaction|chain|0x/i);

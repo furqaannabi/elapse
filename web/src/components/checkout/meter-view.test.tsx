@@ -33,6 +33,8 @@ const sub = (over: Partial<Subscription> = {}): Subscription => ({
 
 const props = {
   product,
+  successHref: "https://nimbus.example/ok?session_id=cs_1",
+  merchantName: "Nimbus",
   onCancel: vi.fn(),
   onPause: vi.fn(),
   onResume: vi.fn(),
@@ -57,6 +59,18 @@ describe("MeterView", () => {
   it("never says out of funds and never offers a resume for money", () => {
     const { container } = render(<MeterView {...props} subscription={sub()} view="running" />);
     expect(container.textContent).not.toMatch(/out of funds|add funds/i);
+  });
+
+  it("returns to the merchant with the meter still running (FR-CHK-005, FR-CHK-009)", () => {
+    render(<MeterView {...props} subscription={sub()} view="running" />);
+    const back = screen.getByRole("link", { name: /back to nimbus/i });
+    expect(back).toHaveAttribute("href", "https://nimbus.example/ok?session_id=cs_1");
+    expect(screen.getByText(/your meter keeps running/i)).toBeInTheDocument();
+  });
+
+  it("links to the account page from a running meter (FR-CHK-017)", () => {
+    render(<MeterView {...props} subscription={sub()} view="running" />);
+    expect(screen.getByRole("link", { name: /your meters/i })).toHaveAttribute("href", "/account");
   });
 
   it("offers Cancel, and Pause only when the product allows it", () => {

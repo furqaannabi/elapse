@@ -247,6 +247,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             subscription={session.subscription}
             view={view}
             busy={busy}
+            merchantName={session.merchant.name}
+            successHref={successHref}
             onCancel={async () => {
               setBusy(true);
               try {

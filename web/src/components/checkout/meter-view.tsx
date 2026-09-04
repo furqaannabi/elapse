@@ -1,8 +1,15 @@
 /**
  * `MeterView` — the running meter on a phone: the readout, what it costs,
- * how much of the chosen cap is left, and one Cancel. Pause appears only
- * when the product allows it. Low balance is an amber notice inside the
- * same panel, not a new screen, so the counter never disappears.
+ * how much of the chosen cap is left, a way back to the merchant, and
+ * Cancel. Pause appears only when the product allows it. Low balance is an
+ * amber notice inside the same panel, not a new screen, so the counter
+ * never disappears.
+ *
+ * Returning is the expected path (FR-CHK-005): the subscriber came to buy
+ * seconds of the merchant's product, not to watch our counter, and the
+ * meter keeps running when they leave. The merchant's server already had
+ * `checkout.session.completed`, so it can draw its own meter from the rate
+ * and start time and stop it with its own button.
  *
  * There is no way to add funds: the cap is the session, and reaching it
  * ends the meter rather than pausing it (FR-CHK-007).
@@ -11,20 +18,23 @@
  */
 "use client";
 
-import { Pause, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, Pause, Play } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ChartStrip, type Session } from "@/components/meter/chart-strip";
 import { Readout } from "@/components/meter/readout";
 import { formatCap, formatRuntime, remainingRuntimeMs, parseUsd } from "@/lib/checkout/funding";
 import type { CheckoutView, Product, Subscription } from "@/lib/checkout/types";
 import { formatUsd, perHour } from "@/lib/meter/math";
 import { useMeter } from "@/lib/meter/use-meter";
+import { cn } from "@/lib/utils";
 
 export function MeterView({
   product,
   subscription,
   view,
   busy,
+  merchantName,
+  successHref,
   onCancel,
   onPause,
   onResume,
@@ -33,6 +43,9 @@ export function MeterView({
   subscription: Subscription;
   view: Extract<CheckoutView, "running" | "low_balance" | "paused">;
   busy?: boolean;
+  /** Where "Back to {merchant}" goes: `success_url?session_id=cs_…`. */
+  successHref: string;
+  merchantName: string;
   onCancel: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -110,6 +123,13 @@ export function MeterView({
       )}
 
       <div className="mt-auto flex flex-col gap-2 pt-2">
+        <a
+          href={successHref}
+          className={cn(buttonVariants({ size: "lg" }), "h-12 w-full text-base")}
+        >
+          Back to {merchantName}
+          <ArrowRight data-icon="inline-end" className="size-4" />
+        </a>
         {view === "paused" && (
           <Button size="lg" onClick={onResume} disabled={busy} className="h-12 w-full text-base">
             <Play data-icon="inline-start" className="size-4" />
@@ -140,7 +160,11 @@ export function MeterView({
           </Button>
         </div>
         <p className="text-center text-xs text-ink-soft">
-          Cancel any time. You only pay for the seconds that elapsed.
+          Your meter keeps running. Stop it here or from{" "}
+          <a href="/account" className="!text-ink-soft underline underline-offset-3 hover:!text-foreground">
+            your meters
+          </a>{" "}
+          at any time. You only pay for the seconds that elapsed.
         </p>
       </div>
     </section>

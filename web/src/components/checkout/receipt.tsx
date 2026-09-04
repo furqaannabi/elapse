@@ -100,6 +100,12 @@ export function Receipt({
           <Mail data-icon="inline-start" className="size-4" />
           {emailBusy ? "Sending…" : "Email receipt"}
         </Button>
+        <a
+          href="/account"
+          className="py-1 text-center text-xs !text-ink-soft underline-offset-3 hover:!text-foreground"
+        >
+          Manage your meters
+        </a>
       </div>
     </section>
   );
