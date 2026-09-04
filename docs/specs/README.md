@@ -38,7 +38,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `technical-design.md` | Draft — awaiting human sign-off | — |
 | `meter-frd.md` | Built (retro-documented) | — |
 | `landing-frd.md` | Built (retro-documented) | — |
-| `checkout-frd.md` | **Signed** · built against the mock API · Surface 4 `/account` (FR-CHK-016–026) added 2026-09-04, awaiting signature | William, 2026-09-03 |
+| `checkout-frd.md` | **Signed** · built against the mock API · Surface 4 `/account` (FR-CHK-016–026) **signed 2026-09-04**, not yet built | William, 2026-09-03 and 2026-09-04 |
 | `dashboard-frd.md` | **Signed** · built against the mock API (all FR-DSH except the subscriber `/account` which lives in the checkout spec) | William, 2026-09-03 |
 | `contracts-frd.md` | Draft — awaiting human sign-off (Furqaan) · fee split added 2026-09-04 | — |
 | `api-frd.md` | Draft — awaiting human sign-off (Furqaan) · dashboard and account routes added 2026-09-04 | — |

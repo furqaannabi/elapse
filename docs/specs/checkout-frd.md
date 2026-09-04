@@ -1,6 +1,6 @@
 # Hosted checkout (`/c/[session]`) — FRD
 
-Status: **Signed 2026-09-03 (William)** — approved after review; built against the mock API. Decisions taken: Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap. May be revisited. **Surface 4 (`/account`, FR-CHK-016–026) added 2026-09-04 — awaiting signature for that section only.** · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
+Status: **Signed 2026-09-03 (William)** — approved after review; built against the mock API. Decisions taken: Pause behind `allow_pause` default off; dollar presets with runtime shown; low-balance at 5 min; email receipt mocked; judge mode via `?judge=1` and triple-tap. May be revisited. **Surface 4 (`/account`, FR-CHK-016–026) added and signed 2026-09-04 (William).** · Surface: Operate (subscriber, mobile-first) · Sources: design brief Surface 2; detailed doc §3, §7, §10.
 
 ## Problem
 
@@ -111,3 +111,4 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 | 2026-09-04 | Claude (for William) | [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) applied: FR-CHK-003 becomes the cap step with one Face ID signature; FR-CHK-021 withdrawn (no balance, no card); FR-CHK-018 cap line; BR-CHK-007 wallet rule; account balance shape removed; open items on out-of-funds and rebuilding the fund step. |
 | 2026-09-04 | Claude (for William) | Cap end decided (William, 2026-09-04): FR-CHK-007 becomes "the session ends at the cap" with a receipt and Start again, replacing the out-of-funds pause; FR-CHK-006 drops Add funds; FR-CHK-015 seed renamed; FR-CHK-018 adjusted. |
 | 2026-09-04 | Claude (for William) | Built the cap model in `web/`: cap step replaces the fund step, the meter ends at the cap with a receipt and Start again, no Add funds anywhere; `CapStep`, `MeterView` and `Receipt` gained component tests. 196 tests green. |
+| 2026-09-04 | William | Reviewed and signed Surface 4 (`/account`, FR-CHK-016–026). |
