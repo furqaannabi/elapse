@@ -39,14 +39,17 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | FR-CON-012 | `deposit` emits `Deposited(address indexed from, uint256 amount, uint256 totalDeposited)`. | `expectEmit`. |
 | FR-CON-013 | `maxSeconds()` = `deposited / ratePerSecond` (integer division). Accrual is capped at `maxSeconds` (see FR-CON-040). | Fuzz: `accruedSeconds() <= maxSeconds()` always. |
 | FR-CON-014 | `refundable()` = `deposited − settledAmount`; paid to the Subscriber on cancel (FR-CON-024). Dust below one second of rate is refunded, never kept. | Fuzz over `deposited`, `rate`, `elapsed`: `settledAmount + refund == deposited` after cancel. |
+| FR-CON-015 | **Cap as a primitive** ([ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)): `initialize` takes `maxEscrow`; `deposit` reverts `CapExceeded` when `deposited + amount > maxEscrow`; `maxSeconds()` is therefore bounded by `maxEscrow / ratePerSecond` and the Subscriber's exposure can never exceed `maxEscrow`. `maxEscrow` is immutable after `initialize` (FR-CON-053). `StreamCreated` carries `maxEscrow`. | Fuzz: `deposited ≤ maxEscrow` always; deposit over the cap reverts; `accruedSeconds() ≤ maxEscrow / rate`. |
+| FR-CON-016 | **Permit path**: `StreamFactory.createWithPermit(merchant, subscriber, token, ratePerSecond, maxEscrow, deadline, v, r, s)` calls `IERC20Permit(token).permit(subscriber, factory, maxEscrow, deadline, v, r, s)`, creates the clone, pulls exactly `maxEscrow` from `subscriber` into it with `safeTransferFrom`, and starts it — one transaction, one signature, submitted by the relayer which pays gas. The permit's `value` must equal `maxEscrow` (never more), `deadline` is enforced by the token, and the token's nonce prevents replay. If `permit` reverts (already used, expired, wrong signer) the whole call reverts and no clone exists. Requires the token to implement ERC-2612 — **unverified for AUSD on Monad; check first** (Undecided 10). | Test with a permit-capable mock: one tx → clone exists, `deposited == maxEscrow`, `status == Active`; replayed permit reverts; `value ≠ maxEscrow` reverts `PermitMismatch`. |
+| FR-CON-017 | **Relayed cancel**: `cancelFor(bytes signature)` accepts an EIP-712 authorisation `{stream, nonce, deadline}` signed by `subscriber` (or `merchant`) so the relayer can submit cancel on their behalf without the party holding MON; a per-stream nonce prevents replay. Direct `cancel()` from a party (FR-CON-050) stays. | Test: signed cancel from a stranger's tx settles and refunds correctly; replay reverts; expired reverts. |
 
 ### Lifecycle (doc §3 status machine, §9 "start, pause, cancel, settle")
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-CON-020 | States: `Created → Active → Paused ⇄ Active → Canceled`; `Created → Canceled` is allowed (abandoned funded session, checkout FRD FR-CHK-009). Exposed via `status()` enum. | State-machine test covers every legal edge and one illegal edge per state. |
+| FR-CON-020 | States: `Created → Active → Paused ⇄ Active → Canceled`; `Created → Canceled` is allowed (abandoned funded session, checkout FRD FR-CHK-009); `Active → Canceled` also happens automatically at the cap (FR-CON-041). `Paused` is only ever a manual pause (`reason = 0`, FR-CON-022) for products with `allow_pause`. Exposed via `status()` enum. | State-machine test covers every legal edge and one illegal edge per state. |
 | FR-CON-021 | `start()` requires `Created` and `deposited >= ratePerSecond` (at least one affordable second); sets `startedAt = block.timestamp`; emits `StreamStarted(merchant, subscriber, ratePerSecond, startedAt)`. | `start` with empty pot reverts `InsufficientDeposit`. |
-| FR-CON-022 | `pause()` requires `Active`; accrual stops at `block.timestamp`; emits `StreamPaused(uint256 at, uint8 reason)` with `reason = 0` (manual). | `accruedSeconds()` is constant across `vm.warp` while paused. |
+| FR-CON-022 | `pause()` requires `Active`; accrual stops at `block.timestamp`; emits `StreamPaused(uint256 at, uint8 reason)` with `reason = 0` (manual — the only reason that exists since FR-CON-041). A `pause()` that observes exhaustion ends the stream instead (FR-CON-041). | `accruedSeconds()` is constant across `vm.warp` while paused; pause after exhaustion → `Canceled`. |
 | FR-CON-023 | `resume()` requires `Paused` and remaining affordable seconds ≥ 1; starts a new active segment; paused wall-time is not billed. Emits `StreamResumed(uint256 at)` (see Undecided 3). | Pause 10 s, warp 100 s, resume, warp 5 s → `accruedSeconds() == 15`. |
 | FR-CON-024 | `cancel()` from `Active`, `Paused` or `Created`: settles unsettled whole seconds (FR-CON-030: net to the Merchant, fee to the treasury), refunds `refundable()` to the Subscriber, sets `Canceled`; emits `Settled(secs, amount, fee)` (chunk) then `StreamCanceled(uint256 at, uint256 secondsElapsed, uint256 amountSettled)` with **cumulative gross** totals (matches the §5.3 payload `seconds_elapsed: 83, amount_settled: "0.33"`; the merchant's net is derivable from `Settled`). Current code emits the chunk, not the total — fix. | Deposit 1 000 000, rate 4 000, fee 100 bps, warp 83 s, cancel → merchant +328 680, treasury +3 320, subscriber +668 000, `StreamCanceled` args (83, 332 000). |
 | FR-CON-025 | Cancel from `Created` refunds the full deposit and emits `StreamCanceled(at, 0, 0)`; no `Settled` event. | Test. |
@@ -62,13 +65,13 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | FR-CON-033 | `StreamFactory.settleBatch(address[] streams)` calls `settle()` on each, continuing past individual failures (`try/catch`), so one bad stream cannot block a batch. | Batch of 3 with one canceled stream: two `Settled` events, no revert. |
 | FR-CON-034 | The keeper cadence K is off-chain (worker/cron) and not enforced by the contract; the contract only guarantees the pull math. | Documented in `contracts/README.md`; no on-chain timer. |
 
-### Pot-empty (doc §3 "if the pot cannot settle, fire invoice.payment_failed and pause"; §10 step 4)
+### Cap reached (doc §3 "if the pot cannot settle"; §10 step 4 — reshaped 2026-09-04 by [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) and William's cap-end decision)
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-CON-040 | When `activeSeconds >= maxSeconds()`, accrual is frozen at `maxSeconds()`; the exhaustion instant `exhaustedAt = segmentStart + (maxSeconds − closedActiveSeconds)` is computable in a view. | Deposit for 60 s, warp 1 000 s → `accruedSeconds() == 60`, `exhaustedAt() == startedAt + 60`. |
-| FR-CON-041 | The first `settle()` (or `cancel`/`pause`) that observes exhaustion on an `Active` stream moves it to `Paused` with `pausedAt = exhaustedAt` and emits `StreamPaused(exhaustedAt, reason = 1 /* PotEmpty */)` before `Settled`. The platform maps `reason 1` to `invoice.payment_failed` (API FRD). | `expectEmit` order test; `status() == Paused`. |
-| FR-CON-042 | A `deposit` on a stream paused with `reason 1` does **not** auto-resume; the Subscriber (or Merchant) calls `resume()` ("Add funds to resume", FR-CHK-007). Time between exhaustion and resume is unbilled. | Test: deposit then warp; `accruedSeconds()` unchanged until `resume`. |
+| FR-CON-041 | Reaching the cap **ends** the stream. The first `settle()`, `cancel()` or `pause()` that observes exhaustion on an `Active` stream settles the last whole seconds (FR-CON-030), refunds `refundable()` (dust below one second) to the Subscriber, sets `Canceled` with `canceledAt = exhaustedAt`, and emits `Settled` then `StreamCanceled(exhaustedAt, secondsElapsed, amountSettled)` — the same events as a subscriber cancel, back-dated to the exhaustion second. There is no `PotEmpty` pause: `maxEscrow` is immutable (FR-CON-015), so a paused stream could never be resumed. The platform distinguishes a cap end from a cancel by `secondsElapsed == maxSeconds()`, so no event signature changes (see Open). | `expectEmit` order test; `status() == Canceled`; `canceledAt == exhaustedAt`; a settle 1 000 s after exhaustion settles the same amount as one at the exhaustion second. |
+| FR-CON-042 | Withdrawn 2026-09-04 (cap end, FR-CON-041): there is no resume after exhaustion and no "Add funds to resume". A subscriber who wants more time starts a new session, which is a new permit and a new cap (checkout FR-CHK-007). `deposit` above the cap already reverts `CapExceeded` (FR-CON-015). | No `resume` path from a cap-ended stream exists; every call after `Canceled` reverts `AlreadyCanceled` (FR-CON-026). |
 
 ### Access control (doc §2 "Not a wallet"; §9 relayer)
 
@@ -76,8 +79,8 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 | --- | --- | --- |
 | FR-CON-050 | `start`, `pause`, `resume`, `cancel`: `msg.sender ∈ {subscriber, merchant}`; else `NotParty`. | Test per function with a stranger. |
 | FR-CON-051 | `settle` and `settleBatch` are permissionless (they can only move accrued funds to the Merchant and the fee to the treasury); the keeper role is a convenience, not a gate. | Stranger can `settle`; funds still go to `merchant` and `treasury`. |
-| FR-CON-052 | `deposit` is permissionless; refunds always go to `subscriber` regardless of who deposited (supports Aurora/any-chain deposits landing from a bridge address, doc §11). | Third party deposits; cancel refunds `subscriber`. |
-| FR-CON-053 | No admin can withdraw, change `ratePerSecond`, `merchant`, `subscriber` or `token` after `initialize`. No upgradeability. | Storage layout review; no setter exists. |
+| FR-CON-052 | `deposit` is permissionless within the cap (FR-CON-015); refunds always go to `subscriber` regardless of who deposited (supports Aurora/any-chain deposits landing from a bridge address, doc §11). | Third party deposits; cancel refunds `subscriber`. |
+| FR-CON-053 | No admin can withdraw, change `ratePerSecond`, `maxEscrow`, `merchant`, `subscriber` or `token` after `initialize`. No upgradeability. | Storage layout review; no setter exists. |
 
 ### Token safety, gas, chain (doc §9 "Gas: Relayer/paymaster so subscribers never hold MON"; "Money: AUSD")
 
@@ -115,17 +118,18 @@ The protocol is the meter. A Subscriber must be able to fund a per-Subscription 
 
 ```
 StreamFactory
-  create(merchant, subscriber, token, ratePerSecond) → stream      event StreamCreated(stream, merchant, subscriber, token, ratePerSecond)
+  create(merchant, subscriber, token, ratePerSecond, maxEscrow) → stream      event StreamCreated(stream, merchant, subscriber, token, ratePerSecond, maxEscrow)
+  createWithPermit(merchant, subscriber, token, ratePerSecond, maxEscrow, deadline, v, r, s) → stream   (permit → create → transferFrom → start; relayer submits)
   settleBatch(address[] streams)                                     setKeeper(address) · keeper() · implementation()
   setFee(uint16 bps, address treasury) · feeBps() · treasury()        event FeeChanged(bps, treasury)
 AccrualStream (clone)
-  storage: merchant, subscriber, token, ratePerSecond, status, startedAt, segmentStart, closedActiveSeconds,
+  storage: merchant, subscriber, token, ratePerSecond, maxEscrow, cancelNonce, status, startedAt, segmentStart, closedActiveSeconds,
            pausedAt, pauseReason, deposited, settledSeconds, settledAmount (gross), settledFee
   views:   status() accruedSeconds() unsettledSeconds() maxSeconds() exhaustedAt() refundable()
-  writes:  initialize deposit start pause resume settle cancel
+  writes:  initialize deposit start pause resume settle cancel cancelFor(signature)
   events:  Deposited(from, amount, total) StreamStarted(merchant, subscriber, ratePerSecond, startedAt)
            StreamPaused(at, reason) StreamResumed(at) Settled(seconds, amount, fee) StreamCanceled(at, secondsElapsed, amountSettled)
-  errors:  NotParty AlreadyInitialized InvalidState ZeroAmount InsufficientDeposit AlreadyCanceled
+  errors:  NotParty AlreadyInitialized InvalidState ZeroAmount InsufficientDeposit AlreadyCanceled CapExceeded PermitMismatch BadSignature
 ```
 
 Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeERC20, ReentrancyGuard, Ownable). `foundry.toml` keeps `evm_version = "prague"` unless Monad tooling objects (verify in Week 1).
@@ -133,20 +137,23 @@ Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeE
 ## Undecided (human)
 
 1. **Escrow model.** Doc offers per-Subscription Escrow or a shared customer-balance contract. Options: (a) per-Subscription Escrow in the clone, (b) `CustomerBalance` contract with pull-from-balance, (c) both. **Recommend (a)** — the doc calls it simpler and it makes "cancel refunds unspent" a one-liner.
-2. **Pot-empty signalling.** (a) `StreamPaused(at, reason=1)` as specced, keeping the doc's five-event list; (b) a sixth event `PaymentFailed(at, shortfall)`; (c) revert on settle. **Recommend (a)**; (c) hides the failure from the indexer.
+2. ~~**Pot-empty signalling.**~~ **Decided 2026-09-04 (William):** the cap ends the stream and emits the ordinary `Settled` + `StreamCanceled` pair back-dated to the exhaustion second (FR-CON-041). No `reason = 1`, no sixth event.
 3. **Resume event.** The doc lists no resume event. (a) add `StreamResumed(at)`; (b) re-emit `StreamStarted`; (c) no event, indexer infers from next `Settled`. **Recommend (a)** — the platform needs it for `subscription.updated`.
-4. **Gas sponsorship mechanism (Week 3).** (a) Privy smart wallet + paymaster (subscriber is `msg.sender`); (b) our relayer tops up the subscriber EOA with MON from `RELAYER_PRIVATE_KEY`; (c) EIP-2771 trusted forwarder in the contract. **Recommend (a)** with (b) as fallback; avoid (c) in Week 1.
-5. **Who calls `StreamFactory.create`.** (a) the platform relayer at checkout; (b) the Subscriber's wallet; (c) permissionless. **Recommend (a)**, with `create` left permissionless so (b)/(c) stay possible.
+4. **Gas sponsorship mechanism (Week 3).** Narrowed by [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md): the subscriber signs (permit, cancel authorisation) and the relayer submits, so no subscriber transaction exists on the happy path. (a) Privy smart wallet + paymaster stays the fallback only if AUSD lacks `permit` (Undecided 10); (c) EIP-2771 is out.
+5. ~~**Who calls `StreamFactory.create`.**~~ **Decided 2026-09-04 (Furqaan, [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)): (a)** the platform relayer at checkout via `createWithPermit` (FR-CON-016). Whether plain `create` stays permissionless for (b)/(c) is Undecided 11.
 6. **Keeper cadence K.** 60 s, 5 min, or only on cancel for the demo. **Recommend 5 min** on testnet; the demo relies on cancel-time settlement.
 7. **AUSD testnet address and decimals.** Unknown from the doc; confirm on Monad testnet in Week 1, else `MockUSD` (FR-CON-063).
 8. **Fee cap `MAX_FEE_BPS`.** (a) 1 000 (10 %); (b) 500 (5 %); (c) no cap. **Recommend (a)** — a cap bounds the damage of a compromised owner key; the dashboard copy "Contact us for volume pricing" only ever lowers the rate.
 9. **When the fee rate binds.** (a) read from the factory at each settle, as the [fee ADR](../decisions/2026-09-03-settlement-fee.md) says, so a rate change applies to running streams at their next settle; (b) snapshot `feeBps` into the clone at `create`, so a running stream keeps the rate it started under and a change applies to new streams only. William and Furqaan decide; (a) stands until then.
+10. **AUSD ERC-2612 support on Monad.** Must be verified on chain before contract work (the ADR's own condition). If absent: (a) `approve` transaction signed by the subscriber through a Privy smart wallet + paymaster; (b) a wrapper token with `permit`; (c) MockUSD with `permit` on testnet and decide for mainnet in Week 5. Furqaan decides after checking.
+11. **Plain `create` exposure.** (a) keep `create` permissionless alongside `createWithPermit`; (b) `create` callable by the factory keeper only. **Recommend (a)** per the ADR's "never a gate" spirit for settle, but Furqaan owns the relayer trust model.
 
 ## Open
 
 - Doc §5.2 names the first event `StreamOpened`; §9 and the code say `StreamStarted`. This FRD uses `StreamStarted`; docs must be corrected.
 - Merchant-initiated pause (doc §5.1 "Pause / resume / rate change") — rate change is **out** (FR-CON-053); confirm.
 - Whether `StreamCanceled` should also carry `amountRefunded` for the receipt (would extend the §5.3 payload).
+- Cap end and the frozen event catalog: **decided 2026-09-04 (William)** — the platform derives a cap end from `secondsElapsed == maxSeconds()` and fires `invoice.payment_failed` alongside `subscription.canceled` (API FR-API-051/071), so all six §5.1 types survive and no contract event changes. Nothing further is required of the contract.
 
 ## Revision
 
@@ -154,3 +161,5 @@ Dependencies: `forge install OpenZeppelin/openzeppelin-contracts` (Clones, SafeE
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | Fee split from [ADR 2026-09-03 settlement fee](../decisions/2026-09-03-settlement-fee.md) (dashboard decision 4b): FR-CON-006 factory `feeBps`/`treasury`, FR-CON-024/030 net + fee transfers, FR-CON-051, FR-CON-072 invariant, BR-CON-006, `Settled` gains `fee`, Undecided 8–9. Awaiting Furqaan's review. |
+| 2026-09-04 | Claude (for William) | [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) applied: FR-CON-015 `maxEscrow` cap primitive, FR-CON-016 `createWithPermit` relayed path, FR-CON-017 relayed cancel by signature, FR-CON-052/053, Data block, Undecided 4 narrowed, 5 closed, 10–11 added, Open on out-of-funds. Furqaan signs before code. |
+| 2026-09-04 | Claude (for William) | Cap end decided (William, 2026-09-04): FR-CON-041 ends the stream at the cap with the ordinary Settled + StreamCanceled pair, FR-CON-042 withdrawn, FR-CON-020/022 adjusted, Undecided 2 closed. Money movement — Furqaan signs before code. |

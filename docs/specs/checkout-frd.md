@@ -22,11 +22,11 @@ A subscriber is sent a link by a merchant. On a phone, with no account and no cr
 | --- | --- | --- |
 | FR-CHK-001 | The page loads a checkout session by id and shows merchant name/logo, product name, rate per second, and derived per-minute and per-hour figures. | Renders from mocked `GET /v1/checkout/sessions/:id`. |
 | FR-CHK-002 | Sign in with Face ID / passkey (Privy) with an email fallback. Until Week 3 the wallet layer is a mock behind the same interface. | `AuthProvider` interface; mock resolves after a confirm sheet. |
-| FR-CHK-003 | Fund step with presets ($5, $10, $25) and a custom amount; shows "Unused funds are returned when you cancel." and the runtime that amount buys at the rate. | Selecting $10 at $0.004/s shows "≈ 41 min". |
+| FR-CHK-003 | Cap step (replaces the fund step, [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)): presets **1 hour / 4 hours / custom** in runtime, each showing the dollar maximum it means at the rate ("Up to $14.40"), plus "You only pay the seconds you use. Anything unused comes back when you cancel." Start asks for one Face ID confirmation, which signs a permit for exactly that maximum; no separate funding action, no Add funds anywhere. The wallet already holds the subscriber's dollars (BR-CHK-007); a wallet with less than the chosen cap shows "You have $X available" and offers the largest preset it covers. Copy never says permit, approve, allowance, or token. | Selecting 1 hour at $0.004/s shows "Up to $14.40"; Start triggers one mock confirm; an insufficient wallet disables the preset with the available line. |
 | FR-CHK-004 | Start opens a subscription (`incomplete → active`), records `started_at`, and switches to the meter view on the same URL. | State machine test. |
 | FR-CHK-005 | Meter view: full-screen `Readout` (hero), rate reminder, "Started h:mm", one Cancel button; optional Pause if the product allows it. | Component test; tick at 100 ms. |
-| FR-CHK-006 | Low-balance state: when remaining runtime < 5 min, an amber notice "About N minutes of funds left" with Add funds. | Threshold test at rate × balance. |
-| FR-CHK-007 | Out-of-funds: meter pauses, filled amber notice "Add funds to resume"; status `paused` with reason `out_of_funds`. | State test. |
+| FR-CHK-006 | Low-balance state: when remaining runtime < 5 min, an amber notice "About N minutes left of your {cap}" naming the cap the subscriber chose (“your 1 hour”). No Add funds: the cap is fixed for the session (FR-CHK-007). | Threshold test at rate × cap. |
+| FR-CHK-007 | Reaching the cap ends the session (decided 2026-09-04, William; [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) — the cap is the pot and cannot be raised mid-session). At the capped second the meter stops and the receipt appears exactly as after a cancel (FR-CHK-008) with one extra line, "Your 1 hour is up", and a "Start again" button that opens a fresh checkout session for the same product. Status is `canceled`, never `paused`; there is no "Add funds to resume" and no out-of-funds pause state. The merchant is told through `invoice.payment_failed` and `subscription.canceled` (API FR-API-051); the subscriber sees neither word. | State test: elapsed reaches cap → receipt with the cap line and Start again; no Add funds control exists in any state. |
 | FR-CHK-008 | Cancel ends the meter, shows the receipt: "You paid N seconds · $X" hero line; breakdown of started, canceled, rate, total, refunded; "Back to {merchant}" and "Email receipt". | Settled = whole seconds × rate; refund = funded − settled. |
 | FR-CHK-009 | "Back to {merchant}" navigates to `success_url?session_id=cs_…`. Abandoning before Start goes to `cancel_url`. | URL assertions. |
 | FR-CHK-010 | Session states: loading skeleton, expired, already used, product archived, network error — each with copy naming the problem and the recovery. | One test per state. |
@@ -34,28 +34,28 @@ A subscriber is sent a link by a merchant. On a phone, with no account and no cr
 | FR-CHK-012 | Mobile 390 first; one-handed; touch targets ≥ 44 px; Cancel reachable with the thumb. | Screenshot review at 390 and 1440. |
 | FR-CHK-013 | Light and dark; reduced motion honoured; counter keeps ticking. | As landing. |
 | FR-CHK-014 | Merchant branding renders from the session: business name, logo, accent colour (falls back to the default amber), support/terms link. Layout and copy are never merchant-controlled. | Session with branding shows logo + name + accent; session without shows defaults. |
-| FR-CHK-015 | Until the API exists, the page runs against an in-memory mock that seeds sessions for every state (open, running, low balance, out of funds, canceled, expired, already used, archived) so each screen is reachable by URL. | `/c/cs_demo`, `/c/cs_expired`, `/c/cs_used`, `/c/cs_archived`, `/c/cs_lowbal`, `/c/cs_empty` render their states. |
+| FR-CHK-015 | Until the API exists, the page runs against an in-memory mock that seeds sessions for every state (open, running, low balance, ended at the cap, canceled, expired, already used, archived) so each screen is reachable by URL. | `/c/cs_demo`, `/c/cs_expired`, `/c/cs_used`, `/c/cs_archived`, `/c/cs_lowbal`, `/c/cs_capped` render their states. |
 
 
 ## Surface 4 — Subscriber account (`/account`)
 
-Decided 2026-09-04 (grill round, William): specced here per dashboard decision 16; built after the dashboard, first cut if the deadline bites. Same rules as the checkout: no chain words, no red, mobile first. Funds (FR-CHK-021) follow the [funding ADR](../decisions/2026-09-04-subscriber-funding-card-and-ausd-float.md), which is proposed and awaiting Furqaan; that requirement is marked **proposed** and its mock shapes may change.
+Decided 2026-09-04 (grill round, William): specced here per dashboard decision 16; built after the dashboard, first cut if the deadline bites. Same rules as the checkout: no chain words, no red, mobile first. The grill's funds answer (an Elapse balance) was overtaken the same day by [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md): the subscriber's own wallet holds the money, so FR-CHK-021 is withdrawn and the page has no funds block.
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-CHK-016 | Sign-in is the same passkey / Face ID identity the subscriber created at their first checkout (Privy), with the same email fallback as FR-CHK-002 and no separate credential. Signed-out `/account` shows one sentence and a Sign in button; after sign-in the page loads in place. | `AuthProvider` reused; signed-out state test; mock resolves after the confirm sheet. |
 | FR-CHK-017 | Entry points: a "Manage your meters" link in the checkout footer once signed in, on the receipt (FR-CHK-008), and in the email receipt. No other navigation to `/account` exists. | Link present in meter and receipt states, absent before sign-in; email template carries the URL. |
-| FR-CHK-018 | Running meters: a list across merchants of every `active` or `paused` subscription for this identity (API FR-API-121): merchant logo and name, product, an inline `Readout` ticking at 100 ms from `rate × (now − started_at)`, remaining runtime ("≈ 41 min left"), Add funds, and Cancel. Sorted by started time, newest first. Low-balance and out-of-funds states reuse FR-CHK-006/007 copy per row. | Two merchants in the mock render two rows; ticker math shares `lib/meter/math`. |
+| FR-CHK-018 | Running meters: a list across merchants of every `active` or `paused` subscription for this identity (API FR-API-121): merchant logo and name, product, an inline `Readout` ticking at 100 ms from `rate × (now − started_at)`, remaining runtime ("≈ 41 min left"), the cap line from FR-CHK-021, and Cancel. Sorted by started time, newest first. Low-balance rows reuse FR-CHK-006 copy; a meter that reached its cap has already moved to the receipts list (FR-CHK-007). | Two merchants in the mock render two rows; ticker math shares `lib/meter/math`. |
 | FR-CHK-019 | Cancel from the list opens a confirm sheet: "Stop the meter at {merchant}?" with "You'll pay N seconds so far · $X" live, a neutral Cancel meter button and a Keep running button. Confirming calls the same cancel path as the checkout; the row becomes its receipt line in place. Checkout's own Cancel stays one tap (FR-CHK-008). | Sheet names the merchant; confirm produces the receipt; dismiss leaves the meter running. |
 | FR-CHK-020 | Receipts: every settled or canceled subscription, newest first, one line each: merchant, "You paid N seconds · $X", date. Tapping opens the FR-CHK-008 receipt with "Email receipt". Per-second detail only; never a fee line (subscribers pay gross). | List from mock invoices; detail matches the checkout receipt component. |
-| FR-CHK-021 | **Proposed (funding ADR).** Balance block at the top: "Your balance $9.67", Add funds (card / Apple Pay / Google Pay via Stripe in dollars), Return to card (Stripe refund on request, "usually 5–10 days"). Add funds on a meter row moves money from the balance into that meter's escrow; if the balance is short it offers the card first. Unused escrow on cancel lands in the balance: "$9.67 returned to your balance". | Mock balance math: cancel refund increments the balance; Return to card decrements it; no chain words in any copy. |
+| FR-CHK-021 | Withdrawn 2026-09-04 ([ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)): no Elapse balance, no card, no Return to card. The account page shows no funds block. Each meter row shows its cap and how much of it is used ("$0.33 of $14.40"), read from the subscription; unused escrow returns to the subscriber's wallet on cancel and the receipt says "$14.07 returned". | Row renders used/cap; no balance component exists on the route. |
 | FR-CHK-022 | Identity: meters are grouped by the passkey wallet address (API FR-API-121). The address itself is never displayed. No new object or id prefix. | Render test asserts no `0x` string. |
 | FR-CHK-023 | Empty state: "No meters yet. When a merchant sends you a link, your meters show up here." with nothing else. | Empty mock renders the sentence only. |
 | FR-CHK-024 | Mobile 390 first, one hand, ≥ 44 px targets; the list is a card stack, never a table. Light and dark; reduced motion honoured; tickers keep ticking. | Screenshot review at 390 and 1440. |
 | FR-CHK-025 | Runs against the same in-memory mock as the checkout (FR-CHK-015) with seeded identities: `/account?as=two-merchants`, `?as=empty`, `?as=low-balance`, `?as=signed-out`. | Each seed reachable by URL. |
 | FR-CHK-026 | No judge mode on `/account` for 13 Oct; the panel lives on the checkout only (FR-CHK-011). | No `?judge=1` handling on the route. |
 
-Business rule: BR-CHK-007 — `/account` inherits BR-CHK-001 to BR-CHK-006 unchanged.
+Business rule: BR-CHK-008 — `/account` inherits BR-CHK-001 to BR-CHK-007 unchanged.
 
 Account data (mocked until the API exists):
 
@@ -63,10 +63,9 @@ Account data (mocked until the API exists):
 AccountMeter    { subscription: sub_…, merchant: { name, logo_url, support_url }, product: { name, rate_usd_per_second },
                   status, started_at, paused_at, funded_usd, settled_usd }
 AccountReceipt  { invoice: in_…, merchant: { name }, seconds, amount_settled, settled_at, subscription: sub_… }
-AccountBalance  { balance_usd }                                 // proposed, FR-CHK-021
 ```
 
-Grill-me questions (settled 2026-09-04): sign-in same passkey as checkout · entry via checkout links and the email receipt · contents are meters, receipts, and funds · funds shape is one Elapse balance plus per-meter escrow (proposed) · cancel through a confirm sheet naming the merchant · identity is the passkey wallet address, no new object.
+Grill-me questions (settled 2026-09-04): sign-in same passkey as checkout · entry via checkout links and the email receipt · contents are meters, receipts, and funds · funds shape was "one Elapse balance plus per-meter escrow", withdrawn the same day by [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) · cancel through a confirm sheet naming the merchant · identity is the passkey wallet address, no new object.
 
 ## Business rules
 
@@ -78,6 +77,7 @@ Grill-me questions (settled 2026-09-04): sign-in same passkey as checkout · ent
 | BR-CHK-004 | No red on the subscriber surface (human's call, 2026-09-03). One accent: amber for the live meter, low-balance and out-of-funds notices (the latter with stronger copy and a filled notice, not a new colour). Cancel is a neutral outline button. |
 | BR-CHK-005 | The merchant's secret key never reaches this page; it is driven by a session id and a publishable key only. |
 | BR-CHK-006 | "Powered by Elapse" and a lock icon appear in the footer of every state. |
+| BR-CHK-007 | The subscriber's money lives in their own wallet (the Privy embedded wallet holds AUSD, shown as dollars); Elapse never holds a balance for them and there is no card payment in the product ([ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)). How a subscriber gets dollars into that wallet is outside Elapse for 13 Oct; the demo wallet is pre-funded on testnet. |
 
 ## Data (mocked until the API exists)
 
@@ -99,7 +99,7 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 ## Open
 
 - Privy app id and bounty requirements (Week 3).
-- `/account` is built after the dashboard and is the first cut if the deadline bites (dashboard decision 16). FR-CHK-021 waits on the funding ADR.
+- `/account` is built after the dashboard and is the first cut if the deadline bites (dashboard decision 16).
 
 ## Revision
 
@@ -108,3 +108,6 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-03 | William | Reviewed and signed; five open questions settled with the agent's recommendations; FR-CHK-014/015 added. |
 | 2026-09-04 | Claude (for William) | Surface 4 subscriber account from the 2026-09-04 grill round: FR-CHK-016–026, BR-CHK-007, account data shapes. FR-CHK-021 marked proposed pending the funding ADR. Awaiting signature. |
+| 2026-09-04 | Claude (for William) | [ADR 2026-09-04 subscriber permit](../decisions/2026-09-04-subscriber-permit-relayer-signs.md) applied: FR-CHK-003 becomes the cap step with one Face ID signature; FR-CHK-021 withdrawn (no balance, no card); FR-CHK-018 cap line; BR-CHK-007 wallet rule; account balance shape removed; open items on out-of-funds and rebuilding the fund step. |
+| 2026-09-04 | Claude (for William) | Cap end decided (William, 2026-09-04): FR-CHK-007 becomes "the session ends at the cap" with a receipt and Start again, replacing the out-of-funds pause; FR-CHK-006 drops Add funds; FR-CHK-015 seed renamed; FR-CHK-018 adjusted. |
+| 2026-09-04 | Claude (for William) | Built the cap model in `web/`: cap step replaces the fund step, the meter ends at the cap with a receipt and Start again, no Add funds anywhere; `CapStep`, `MeterView` and `Receipt` gained component tests. 196 tests green. |
