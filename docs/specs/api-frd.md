@@ -162,10 +162,10 @@ subscriptions(id, merchant_id, livemode, product_id, customer_id, status, stream
               max_duration_seconds, max_escrow_wei, funded_wei, settled_wei, settled_seconds, permit_nonce, permit_deadline, ended_reason canceled|cap_reached,
               simulated, test_clock_id, created_at)                     UNIQUE(chain_id, stream_address)
 invoices(id, merchant_id, livemode, subscription_id, period_start, period_end, seconds, amount_wei (gross), fee_wei, status paid|failed, tx_hash, log_index, created_at)
-webhook_endpoints(id, merchant_id, livemode, url, events text[], disabled, secret_enc, previous_secret_enc, previous_secret_expires_at, consecutive_failures, created_at)
+webhook_endpoints(id, merchant_id, livemode, url, events text[], disabled, disabled_reason, secret_enc, previous_secret_enc, previous_secret_expires_at, consecutive_failures, failing_since, warned_24h_at, created_at)
 events(id, merchant_id, livemode, type, data jsonb, raw_body text, created, pending_webhooks, chain_event_id)
-deliveries(id, event_id, endpoint_id, status queued|retrying|succeeded|exhausted|manual, attempt, next_attempt_at, locked_until, created_at)
-delivery_attempts(id, delivery_id, n, sent_at, duration_ms, status_code, error, request_headers jsonb, response_excerpt)
+deliveries(id, event_id, endpoint_id, status queued|retrying|succeeded|exhausted|skipped, attempt, next_attempt_at, locked_until, created_at)   -- `manual` is an attempt flag, not a status (worker FRD, 2026-09-05)
+delivery_attempts(id, delivery_id, n, manual bool, actor, sent_at, duration_ms, status_code, error, request_headers jsonb, response_excerpt)
 chain_events(id, chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, address, event_name, args jsonb, received_at)   UNIQUE(chain_id, tx_hash, log_index)
 idempotency_keys(key, merchant_id, request_hash, response jsonb, created_at)   audit_log(id, merchant_id, actor, action, target, ip, at)
 ```
@@ -206,3 +206,4 @@ Env: `DATABASE_URL`, `MONAD_RPC_URL`, `CHAIN_ID`, `RELAYER_PRIVATE_KEY` (holds M
 | 2026-09-04 | Claude (for William) | FR-API-041 becomes a public, SDK-backed operation for the new `subscriptions.list` method. |
 | 2026-09-05 | Claude (for William) | Grill round: wire casing, test mode (real streams on testnet, relayer mints MockUSD at test checkout), rate limits, webhook secret at rest, logo storage, Resend, Railway + Neon hosting, `checkout.session.completed` timing all decided; pause/resume, `mrc_` and dashboard visibility confirmed; relayer key custody recorded (Undecided 12). Awaiting signature. |
 | 2026-09-05 | William | Signed. Week 2 build begins against this spec. |
+| 2026-09-05 | Claude (for William) | Delivery status model corrected to the worker FRD's (`skipped` status; `manual` and `actor` on attempts); endpoint `disabled_reason`, `failing_since`, `warned_24h_at` for time-based auto-disable ([ADR 2026-09-05](../decisions/2026-09-05-worker-in-api-and-auto-disable.md)). |

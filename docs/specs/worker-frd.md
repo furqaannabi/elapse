@@ -1,6 +1,6 @@
-# Webhook worker (`worker/` — Postgres-queued deliveries) — FRD
+# Webhook worker (`api/src/worker/` — Postgres-queued deliveries) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant webhook delivery) · Sources: detailed doc §2 "Not a webhook per second", §4.4 Signature, §5.1 catalog, §5.2 steps 3–5, §5.3 payload, §9 "Queue in Postgres + worker. No Kafka.", §10 step 3, §12 Week 2/4, §15; `worker/README.md`; `sdk/ts/src/index.ts` (`constructEvent`); design brief §3.9; API FRD FR-API-060–064, FR-API-073.
+Status: **Signed 2026-09-05 (William)** · Surface: Platform (Merchant webhook delivery) · Sources: detailed doc §2 "Not a webhook per second", §4.4 Signature, §5.1 catalog, §5.2 steps 3–5, §5.3 payload, §9 "Queue in Postgres + worker. No Kafka.", §10 step 3, §12 Week 2/4, §15; `worker/README.md`; `sdk/ts/src/index.ts` (`constructEvent`); design brief §3.9; API FRD FR-API-060–064, FR-API-073.
 
 ## Problem
 
@@ -32,7 +32,7 @@ Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant web
 | FR-WRK-010 | The worker polls `SELECT … FROM deliveries WHERE status IN ('queued','retrying') AND next_attempt_at <= now() AND (locked_until IS NULL OR locked_until < now()) ORDER BY next_attempt_at LIMIT $batch FOR UPDATE SKIP LOCKED`, sets `locked_until = now() + 60s`, and processes rows concurrently (default 16). Poll interval 500 ms; idle backoff to 2 s. | Two worker processes never deliver the same attempt (test with 200 jobs). |
 | FR-WRK-011 | Each attempt: `POST endpoint.url` with body = `events.raw_body` (the exact bytes stored at Event creation), headers `Content-Type: application/json`, `User-Agent: Elapse/1.0`, `X-Elapse-Signature` (FR-WRK-020), `X-Elapse-Delivery: dlv_…`. Timeout **10 s** total (connect + response). No redirects followed. | Mock server records identical bytes to `raw_body`. |
 | FR-WRK-012 | Success = any `2xx` → `status = succeeded`, `Event.pending_webhooks −= 1`, `endpoint.consecutive_failures = 0`. Everything else (non-2xx, timeout, DNS/TLS/connection error) = failure. `3xx` is a failure (doc §5.2 "Merchant returns 2xx"). | Table-driven test over 200, 204, 301, 400, 500, timeout, ECONNREFUSED. |
-| FR-WRK-013 | Retry schedule after a failed attempt n: `0s, 30s, 2m, 10m, 1h` for attempts 1–5, then Undecided 1 for 6–8; **cap 8 attempts**; after the 8th failure `status = exhausted`, `pending_webhooks −= 1`. | Assert `next_attempt_at` deltas; 8 failures → `exhausted`. |
+| FR-WRK-013 | Retry schedule after a failed attempt n: `0s, 30s, 2m, 10m, 1h` for attempts 1–5, then `1h, 1h, 1h` for 6–8 (Undecided 1, decided 2026-09-05); **cap 8 attempts**; after the 8th failure `status = exhausted`, `pending_webhooks −= 1`. | Assert `next_attempt_at` deltas; 8 failures → `exhausted`. |
 | FR-WRK-014 | Every attempt writes `delivery_attempts(n, sent_at, duration_ms, status_code, error, request_headers, response_excerpt ≤ 1 KiB)` — this is the dashboard delivery log (design brief §3.9: event, type, status code, attempt n/8, time; drawer with headers incl. signature, body, response). | Row per attempt; excerpt truncated at 1 024 bytes. |
 | FR-WRK-015 | A crashed worker's lock expires (`locked_until`) and the row is retried by another worker with the same attempt number (the crashed attempt is recorded as `error: "lock_expired"` if no attempt row exists). | Kill mid-attempt test. |
 | FR-WRK-016 | Live-mode URLs: HTTPS only, resolved address must not be loopback/private/link-local (re-checked at send time, not only at creation — DNS rebinding). Test mode allows `http://` and localhost (ngrok/CLI). | SSRF test set. |
@@ -66,7 +66,7 @@ Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant web
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-WRK-050 | `endpoint.consecutive_failures` increments when a Delivery becomes `exhausted` and resets on any success. When it reaches N (Undecided 3), the worker sets `disabled = true`, `disabled_reason = "auto:consecutive_failures"`, writes an audit row, and the dashboard shows the disabled state with a Re-enable action. | N exhausted Deliveries → disabled; the next Event creates no Delivery for it. |
+| FR-WRK-050 | Auto-disable, time-based (Stripe's rule; [ADR 2026-09-05](../decisions/2026-09-05-worker-in-api-and-auto-disable.md), Undecided 3): `endpoint.failing_since` is set on the first failed attempt of a streak and cleared by any `2xx`. When `now − failing_since ≥ 3 days` the worker sets `disabled = true`, `disabled_reason = "auto:failing_3d"`, writes an audit row and a `notifications(kind: endpoint_exhausted)` row (API FR-API-109); the dashboard shows the disabled state with a Re-enable action, which clears `failing_since`. A warning notification is written once when the streak passes 24 h. `consecutive_failures` stays as a display counter of exhausted Deliveries. | Fixture: failures from T to T+3d → disabled at the first attempt after T+3d; a `200` at T+2d resets; warning row exactly once at T+24h; Re-enable clears the streak. |
 | FR-WRK-051 | Per-endpoint success rate for the endpoints list (design brief §3.9) = succeeded / (succeeded + exhausted) over the last 7 days, computed by a SQL view. | View test. |
 
 ### Observability (doc §7 judge mode "webhook delivery log"; API FR-API-074)
@@ -76,6 +76,16 @@ Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant web
 | FR-WRK-060 | Worker reports `queued`, `retrying`, `oldest_queued_age_s`, `attempts_last_minute`, `success_rate_1h` to `GET /v1/status` (via a `worker_heartbeat` row updated every 5 s). | Status reflects a stalled worker within 15 s. |
 | FR-WRK-061 | Judge mode's "live webhook delivery log for this session" (checkout FRD FR-CHK-011) is `GET /v1/deliveries?subscription=sub_…` filtered through the session's Events; the worker adds nothing beyond attempt rows. | Panel shows the `subscription.canceled` attempt with `200` within 5 s of cancel in the demo. |
 | FR-WRK-062 | Structured log per attempt: `delivery_id, event_id, type, endpoint_id, n, status_code, duration_ms, outcome`. Never the body, never the secret. | Log snapshot. |
+
+## Build order (decided 2026-09-05, William)
+
+| Week | Ships | FRs |
+| --- | --- | --- |
+| 2 | Delivery loop: poll with `FOR UPDATE SKIP LOCKED`, decrypt and sign (both secrets in a grace window), POST with 10 s timeout and no redirects, 2xx rule, schedule capped at 8, attempt rows, `exhausted`/`skipped`, time-based auto-disable with its notification and audit rows, deliveries read routes and Resend | FR-WRK-010–016, 020–023, 030–032, 040–041, 050, 062 |
+| 3 | Keeper loop (`settleBatch` every 5 min, needs the relayer) · worker heartbeat for `GET /v1/status` (needs the status route and indexer lag) | keeper (contracts FR-CON-030s), FR-WRK-060–061 |
+| 4 | Expiry notices and emails (needs dashboard notifications) · success-rate view for the endpoints list · CLI `listen --forward` transport (Undecided 5) | FR-WRK-042, 051, CLI FRD |
+
+Nothing is stubbed: a Week 3 or 4 item is absent until it is built.
 
 ## Business rules
 
@@ -92,10 +102,10 @@ Status: **Draft — awaiting human sign-off** · Surface: Platform (Merchant web
 ## Data / interfaces
 
 ```
-deliveries(id dlv_…, event_id, endpoint_id, status queued|retrying|succeeded|exhausted|skipped, attempt, next_attempt_at, locked_until, created_at)
+deliveries(id dlv_…, event_id, endpoint_id, status queued|retrying|succeeded|exhausted|skipped, attempt, next_attempt_at, locked_until, created_at)   -- authoritative status list (decided 2026-09-05; API FRD corrected)
     UNIQUE(event_id, endpoint_id)
 delivery_attempts(id, delivery_id, n, manual bool, actor, sent_at, duration_ms, status_code, error, request_headers jsonb, response_excerpt text)
-webhook_endpoints(+ consecutive_failures, disabled_reason, previous_secret_enc, previous_secret_expires_at)
+webhook_endpoints(+ consecutive_failures, failing_since, warned_24h_at, disabled_reason, previous_secret_enc, previous_secret_expires_at)
 worker_heartbeat(worker_id, seen_at, queued, retrying, oldest_queued_age_s)
 
 Request:  POST {url}
@@ -110,11 +120,11 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 
 ## Undecided (human)
 
-1. **Delays for attempts 6–8.** The doc lists five delays and a cap of eight. (a) repeat `1h` (total ≈ 4 h 13 m); (b) `2h, 4h, 8h` (≈ 15 h); (c) cap at 5 and ignore "8". **Recommend (a)** — matches the README literally and finishes within a demo day.
+1. ~~**Delays for attempts 6–8.**~~ **Decided 2026-09-05 (William): (a)** repeat `1h` for attempts 6–8, total ≈ 4 h 13 m (FR-WRK-013).
 2. ~~**Secret-rotation overlap window.**~~ **Decided 2026-09-03 (dashboard decision 9):** the Merchant picks per roll: now, 1 h, or 24 h (FR-WRK-040); the SDK fix in FR-WRK-041 is decided too.
-3. **Auto-disable threshold N.** (a) 3 consecutive exhausted Deliveries; (b) 10; (c) time-based, 3 days of failures (Stripe). **Recommend (a)** — at hackathon volume, time-based never triggers.
-4. **Worker process shape.** (a) separate `worker/` Node process sharing the API's DB package; (b) in-process loop inside the API; (c) cron-invoked. **Recommend (a)** for isolation; (b) is acceptable for Week 2's "retry once" skeleton.
-5. **CLI `listen --forward` transport (Week 4; CLI FRD FR-CLI-010–013 requires byte-identical forwarding with the platform's real signature).** (a) CLI registers a temporary test-mode Webhook endpoint whose URL is a platform relay; the worker delivers to the relay normally and the CLI long-polls `GET /v1/cli/deliveries`; (b) WebSocket push of the same Deliveries; (c) CLI runs a public tunnel itself. **Recommend (a)** — reuses this worker unchanged and the CLI prints that endpoint's `whsec_`.
+3. ~~**Auto-disable threshold.**~~ **Decided 2026-09-05 (William): (c)** time-based, 3 days of continuous failure with a 24 h warning, Stripe's rule; the count-based draft was a demo shortcut and the failure need not be demoed (FR-WRK-050, [ADR](../decisions/2026-09-05-worker-in-api-and-auto-disable.md)).
+4. ~~**Worker process shape.**~~ **Decided 2026-09-05 (William):** `api/src/worker/`, a second Bun process (`bun run worker`) from the same package, deployed as a second Railway service; imports only `api/src/db` and `api/src/lib`. `worker/` keeps a pointer README ([ADR](../decisions/2026-09-05-worker-in-api-and-auto-disable.md)).
+5. **CLI `listen --forward` transport (open until Week 4, when the CLI is built)** (Week 4; CLI FRD FR-CLI-010–013 requires byte-identical forwarding with the platform's real signature).** (a) CLI registers a temporary test-mode Webhook endpoint whose URL is a platform relay; the worker delivers to the relay normally and the CLI long-polls `GET /v1/cli/deliveries`; (b) WebSocket push of the same Deliveries; (c) CLI runs a public tunnel itself. **Recommend (a)** — reuses this worker unchanged and the CLI prints that endpoint's `whsec_`.
 
 ## Open
 
@@ -128,3 +138,5 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | Dashboard decision 9 applied: FR-WRK-040 overlap window is chosen per roll (0 / 1 h / 24 h), Undecided 2 closed; FR-WRK-041 SDK change marked decided; FR-WRK-042 expiry and exhaustion notifications for the dashboard bell and emails (decision 14). |
+| 2026-09-05 | Claude (for William) | Grill round: worker inside `api/` as a second process; attempts 6–8 repeat 1 h; auto-disable becomes time-based (3 days, 24 h warning, Stripe's rule) with `failing_since`; status model `skipped` + `manual` attempt flag confirmed as authoritative over the API FRD; build order table (Week 2 delivery only, keeper/heartbeat Week 3, notices/CLI Week 4). [ADR 2026-09-05](../decisions/2026-09-05-worker-in-api-and-auto-disable.md). Awaiting signature. |
+| 2026-09-05 | William | Signed. Week 2 delivery loop build begins. |
