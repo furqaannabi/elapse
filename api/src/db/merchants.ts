@@ -17,3 +17,21 @@ export async function createMerchant(input: { name: string; email: string }): Pr
     RETURNING id, name, email, created_at`;
   return row as Merchant;
 }
+
+/** Public branding for checkout and account pages (FR-API-103 `branding`, FR-API-030 `merchant`). Never keys or payout data. */
+export interface MerchantBranding {
+  name: string;
+  logo_url: string | null;
+  accent: string | null;
+  support_url: string | null;
+}
+
+export async function getMerchantBranding(merchantId: string): Promise<MerchantBranding | null> {
+  const [row] = await sql`
+    SELECT COALESCE(branding->>'display_name', name) AS name,
+           branding->>'logo_url' AS logo_url,
+           branding->>'accent' AS accent,
+           branding->>'support_url' AS support_url
+    FROM merchants WHERE id = ${merchantId}`;
+  return (row as MerchantBranding | undefined) ?? null;
+}

@@ -11,11 +11,16 @@ export function router<E extends { Variables: object } = { Variables: {} }>() {
     defaultHook: (result, c) => {
       if (result.success) return;
       const issue = result.error.issues[0];
-      const param = issue?.path.map(String).join(".") || undefined;
+      // An unknown field names itself in `keys`, so `param` can point at it
+      // (this is how an immutable `rate_usd_per_second` on update is reported).
+      const unknownKey = issue && issue.code === "unrecognized_keys" ? (issue as { keys?: string[] }).keys?.[0] : undefined;
+      const param = [...(issue?.path ?? []).map(String), ...(unknownKey ? [unknownKey] : [])].join(".") || undefined;
       const message = issue
-        ? param
-          ? `Invalid ${param}: ${issue.message}`
-          : issue.message
+        ? unknownKey
+          ? `Received unknown parameter: ${param}`
+          : param
+            ? `Invalid ${param}: ${issue.message}`
+            : issue.message
         : "Invalid request.";
       const err = new ApiError(400, "invalid_request_error", message, param);
       return c.json(err.toBody(), 400);

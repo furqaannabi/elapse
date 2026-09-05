@@ -1,9 +1,10 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { config } from "../config";
-import { findProduct, insertProduct, type ProductRow } from "../db/products";
+import { CursorNotFound, findProduct, insertProduct, listProducts, updateProduct, type ProductRow } from "../db/products";
 import { invalid, notFound } from "../lib/errors";
 import { decimalToBaseUnits } from "../lib/money";
 import { router } from "../lib/openapi";
+import { ListOf, ListQuery, page } from "../lib/pagination";
 import { requireKey, type AuthEnv } from "../middleware/auth";
 
 /**
@@ -31,6 +32,16 @@ export const ProductSchema = z
     created: z.number().int().openapi({ description: "Unix seconds." }),
   })
   .openapi("Product");
+
+const UpdateProductBody = z
+  .strictObject({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    allow_pause: z.boolean().optional(),
+    active: z.boolean().optional().openapi({ description: "`false` archives the product; new checkout sessions are refused." }),
+  })
+  .refine((b) => Object.keys(b).length > 0, { message: "Provide at least one field to update." })
+  .openapi("UpdateProduct");
 
 const CreateProductBody = z
   .strictObject({
@@ -63,7 +74,9 @@ function trimDecimal(s: string): string {
 }
 
 export const products = router<AuthEnv>();
-products.use("*", requireKey(["sk"]));
+// Scoped to this resource: a sub-app `use("*")` would apply to every route mounted under /v1.
+products.use("/products", requireKey(["sk"]));
+products.use("/products/*", requireKey(["sk"]));
 
 products.openapi(
   createRoute({
@@ -115,6 +128,54 @@ products.openapi(
     const { id } = c.req.valid("param");
     const auth = c.get("auth");
     const row = await findProduct(auth.merchantId, auth.livemode, id);
+    if (!row) throw notFound("product", id);
+    return c.json(serializeProduct(row), 200);
+  },
+);
+
+products.openapi(
+  createRoute({
+    method: "get",
+    path: "/products",
+    operationId: "products.list",
+    tags: ["Products"],
+    request: { query: ListQuery },
+    responses: {
+      200: { description: "Products, newest first.", content: { "application/json": { schema: ListOf(ProductSchema, "ProductList") } } },
+    },
+  }),
+  async (c) => {
+    const q = c.req.valid("query");
+    const auth = c.get("auth");
+    try {
+      const rows = await listProducts(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after });
+      return c.json(page(rows.map(serializeProduct), q.limit, "/v1/products"), 200);
+    } catch (e) {
+      if (e instanceof CursorNotFound) throw invalid(e.message, "starting_after");
+      throw e;
+    }
+  },
+);
+
+products.openapi(
+  createRoute({
+    method: "post",
+    path: "/products/{id}",
+    operationId: "products.update",
+    tags: ["Products"],
+    request: {
+      params: z.object({ id: z.string() }),
+      body: { content: { "application/json": { schema: UpdateProductBody } }, required: true },
+    },
+    responses: {
+      200: { description: "The updated product.", content: { "application/json": { schema: ProductSchema } } },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    const auth = c.get("auth");
+    const row = await updateProduct(auth.merchantId, auth.livemode, id, body);
     if (!row) throw notFound("product", id);
     return c.json(serializeProduct(row), 200);
   },

@@ -5,6 +5,8 @@ import { SQL } from "bun";
  * design §6). Bun's native driver: tagged-template queries are parameterised,
  * never interpolated, so SQL injection is structurally impossible here.
  * Money columns come back as strings (NUMERIC) and stay strings (BR-API-004).
+ * jsonb: pass a plain object as the parameter (the driver serialises it);
+ * a pre-stringified value with `::jsonb` is stored as a JSON *string*.
  */
 const url = process.env.DATABASE_URL;
 if (!url) throw new Error("DATABASE_URL is not set");

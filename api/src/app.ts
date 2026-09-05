@@ -1,6 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
+import { checkoutSessions } from "./routes/checkout-sessions";
 import { products } from "./routes/products";
 
 /**
@@ -11,6 +12,7 @@ import { products } from "./routes/products";
 export const app = router();
 
 app.route("/v1", products);
+app.route("/v1", checkoutSessions);
 
 app.notFound((c) =>
   c.json(new ApiError(404, "not_found", `Unrecognized request URL (${c.req.method}: ${c.req.path}).`).toBody(), 404),
