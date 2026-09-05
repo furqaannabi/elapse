@@ -2,7 +2,9 @@ import { HTTPException } from "hono/http-exception";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
 import { checkoutSessions } from "./routes/checkout-sessions";
+import { events } from "./routes/events";
 import { products } from "./routes/products";
+import { webhookEndpoints } from "./routes/webhook-endpoints";
 
 /**
  * The platform API. One Hono app; routers mount under `/v1`. Errors of every
@@ -13,6 +15,8 @@ export const app = router();
 
 app.route("/v1", products);
 app.route("/v1", checkoutSessions);
+app.route("/v1", webhookEndpoints);
+app.route("/v1", events);
 
 app.notFound((c) =>
   c.json(new ApiError(404, "not_found", `Unrecognized request URL (${c.req.method}: ${c.req.path}).`).toBody(), 404),
