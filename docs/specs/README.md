@@ -44,7 +44,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `api-frd.md` | **Signed** · grilled 2026-09-05 · not yet built | William, 2026-09-05 |
 | `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) · ledger entity added 2026-09-04 | — |
 | `worker-frd.md` | **Signed** · Week 2 delivery loop first; keeper/heartbeat Week 3, notices/CLI Week 4 | William, 2026-09-05 |
-| `sdk-frd.md` | Draft — awaiting human sign-off (Furqaan) · multi-signature verify decided 2026-09-04 | — |
+| `sdk-frd.md` | **Signed** · TS client + `constructEvent` next; Python Week 5 | William, 2026-09-05 |
 | `cli-frd.md` | Draft — awaiting human sign-off | — |
 | `docs-site-frd.md` | Draft — awaiting human sign-off | — |
 | `examples-frd.md` | Draft — awaiting human sign-off | — |

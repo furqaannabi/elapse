@@ -1,6 +1,6 @@
 # `@elapse/sdk` (TypeScript) and `elapse` (Python) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
+Status: **Signed 2026-09-05 (William)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
 
 ## Problem
 
@@ -36,8 +36,8 @@ A merchant engineer who already uses Stripe must be able to `npm install @elapse
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-SDK-010 | Every method is one HTTPS request to `{baseUrl}/v1/...` using `fetch` (Node 20 global), header `Authorization: Bearer {secretKey}`, `Content-Type: application/json`, `User-Agent: elapse-node/{version}`. No ORM, no persistent state. | Mock server asserts headers on every call. |
-| FR-SDK-011 | Non-2xx responses throw one of: `ElapseAuthenticationError` (401/403), `ElapseInvalidRequestError` (400/404/422), `ElapseRateLimitError` (429), `ElapseAPIError` (5xx and unparseable bodies). All extend `ElapseError` with `status`, `code`, `message`, `requestId`. | One unit test per status code asserts class and fields. |
-| FR-SDK-012 | Requests that fail with a network error, 429, or 5xx are retried with exponential backoff and jitter, up to `maxRetries` (default 2). 4xx other than 429 are never retried. | Mock returns 500,500,200 → resolves; 400 → one request only. |
+| FR-SDK-011 | Non-2xx responses throw one of: `ElapseAuthenticationError` (401/403), `ElapseInvalidRequestError` (400/404/422, includes the API's `idempotency_error` and `not_found` types), `ElapseRateLimitError` (429), `ElapseAPIError` (5xx and unparseable bodies). All extend `ElapseError` with `status`, `type`, `code?`, `param?`, `message`, `requestId?` (from a `Request-Id` response header when the API sends one). The body shape is the signed API FRD's FR-API-082: `{error: {type, code?, message, param?}}`. | One unit test per status code asserts class and fields. |
+| FR-SDK-012 | Requests that fail with a network error, 429, or 5xx are retried with exponential backoff and jitter, up to `maxRetries` (default **2**, constructor option): delay `500 ms × 2ⁿ ± 25 %`, and `Retry-After` is honoured on 429 (Undecided 3, decided 2026-09-05). 4xx other than 429 are never retried. | Mock returns 500,500,200 → resolves; 400 → one request only. |
 | FR-SDK-013 | Every `create`/`cancel` call sends an `Idempotency-Key` header: caller-supplied via `{ idempotencyKey }` in the second argument, else a generated UUID reused across that call's retries. | Mock asserts the same key on all retry attempts. |
 | FR-SDK-014 | Per-request options `{ idempotencyKey?, timeoutMs? }` are accepted as the last argument of every method; default timeout 30 s; timeout throws `ElapseAPIError` with `code: "timeout"`. | Mock delays past timeout → rejects with the right class. |
 
@@ -45,10 +45,10 @@ A merchant engineer who already uses Stripe must be able to `npm install @elapse
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-SDK-020 | `webhooks.constructEvent(rawBody, header, secret)` parses `X-Elapse-Signature` of the form `t=<unix>,v1=<hex>[,v1=<hex>]` collecting **every** `v1` value (never `Object.fromEntries`), computes `HMAC-SHA256(s, "{t}.{raw_body}")` for each secret `s` in `secret` (`string \| string[]`), and accepts if **any** (secret, `v1`) pair matches under constant-time equality; every pair is compared (no early exit) so timing does not reveal which matched. Returns the parsed Event typed as `ElapseEvent`. `rawBody` is the unparsed `string \| Buffer`. Needed by the worker's secret-rotation overlap (worker FRD FR-WRK-040/041). | Golden test: known secret + body + t → passes; header with two `v1`s verifies against either secret; `secret: [old, new]` verifies a single-`v1` header signed with either. |
+| FR-SDK-020 | `webhooks.constructEvent(rawBody, header, secret)` parses `X-Elapse-Signature` of the form `t=<unix>,v1=<hex>[,v1=<hex>]` collecting **every** `v1` value (never `Object.fromEntries`), computes `HMAC-SHA256(s, "{t}.{raw_body}")` for each secret `s` in `secret` (`string \| string[]`), and accepts if **any** (secret, `v1`) pair matches under constant-time equality; every pair is compared (no early exit) so timing does not reveal which matched. Returns the parsed Event typed as `ElapseEvent`; an unknown `type` is still returned once the signature verifies (Undecided 5, decided 2026-09-05). `rawBody` is the unparsed `string \| Buffer`. Needed by the worker's secret-rotation overlap (worker FRD FR-WRK-040/041). | Golden test: known secret + body + t → passes; header with two `v1`s verifies against either secret; `secret: [old, new]` verifies a single-`v1` header signed with either. |
 | FR-SDK-021 | Throws `ElapseSignatureVerificationError` (extends `ElapseError`) when: header missing; header malformed (no `t`, no `v1`, non-numeric `t`, non-hex `v1`, more than 4 `v1` values); `\|now − t\| > 300 s`; no (secret, `v1`) pair matches (tampered body, wrong secret, wrong `t`); `secret` is an empty array. The message names the reason; the body is never returned. | One failing test per case: missing, malformed ×5, expired (+301 s and −301 s), tampered body, wrong secret, two `v1`s neither matching, empty secret array. |
 | FR-SDK-022 | A fourth optional argument `{ tolerance?: number, now?: () => number }` overrides the 300 s window and the clock for tests only; default behaviour unchanged. | Expired case passes with `tolerance: Infinity`. |
-| FR-SDK-023 | `ElapseEvent` is a discriminated union over the six MVP types (`checkout.session.completed`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `invoice.settled`, `invoice.payment_failed`) with `id` `evt_`, `object: "event"`, `created`, `data.object`; `subscription.canceled` narrows to `{ id: sub_, status: "canceled", seconds_elapsed, amount_settled, currency: "ausd", product, customer }` per §5.3. | Type test (`tsd`/`expect-type`): switching on `event.type` narrows `data.object`. |
+| FR-SDK-023 | `ElapseEvent` is a discriminated union over the six MVP types (`checkout.session.completed`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `invoice.settled`, `invoice.payment_failed`) with `id` `evt_`, `object: "event"`, `created`, `livemode`, `data.object`, plus a fallback member `{ type: string; data: { object: Record<string, unknown> } }` for types this SDK version does not know (Undecided 5); `subscription.canceled` narrows to `{ id: sub_, status: "canceled", seconds_elapsed, amount_settled, currency: "ausd", product, customer }` per §5.3. | Type test (`tsd`/`expect-type`): switching on `event.type` narrows `data.object`. |
 | FR-SDK-024 | `constructEvent` is also exported as a standalone function (as today) so it works without a client instance. | Import test. |
 
 ### Packaging, tests, publishing (§9, §12 Weeks 2 and 6, §14)
@@ -57,7 +57,7 @@ A merchant engineer who already uses Stripe must be able to `npm install @elapse
 | --- | --- | --- |
 | FR-SDK-030 | Builds to `dist/` as ESM (`index.js`) and CJS (`index.cjs`) with a single `index.d.ts`; `package.json` `exports` maps `import`/`require`/`types`; `files` limits the tarball to `dist` and `README.md`; `engines.node >= 20`. | `npm pack --dry-run` lists only those files; `node -e "require('@elapse/sdk')"` and ESM import both resolve. |
 | FR-SDK-031 | Zero runtime dependencies; uses `node:crypto` and global `fetch` only. | `package.json` has no `dependencies`. |
-| FR-SDK-032 | Unit tests (Vitest) cover FR-SDK-001–024 with a local mock HTTP server; `pnpm test` runs in CI on Node 20 and 22. | CI workflow green; coverage of `webhooks.ts` 100 % lines. |
+| FR-SDK-032 | Unit tests (**Vitest**, run under Node, not Bun, because merchants run Node) cover FR-SDK-001–024 with a local mock HTTP server; the build is **tsup** (ESM + CJS + one `.d.ts`); both dev-only (decided 2026-09-05). `pnpm test` runs in CI on Node 20 and 22. | CI workflow green; coverage of `webhooks.ts` 100 % lines. |
 | FR-SDK-033 | Published to npm as `@elapse/sdk` (fallback: GitHub Packages, documented in README) with `0.x` semver; the README code sample is the §4.2 snippet verbatim. | `npm view @elapse/sdk version` succeeds before 13 Oct; README snippet compiles under `tsc --noEmit`. |
 | FR-SDK-034 | The package README states "secret key server-side only" and links the docs Webhooks page. | Text present. |
 
@@ -101,17 +101,17 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 
 ## Undecided (human)
 
-1. **Request/response casing.** Frozen requests are camelCase (`rateUsdPerSecond`); wire objects are snake_case (`seconds_elapsed`). Options: (a) SDK translates both ways to camelCase; (b) requests camelCase, responses returned as raw API objects (snake_case); (c) snake_case everywhere. **Recommend (b):** the §4.2 request shape stays frozen, the cURL tab and webhook payload match responses byte-for-byte.
+1. ~~**Request/response casing.**~~ **Decided 2026-09-05 (William, API FRD Undecided 2): (b)** requests keep the frozen camelCase keys and are mapped to snake_case on the wire; responses are returned as the raw snake_case API objects, so the cURL tab and the webhook body match byte for byte (API FR-API-083).
 2. ~~**Multiple `v1=` values during secret rotation.**~~ **Decided 2026-09-04 (William): (a) + (c)** — accept any matching `v1` and allow `secret: string \| string[]` (FR-SDK-020/021). Required by the dashboard's roll-with-grace (dashboard decision 9, FR-DSH-080s) and the worker's dual-signed header (FR-WRK-040).
-3. **Retry policy numbers.** Options: 2 retries / 3 retries / configurable only. **Recommend** default `maxRetries: 2`, backoff 500 ms × 2^n ± 25 % jitter, honour `Retry-After` on 429.
-4. **Idempotency header name and server support.** `Idempotency-Key` (Stripe) vs `X-Idempotency-Key`. **Recommend `Idempotency-Key`**; API FRD must implement 24 h key storage or the SDK feature is cosmetic.
-5. **`ElapseEvent` for unknown types.** Fail closed (throw) or return `type: string`. **Recommend** return with `type: string` fallback so new events never break verification.
+3. ~~**Retry policy numbers.**~~ **Decided 2026-09-05 (William):** default `maxRetries: 2`, backoff 500 ms × 2ⁿ ± 25 % jitter, honour `Retry-After` on 429, configurable in the constructor (FR-SDK-012).
+4. ~~**Idempotency header name and server support.**~~ **Decided (API FRD FR-API-081, signed 2026-09-05):** `Idempotency-Key`, stored server-side for 24 h; same key + different body → `400 idempotency_error`.
+5. ~~**`ElapseEvent` for unknown types.**~~ **Decided 2026-09-05 (William): (a)** verify and return, typed through the fallback member; a valid signature on a new type is a genuine event and a platform release must never break an older SDK (FR-SDK-020, FR-SDK-023).
 
 ## Open
 
-- API FRD must confirm the `/v1` paths, auth header, and error body shape (`{ error: { type, code, message, request_id } }` assumed).
+- ~~API FRD must confirm the `/v1` paths, auth header, and error body shape~~ Confirmed by the signed API FRD: paths as in Interfaces above, `Authorization: Bearer sk_…`, error body `{error: {type, code?, message, param?}}` (FR-API-082), lists `{object, data, has_more, url}` (FR-API-080).
 - npm org `@elapse` availability; GitHub Packages fallback config.
-- Whether `sdk/ts` moves to the pnpm workspace root `package.json` (§13 monorepo).
+- ~~Whether `sdk/ts` moves to the pnpm workspace root~~ It is already a workspace package (`pnpm-workspace.yaml`); the API imports it as a dev dependency for the signing contract test (worker FR-WRK-022).
 
 ## Revision
 
@@ -120,3 +120,5 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | Undecided 2 closed from dashboard decision 9: FR-SDK-020/021 accept multiple `v1` values and an array of secrets, constant-time over every pair. |
 | 2026-09-04 | Claude (for William) | FR-SDK-008 `subscriptions.list` added to the frozen surface, approved by William; FR-SDK-007 restated as ten methods and records that pause/resume stay out. Follows [ADR 2026-09-04 account page](../decisions/2026-09-04-account-page-cross-merchant.md). |
+| 2026-09-05 | Claude (for William) | Grill round: casing (b) per API FRD; retries 2 with 500 ms × 2ⁿ ± 25 % and `Retry-After`; `Idempotency-Key` per FR-API-081; unknown event types verified and returned through a fallback union member; Vitest under Node + tsup; error shape and paths confirmed from the signed API FRD. Awaiting signature. |
+| 2026-09-05 | William | Signed. TS build begins with `constructEvent`. |
