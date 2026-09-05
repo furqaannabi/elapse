@@ -17,6 +17,8 @@ export const config = {
   email: {
     from: process.env.EMAIL_FROM ?? "Elapse <no-reply@elapse.dev>",
   },
+  /** Shared secret the indexer presents on `POST /internal/ingest` (FR-API-070). Unset = route refuses everything. */
+  ingestToken: process.env.INGEST_TOKEN ?? "",
 } as const;
 
 export function chainIdFor(livemode: boolean): number {

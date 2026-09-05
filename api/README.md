@@ -47,6 +47,19 @@ bun test                                      # migrates + runs against elapse_t
 
 Magic link (FR-API-100): `POST /v1/dashboard/auth/magic_link {email}` always answers `{sent:true}` and emails a 15-minute single-use link to `${DASHBOARD_ORIGIN}/login/verify?token=…`; `POST /v1/dashboard/auth/verify {token}` sets the `elapse_session` cookie (HttpOnly, SameSite=Lax, 7-day idle) and creates the merchant with a publishable key per mode on first sign-in. Tokens and cookie values are stored as SHA-256. Cookie requests take the mode from `X-Elapse-Mode` and must send the dashboard `Origin` to mutate. Keys (`/v1/api_keys`) are cookie-only.
 
+## Ingest (chain → platform)
+
+`POST /internal/ingest` is the indexer's only door (FR-API-070). `Authorization: Bearer $INGEST_TOKEN`
+(the same value the indexer holds as `ENVIO_INGEST_TOKEN`); a Merchant key or cookie gets the same 401.
+One transaction per log: `chain_events` row (unique on `chain_id, tx_hash, log_index`, so a repeat is
+`{duplicate: true}`), Subscription lookup by `stream_address` or by the relayer's `pending_tx`, then the
+FR-API-071 mapping: `StreamStarted` → `active` + `checkout.session.completed` + `subscription.created`;
+pause/resume → `subscription.updated`; `Settled` → paid Invoice + `invoice.settled`; `StreamCanceled` →
+`canceled` (+ `invoice.payment_failed` and a `payment_failed` notification first when the cap was reached)
++ `subscription.canceled`. Ledger rows land in `ledger_entries`. A log for a stream we did not create is
+stored with `subscription_id NULL` and answered `{ignored: true}`. Fixtures in `test/ingest-fixtures.ts`
+mirror the indexer's bodies byte for byte.
+
 ## Worker
 
 Spec: [`docs/specs/worker-frd.md`](../docs/specs/worker-frd.md) (signed 2026-09-05). Retries `0s, 30s, 2m, 10m, 1h, 1h, 1h, 1h`, cap 8, 10 s timeout, no redirects, any `2xx` is success. Signs `{t}.{raw_body}` with the endpoint's decrypted `whsec_`, both secrets during a roll's grace window. An endpoint failing for 3 days straight is disabled (bell warning at 24 h). Env: `WORKER_CONCURRENCY` (16), `WORKER_BATCH` (50).

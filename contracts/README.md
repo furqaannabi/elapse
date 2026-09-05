@@ -51,7 +51,10 @@ gets the rest back, the stream is empty. Passing locally.
 Testnet AUSD exists but cannot be minted by us and no faucet dispenses it, so the
 gate ran on the mock. Repeat against real AUSD before 13 Oct once someone at Agora
 or Monad sends testnet AUSD to the deployer. The "indexed by Envio" clause of
-FR-CON-073 waits for the indexer (Week 3).
+FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from block
+59873725 to head, registered the clone from `StreamCreated`, and GraphQL returned
+`Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
+`refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
 ## Tokens
 

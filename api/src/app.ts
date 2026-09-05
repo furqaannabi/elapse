@@ -6,6 +6,7 @@ import { checkoutSessions } from "./routes/checkout-sessions";
 import { dashboardAuth } from "./routes/dashboard-auth";
 import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
+import { internal } from "./routes/internal";
 import { products } from "./routes/products";
 import { webhookEndpoints } from "./routes/webhook-endpoints";
 
@@ -25,9 +26,7 @@ app.route("/v1", dashboardAuth);
 app.route("/v1", apiKeys);
 
 // /internal/* takes only the platform ingest token (FR-API-070); a cookie or merchant key is refused.
-app.all("/internal/*", (c) => {
-  throw new ApiError(401, "authentication_error", "Internal route.");
-});
+app.route("/", internal);
 
 app.notFound((c) =>
   c.json(new ApiError(404, "not_found", `Unrecognized request URL (${c.req.method}: ${c.req.path}).`).toBody(), 404),
