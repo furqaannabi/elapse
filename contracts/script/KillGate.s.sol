@@ -15,6 +15,10 @@ import {MockUSD} from "../src/MockUSD.sol";
 ///
 /// The broadcaster is the Subscriber. The Merchant is a fixed address nobody
 /// holds, so its balance is a clean readout of what was paid.
+///
+/// By default the gate runs on the deployment's MockUSD and mints what it
+/// needs. Set TOKEN=0x... to run on a real token the broadcaster already holds
+/// (AUSD, USDC): nothing is minted and the balance must cover the escrow.
 contract KillGate is Script {
     address constant MERCHANT = address(uint160(0xE1A5E));
     uint256 constant RATE = 4_000; // $0.004 / s at 6 decimals
@@ -35,13 +39,19 @@ contract KillGate is Script {
     function start() external {
         (address factoryAddr, address mockUsd) = _deployments();
         StreamFactory factory = StreamFactory(factoryAddr);
-        MockUSD usd = MockUSD(mockUsd);
+        address tokenAddr = vm.envOr("TOKEN", mockUsd);
+        bool isMock = tokenAddr == mockUsd;
+        MockUSD usd = MockUSD(tokenAddr);
         vm.startBroadcast();
         // The broadcaster is the Subscriber. Read it after startBroadcast:
         // before that point msg.sender is Foundry's placeholder, not the keystore.
         (, address subscriber,) = vm.readCallers();
-        usd.mint(subscriber, ESCROW);
-        address streamAddr = factory.create(MERCHANT, subscriber, mockUsd, RATE, ESCROW);
+        if (isMock) {
+            usd.mint(subscriber, ESCROW);
+        } else {
+            require(usd.balanceOf(subscriber) >= ESCROW, "wallet does not hold enough of TOKEN for the escrow");
+        }
+        address streamAddr = factory.create(MERCHANT, subscriber, tokenAddr, RATE, ESCROW);
         usd.approve(streamAddr, ESCROW);
         AccrualStream(streamAddr).deposit(ESCROW);
         AccrualStream(streamAddr).start();
@@ -51,6 +61,7 @@ contract KillGate is Script {
         vm.serializeAddress(json, "stream", streamAddr);
         vm.serializeAddress(json, "subscriber", subscriber);
         vm.serializeAddress(json, "merchant", MERCHANT);
+        vm.serializeAddress(json, "token", tokenAddr);
         vm.serializeUint(json, "rate", RATE);
         vm.serializeUint(json, "escrow", ESCROW);
         string memory out = vm.serializeUint(json, "startedAt", block.timestamp);
