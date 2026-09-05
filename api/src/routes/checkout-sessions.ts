@@ -7,7 +7,7 @@ import { ApiError, invalid, notFound } from "../lib/errors";
 import { findSubscription, serializeSubscription, type SubscriptionRow } from "../db/subscriptions";
 import { findCustomer } from "../db/customers";
 import { RelayerUnavailable } from "../chain/relayer";
-import { CheckoutStateError, prepareSession, startSession, PERMIT_TTL_SECONDS } from "../services/checkout";
+import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancelSubscription, PERMIT_TTL_SECONDS, CANCEL_TTL_SECONDS } from "../services/checkout";
 import { PERMIT_TYPES } from "../chain/permit";
 import { baseUnitsToDecimal } from "../lib/money";
 import { router } from "../lib/openapi";
@@ -298,7 +298,7 @@ const StartResponse = z.object({ subscription: z.string(), pending_tx: z.string(
 /** Service errors → FR-API-082 shape. Conflicts are 409; a missing relayer is our fault (503). */
 function mapCheckoutError(e: unknown): never {
   if (e instanceof CheckoutStateError) {
-    const status = e.code === "already_started" || e.code === "session_not_open" ? 409 : 400;
+    const status = e.code === "already_started" || e.code === "session_not_open" || e.code === "not_running" ? 409 : 400;
     throw new ApiError(status, "invalid_request_error", e.message, undefined, e.code);
   }
   if (e instanceof RelayerUnavailable) throw new ApiError(503, "api_error", "Starting sessions is temporarily unavailable.");
@@ -350,6 +350,69 @@ checkoutSessions.openapi(
     if (!session) throw notFound("checkout session", id);
     try {
       return c.json(await startSession({ session, signature }), 202);
+    } catch (e) {
+      mapCheckoutError(e);
+    }
+  },
+);
+
+// ─── Subscriber cancel (contracts FR-CON-017, checkout FR-CHK-008) ─────────────
+
+const CancelPrepareResponse = z
+  .object({
+    subscription: z.string(),
+    stream_address: z.string(),
+    chain_id: z.number().int(),
+    nonce: z.string(),
+    deadline: z.string(),
+    message: z.string().openapi({ description: `32 bytes to personal-sign (EIP-191). Valid ${CANCEL_TTL_SECONDS} s.` }),
+  })
+  .openapi("CancelAuthorisation");
+const CancelBody = z.strictObject({ signature: z.string().regex(SIGNATURE, "must be a 65-byte hex signature"), deadline: z.string().regex(/^\d{1,12}$/) }).openapi("CancelCheckoutSession");
+
+checkoutSessions.openapi(
+  createRoute({
+    method: "post",
+    path: "/checkout/sessions/{id}/cancel/prepare",
+    operationId: "checkout.sessions.cancel.prepare",
+    tags: ["Checkout"],
+    hide: true,
+    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: { 200: { description: "The message the subscriber's wallet signs to stop the meter.", content: { "application/json": { schema: CancelPrepareResponse } } } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const auth = c.get("auth");
+    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
+    if (!session) throw notFound("checkout session", id);
+    try {
+      return c.json(await prepareCancel({ session }), 200);
+    } catch (e) {
+      mapCheckoutError(e);
+    }
+  },
+);
+
+checkoutSessions.openapi(
+  createRoute({
+    method: "post",
+    path: "/checkout/sessions/{id}/cancel",
+    operationId: "checkout.sessions.cancel",
+    tags: ["Checkout"],
+    hide: true,
+    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: CancelBody } }, required: true } },
+    responses: { 202: { description: "Submitted; `canceled` and the receipt arrive when the chain confirms.", content: { "application/json": { schema: StartResponse } } } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { signature, deadline } = c.req.valid("json");
+    const auth = c.get("auth");
+    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
+    if (!session) throw notFound("checkout session", id);
+    try {
+      return c.json(await cancelSubscription({ session, signature, deadline }), 202);
     } catch (e) {
       mapCheckoutError(e);
     }

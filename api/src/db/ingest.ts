@@ -119,9 +119,14 @@ async function applyLog(tx: SQL, sub: SubscriptionRow, body: IngestBody, chainEv
       const seconds = int(a.seconds);
       const amount = big(a.amount);
       const fee = big(a.fee);
+      // Logs of one block reach us in any order (Envio runs Effects concurrently). Once StreamCanceled
+      // has set the cumulative totals from the chain, a late Settled must not add to them; the fee is
+      // not in StreamCanceled, so it is still accumulated.
       await tx`UPDATE subscriptions
-               SET settled_wei = settled_wei + ${amount.toString()}::numeric, settled_fee_wei = settled_fee_wei + ${fee.toString()}::numeric,
-                   settled_seconds = settled_seconds + ${seconds}, updated_at = now()
+               SET settled_wei = CASE WHEN status = 'canceled' THEN settled_wei ELSE settled_wei + ${amount.toString()}::numeric END,
+                   settled_seconds = CASE WHEN status = 'canceled' THEN settled_seconds ELSE settled_seconds + ${seconds} END,
+                   settled_fee_wei = settled_fee_wei + ${fee.toString()}::numeric,
+                   updated_at = now()
                WHERE id = ${sub.id}`;
       const invoice = await insertInvoice(
         {

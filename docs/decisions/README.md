@@ -32,3 +32,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-04 | [The subscriber account page stays Elapse-branded across merchants](./2026-09-04-account-page-cross-merchant.md) | William |
 | 2026-09-05 | [The webhook worker lives inside `api/`; endpoints auto-disable after 3 days of continuous failure](./2026-09-05-worker-in-api-and-auto-disable.md) | William |
 | 2026-09-05 | [Indexer: Envio Hosted Service plus local `envio dev`; no rollback on reorg; one ingest POST per log](./2026-09-05-indexer-hosting-reorg-transport.md) | William |
+| 2026-09-05 | [The factory's keeper may cancel a stream, so `subscriptions.cancel` works from a merchant's server](./2026-09-05-keeper-may-cancel.md) | William |

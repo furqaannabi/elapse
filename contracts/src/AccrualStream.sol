@@ -5,6 +5,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+/// The one factory read a clone makes at call time (FR-CON-004): who the keeper is right now.
+interface IKeeperSource {
+    function keeper() external view returns (address);
+}
+
 /// @title AccrualStream
 /// @notice One per-second meter: one Merchant, one Subscriber, one product rate,
 ///         one escrow. The Subscriber can never be charged past the escrow, the
@@ -133,6 +138,14 @@ contract AccrualStream is ReentrancyGuard {
         _;
     }
 
+    /// A party, or the factory's current keeper (FR-CON-054, decided 2026-09-05): the platform
+    /// relayer may stop a meter on the merchant's behalf. Cancel can only pay elapsed seconds
+    /// to the merchant and refund the rest, so this grants no power over funds.
+    modifier onlyPartyOrKeeper() {
+        if (msg.sender != subscriber && msg.sender != merchant && msg.sender != IKeeperSource(factory).keeper()) revert NotParty();
+        _;
+    }
+
     modifier notCanceled() {
         if (status == Status.Canceled) revert AlreadyCanceled();
         _;
@@ -218,7 +231,7 @@ contract AccrualStream is ReentrancyGuard {
     /// @notice Stop the meter: settle unsettled whole seconds, refund the rest
     ///         (FR-CON-024, FR-CON-025). A stream past its cap ends at the cap
     ///         second instead (FR-CON-041).
-    function cancel() external nonReentrant onlyParty notCanceled {
+    function cancel() external nonReentrant onlyPartyOrKeeper notCanceled {
         _cancel();
     }
 

@@ -56,6 +56,20 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
+## Current testnet deployment (2026-09-05, keeper cancel)
+
+| | |
+| --- | --- |
+| Factory | [`0x656fa8B348981602ACf36faD07804E806Cc15d5B`](https://testnet.monadscan.com/address/0x656fa8B348981602ACf36faD07804E806Cc15d5B) |
+| Implementation | `0x537F2E3Abb4E4434FF01e7A572e72841b2C7E2f1` |
+| MockUSD | `0xB162dFDe7073eb1b4DD6279eFcD0568e9C09A21c` |
+| Block | 60009700, tx `0x24b558d2…9f08d` |
+| Why | FR-CON-054: `cancel()` also accepts `factory.keeper()` ([ADR](../docs/decisions/2026-09-05-keeper-may-cancel.md)) |
+
+Proven the same day through the product path: merchant `subscriptions.cancel` → relayer `cancel()` as keeper, tx
+[`0x7826a0c5…f7d7a`](https://testnet.monadscan.com/tx/0x7826a0c5d4faf04d5acf607bb3e741ee3779bca186f56007c90014e4e32f7d7a):
+19 s elapsed, merchant +0.07524, treasury +0.00076, subscriber refunded 1.124. The kill-gate table above records the first factory.
+
 ## Tokens
 
 Verified on chain 2026-09-05, not from docs:

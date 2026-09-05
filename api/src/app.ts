@@ -8,6 +8,7 @@ import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { internal } from "./routes/internal";
 import { products } from "./routes/products";
+import { subscriptions } from "./routes/subscriptions";
 import { webhookEndpoints } from "./routes/webhook-endpoints";
 
 /**
@@ -19,6 +20,7 @@ export const app = router();
 
 app.route("/v1", products);
 app.route("/v1", checkoutSessions);
+app.route("/v1", subscriptions);
 app.route("/v1", webhookEndpoints);
 app.route("/v1", events);
 app.route("/v1", deliveries);

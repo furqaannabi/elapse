@@ -63,7 +63,7 @@ describe("FR-API-032 routes", () => {
     expect(pub.body.subscription.stream_address).toBeNull();
 
     // The chain confirms: ingest binds the stream by pending_tx, the session completes, the page sees `active`.
-    const created = log("StreamCreated", { stream: "0x86776c5be46d01242285aac66040b3bf0634cd8a", merchant: m.payoutAddress, subscriber: subscriber.address.toLowerCase(), token: "0x003ac9aac1d5d7d69b5f9727144dbaee2e867ba5", ratePerSecond: "4000", maxEscrow: "14400000" }, { address: "0x2a27160fc556819f2b3d293bbfa0aac5360e3c40", tx, logIndex: 0 });
+    const created = log("StreamCreated", { stream: "0x86776c5be46d01242285aac66040b3bf0634cd8a", merchant: m.payoutAddress, subscriber: subscriber.address.toLowerCase(), token: "0xb162dfde7073eb1b4dd6279efcd0568e9c09a21c", ratePerSecond: "4000", maxEscrow: "14400000" }, { address: "0x656fa8b348981602acf36fad07804e806cc15d5b", tx, logIndex: 0 });
     const ing = await api("POST", "/internal/ingest", { body: created, headers: { authorization: "Bearer ingest-test-token" } });
     expect(ing.body.subscription).toBe(prep.body.subscription);
     await api("POST", "/internal/ingest", { body: streamStarted(tx), headers: { authorization: "Bearer ingest-test-token" } });

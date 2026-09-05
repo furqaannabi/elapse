@@ -8,6 +8,9 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   const nonces = new Map<string, bigint>();
   const mints: Array<{ to: string; amount: bigint }> = [];
   const creates: CreateWithPermitArgs[] = [];
+  const cancels: Array<{ stream: string; deadline: bigint; signature: string }> = [];
+  const keeperCancels: string[] = [];
+  const cancelNonces = new Map<string, bigint>();
   let n = 0;
   const hash = () => ("0x" + (++n).toString(16).padStart(64, "0")) as Hex;
   const client: ChainClient = {
@@ -31,6 +34,22 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
       nonces.set(args.subscriber.toLowerCase(), (nonces.get(args.subscriber.toLowerCase()) ?? 0n) + 1n);
       return hash();
     },
+    async readCancelNonce(_c, stream) {
+      return cancelNonces.get(stream.toLowerCase()) ?? 0n;
+    },
+    async cancel(_c, stream) {
+      keeperCancels.push(stream.toLowerCase());
+      return hash();
+    },
+    async cancelFor(_c, stream, deadline, signature) {
+      cancels.push({ stream: stream.toLowerCase(), deadline, signature });
+      cancelNonces.set(stream.toLowerCase(), (cancelNonces.get(stream.toLowerCase()) ?? 0n) + 1n);
+      return hash();
+    },
   };
-  return { client, mints, creates, balances, nonces, setNonce: (a: Address, v: bigint) => nonces.set(a.toLowerCase(), v) };
+  return {
+    client, mints, creates, cancels, keeperCancels, balances, nonces,
+    setNonce: (a: Address, v: bigint) => nonces.set(a.toLowerCase(), v),
+    setCancelNonce: (s: string, v: bigint) => cancelNonces.set(s.toLowerCase(), v),
+  };
 }

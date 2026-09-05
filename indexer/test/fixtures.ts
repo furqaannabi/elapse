@@ -1,18 +1,18 @@
 /** Shared addresses and helpers for indexer tests. Lowercase because config sets address_format: lowercase. */
 export const CHAIN = 10143 as const;
-export const FACTORY = "0x2a27160fc556819f2b3d293bbfa0aac5360e3c40";
+export const FACTORY = "0x656fa8b348981602acf36fad07804e806cc15d5b";
 export const STREAM = "0x86776c5be46d01242285aac66040b3bf0634cd8a";
 export const MERCHANT = "0x1111111111111111111111111111111111111111";
 export const SUBSCRIBER = "0x2222222222222222222222222222222222222222";
 export const TREASURY = "0xaf1444abf40afc91bcb4a6793765553c6bccea0d";
-export const TOKEN = "0x003ac9aac1d5d7d69b5f9727144dbaee2e867ba5";
+export const TOKEN = "0xb162dfde7073eb1b4dd6279efcd0568e9c09a21c";
 
 /** 0.004 USD/s in 6-decimal base units, the kill-gate rate. */
 export const RATE = 4_000n;
 export const MAX_ESCROW = 14_400_000n;
 
 /** Simulated blocks are offsets from the factory deployment block in config.yaml (start_block). */
-export const START_BLOCK = 59_873_725;
+export const START_BLOCK = 60_009_700;
 
 let txCounter = 0;
 /** Block/transaction metadata for a simulated event; `block` is an offset from START_BLOCK, each call gets a fresh tx hash. */

@@ -35,8 +35,8 @@ contracts:
 
 chains:
   - id: 10143 # Monad testnet
-    start_block: 59873725 # contracts/deployments/10143.json deployedAtBlock
+    start_block: 60009700 # contracts/deployments/10143.json deployedAtBlock (redeploy 2026-09-05, keeper cancel)
     contracts:
       - name: StreamFactory
-        address: "0x2A27160FC556819f2b3D293bbFA0aac5360E3C40"
+        address: "0x656fa8B348981602ACf36faD07804E806Cc15d5B"
       - name: AccrualStream # registered dynamically from StreamCreated (FR-IDX-002)

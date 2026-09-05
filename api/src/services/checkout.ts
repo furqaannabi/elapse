@@ -17,6 +17,7 @@ import { findSubscription, insertSubscription, type SubscriptionRow } from "../d
 import { chainClient } from "../chain/relayer";
 import { deploymentFor, escrowTokenFor } from "../chain/deployments";
 import { buildPermitTypedData, recoverPermitSigner, splitSignature, PERMIT_TYPES, type PermitDomain } from "../chain/permit";
+import { cancelInnerHash, recoverCancelSigner } from "../chain/cancel-auth";
 import { baseUnitsToDecimal } from "../lib/money";
 import { config } from "../config";
 
@@ -25,6 +26,7 @@ const MIN_CAP = 60;
 const MAX_CAP = 2_592_000;
 
 export type CheckoutErrorCode =
+  | "not_running"
   | "session_not_open"
   | "cap_fixed"
   | "invalid_cap"
@@ -34,7 +36,7 @@ export type CheckoutErrorCode =
   | "permit_expired"
   | "no_payout_address";
 
-/** Route layer maps: 409 for `already_started`/`session_not_open`, 400 otherwise. */
+/** Route layer maps: 409 for `already_started`/`session_not_open`/`not_running`, 400 otherwise. */
 export class CheckoutStateError extends Error {
   constructor(
     public readonly code: CheckoutErrorCode,
@@ -170,4 +172,66 @@ export async function startSession(input: { session: CheckoutSessionRow; signatu
   // Written immediately so ingest can bind StreamCreated by tx hash before the receipt is read (FR-API-071 note).
   await sql`UPDATE subscriptions SET pending_tx = ${pendingTx.toLowerCase()}, updated_at = now() WHERE id = ${sub.id}`;
   return { subscription: sub.id, pending_tx: pendingTx };
+}
+
+export const CANCEL_TTL_SECONDS = 600;
+
+/** A Subscription that can be canceled on chain right now: it has a stream and is active or paused. */
+async function runningSubscription(session: CheckoutSessionRow): Promise<SubscriptionRow> {
+  const sub = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
+  if (!sub || !sub.stream_address || (sub.status !== "active" && sub.status !== "paused")) {
+    throw new CheckoutStateError("not_running", "There is no running meter on this session.");
+  }
+  return sub;
+}
+
+/**
+ * Step one of a subscriber cancel (FR-CON-017, checkout FR-CHK-008): the 32 bytes the wallet
+ * signs with a personal-sign, bound to this stream, its current nonce and a 10-minute deadline.
+ */
+export async function prepareCancel(input: { session: CheckoutSessionRow; now?: number }) {
+  const sub = await runningSubscription(input.session);
+  const now = input.now ?? Math.floor(Date.now() / 1000);
+  const stream = sub.stream_address as Address;
+  const nonce = await chainClient().readCancelNonce(sub.chain_id, stream);
+  const deadline = BigInt(now + CANCEL_TTL_SECONDS);
+  return {
+    subscription: sub.id,
+    stream_address: stream,
+    chain_id: sub.chain_id,
+    nonce: nonce.toString(),
+    deadline: deadline.toString(),
+    message: cancelInnerHash({ chainId: sub.chain_id, stream, nonce, deadline }),
+  };
+}
+
+/** Step two: verify the signature is the subscriber's, then the relayer submits `cancelFor`. `canceled` arrives via ingest. */
+export async function cancelSubscription(input: { session: CheckoutSessionRow; signature: string; deadline: string; now?: number }): Promise<{ subscription: string; pending_tx: Hex }> {
+  const sub = await runningSubscription(input.session);
+  const now = input.now ?? Math.floor(Date.now() / 1000);
+  if (!/^\d{1,12}$/.test(input.deadline)) throw new CheckoutStateError("permit_expired", "Invalid deadline.");
+  const deadline = BigInt(input.deadline);
+  if (deadline <= BigInt(now)) throw new CheckoutStateError("permit_expired", "The cancel authorisation expired; ask for a new message.");
+  const stream = sub.stream_address as Address;
+  const chain = chainClient();
+  const nonce = await chain.readCancelNonce(sub.chain_id, stream);
+  const inner = cancelInnerHash({ chainId: sub.chain_id, stream, nonce, deadline });
+  const [customer] = await sql`SELECT wallet_address FROM customers WHERE id = ${sub.customer_id}`;
+  const signer = await recoverCancelSigner(inner, input.signature);
+  if (!signer || signer !== (customer!.wallet_address as string).toLowerCase()) {
+    throw new CheckoutStateError("bad_signature", "The signature does not match the subscriber's wallet.");
+  }
+  const pendingTx = await chain.cancelFor(sub.chain_id, stream, deadline, input.signature as Hex);
+  await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;
+  return { subscription: sub.id, pending_tx: pendingTx };
+}
+
+/** Merchant-initiated cancel (FR-API-042): the relayer is the factory keeper (FR-CON-054) and calls `cancel()` directly. */
+export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
+  if (!sub.stream_address || (sub.status !== "active" && sub.status !== "paused")) {
+    throw new CheckoutStateError("not_running", "The subscription has no running meter.");
+  }
+  const pendingTx = await chainClient().cancel(sub.chain_id, sub.stream_address as Address);
+  await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;
+  return pendingTx;
 }

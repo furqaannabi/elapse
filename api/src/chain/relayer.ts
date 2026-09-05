@@ -7,7 +7,7 @@
  */
 import { createPublicClient, createWalletClient, defineChain, http, type Address, type Hex, type PublicClient, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { factoryAbi, permitTokenAbi } from "./abi";
+import { factoryAbi, permitTokenAbi, streamAbi } from "./abi";
 import { deploymentFor } from "./deployments";
 import type { PermitDomain } from "./permit";
 
@@ -33,6 +33,12 @@ export interface ChainClient {
   mintMock(chainId: number, token: Address, to: Address, amount: bigint): Promise<Hex>;
   /** Submits `StreamFactory.createWithPermit`; resolves with the tx hash as soon as it is broadcast. */
   createWithPermit(args: CreateWithPermitArgs): Promise<Hex>;
+  /** Per-stream replay nonce for `cancelFor` (FR-CON-017). */
+  readCancelNonce(chainId: number, stream: Address): Promise<bigint>;
+  /** Submits `AccrualStream.cancel()` as the factory keeper (FR-CON-054, merchant-initiated cancel). */
+  cancel(chainId: number, stream: Address): Promise<Hex>;
+  /** Submits `AccrualStream.cancelFor(deadline, signature)`; resolves with the tx hash at broadcast. */
+  cancelFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
 }
 
 const monadChain = (chainId: number, rpcUrl: string) =>
@@ -92,6 +98,18 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
         functionName: "createWithPermit",
         args: [a.merchant, a.subscriber, a.token, a.ratePerSecond, a.maxEscrow, a.deadline, a.v, a.r, a.s],
       });
+    },
+    async readCancelNonce(chainId, stream) {
+      assertChain(chainId);
+      return publicClient.readContract({ address: stream, abi: streamAbi, functionName: "cancelNonce" });
+    },
+    async cancel(chainId, stream) {
+      assertChain(chainId);
+      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancel", args: [] });
+    },
+    async cancelFor(chainId, stream, deadline, signature) {
+      assertChain(chainId);
+      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancelFor", args: [deadline, signature] });
     },
   };
 }

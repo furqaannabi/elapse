@@ -181,6 +181,24 @@ describe("FR-API-071 mapping", () => {
     expect(n).toBe(1);
   });
 
+  it("FR_API_071_logs_of_one_block_may_arrive_in_any_order_and_totals_stay_cumulative", async () => {
+    // Envio's Effect calls run concurrently, so StreamCanceled can land before the Settled of the same tx.
+    await seedIncomplete();
+    const startTx = txHash();
+    const endTx = txHash();
+    await ingest(streamCreated(startTx));
+    await ingest(deposited(startTx));
+    await ingest(streamStarted(startTx, T0));
+    await ingest(streamCanceled(T0 + 220, 220, "880000", "13520000", endTx));
+    await ingest(settled(220, "880000", "8800", T0 + 220, endTx));
+    const sub = await findSubscription(m.merchantId, false, subId);
+    expect(sub).toMatchObject({ status: "canceled", settled_seconds: 220, settled_wei: "880000", settled_fee_wei: "8800" });
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM invoices WHERE status = 'paid'`;
+    expect(n).toBe(1);
+    const types = (await sql`SELECT type FROM events ORDER BY seq`).map((e: any) => e.type);
+    expect(types.slice(-2).sort()).toEqual(["invoice.settled", "subscription.canceled"]);
+  });
+
   it("FR_API_051_a_cap_end_records_cap_reached_and_fires_payment_failed_before_canceled", async () => {
     await seedIncomplete({ maxDuration: 220 });
     const startTx = txHash();

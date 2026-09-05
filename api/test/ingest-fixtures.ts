@@ -4,12 +4,12 @@
  * The kill-gate numbers are the testnet run recorded in contracts/README.md.
  */
 export const CHAIN = 10143;
-export const FACTORY = "0x2a27160fc556819f2b3d293bbfa0aac5360e3c40";
+export const FACTORY = "0x656fa8b348981602acf36fad07804e806cc15d5b";
 export const STREAM = "0x86776c5be46d01242285aac66040b3bf0634cd8a";
 export const MERCHANT_ADDR = "0x1111111111111111111111111111111111111111";
 export const SUBSCRIBER = "0x2222222222222222222222222222222222222222";
 export const TREASURY = "0xaf1444abf40afc91bcb4a6793765553c6bccea0d";
-export const TOKEN = "0x003ac9aac1d5d7d69b5f9727144dbaee2e867ba5";
+export const TOKEN = "0xb162dfde7073eb1b4dd6279efcd0568e9c09a21c";
 export const T0 = 1_757_000_000;
 
 let n = 0;

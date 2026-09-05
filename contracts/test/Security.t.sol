@@ -41,6 +41,55 @@ contract SecurityTest is BaseTest {
         s.cancel();
     }
 
+    /// Decided 2026-09-05 (William, ADR keeper-may-cancel): the factory's keeper is a third
+    /// canceller so the platform can honour `subscriptions.cancel` from a merchant's server,
+    /// which holds an API key, not the payout wallet. Cancel only ever pays elapsed seconds to
+    /// the merchant and refunds the rest, so the keeper cannot take anything. It still may not
+    /// start, pause or resume.
+    function test_FR_CON_054_keeper_may_cancel_but_not_start_pause_or_resume() public {
+        address keeper = makeAddr("keeper");
+        factory.setKeeper(keeper);
+        AccrualStream s = fundedStream();
+
+        vm.prank(keeper);
+        vm.expectRevert(AccrualStream.NotParty.selector);
+        s.start();
+
+        vm.prank(subscriber);
+        s.start();
+        vm.warp(block.timestamp + 83);
+
+        vm.prank(keeper);
+        vm.expectRevert(AccrualStream.NotParty.selector);
+        s.pause();
+        vm.prank(keeper);
+        vm.expectRevert(AccrualStream.NotParty.selector);
+        s.resume();
+
+        vm.prank(stranger);
+        vm.expectRevert(AccrualStream.NotParty.selector);
+        s.cancel();
+
+        uint256 gross = 83 * RATE;
+        vm.prank(keeper);
+        s.cancel();
+        assertEq(usd.balanceOf(merchant), gross - fee(gross));
+        assertEq(usd.balanceOf(treasury), fee(gross));
+        assertEq(usd.balanceOf(subscriber), 100 * ESCROW - gross);
+        assertEq(usd.balanceOf(keeper), 0);
+        assertEq(usd.balanceOf(address(s)), 0);
+    }
+
+    function test_FR_CON_054_a_replaced_keeper_loses_the_right() public {
+        address oldKeeper = makeAddr("oldKeeper");
+        factory.setKeeper(oldKeeper);
+        AccrualStream s = runningStream();
+        factory.setKeeper(makeAddr("newKeeper"));
+        vm.prank(oldKeeper);
+        vm.expectRevert(AccrualStream.NotParty.selector);
+        s.cancel();
+    }
+
     function test_FR_CON_051_settle_is_permissionless_and_funds_still_go_to_merchant() public {
         AccrualStream s = runningStream();
         vm.warp(block.timestamp + 10);

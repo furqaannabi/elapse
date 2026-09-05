@@ -41,3 +41,15 @@ export const permitTokenAbi = [
   /** MockUSD only (testnet): anyone may mint. */
   { type: "function", name: "mint", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [] },
 ] as const;
+
+export const streamAbi = [
+  { type: "function", name: "cancelNonce", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "cancel", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  {
+    type: "function",
+    name: "cancelFor",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "deadline", type: "uint256" }, { name: "signature", type: "bytes" }],
+    outputs: [],
+  },
+] as const;
