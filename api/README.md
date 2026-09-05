@@ -60,6 +60,18 @@ pause/resume → `subscription.updated`; `Settled` → paid Invoice + `invoice.s
 stored with `subscription_id NULL` and answered `{ignored: true}`. Fixtures in `test/ingest-fixtures.ts`
 mirror the indexer's bodies byte for byte.
 
+## Checkout actions and the relayer
+
+`POST /v1/checkout/sessions/:id/prepare` (pk_) binds the subscriber's wallet as a Customer, creates
+the `incomplete` Subscription for the chosen cap, and returns the ERC-2612 permit to sign (exact
+`max_escrow`, factory as spender, 10-minute deadline). `POST …/start {signature}` checks the
+signature recovers to that wallet, mints MockUSD in test mode when the wallet is short, submits
+`StreamFactory.createWithPermit` through the relayer and records `pending_tx`. `active` arrives
+from ingest. The relayer needs `RELAYER_PRIVATE_KEY` (MON for gas, never AUSD), `MONAD_RPC_URL`,
+`CHAIN_ID`; without them `start` answers 503. The merchant must have a payout address.
+Platform chore (Undecided 4): keep the relayer topped up from the testnet faucet, roughly 5 MON per
+12 hours for about 100 checkouts a day. `pnpm sync-deployments` refreshes `deployments/<chainId>.json`.
+
 ## Worker
 
 Spec: [`docs/specs/worker-frd.md`](../docs/specs/worker-frd.md) (signed 2026-09-05). Retries `0s, 30s, 2m, 10m, 1h, 1h, 1h, 1h`, cap 8, 10 s timeout, no redirects, any `2xx` is success. Signs `{t}.{raw_body}` with the endpoint's decrypted `whsec_`, both secrets during a roll's grace window. An endpoint failing for 3 days straight is disabled (bell warning at 24 h). Env: `WORKER_CONCURRENCY` (16), `WORKER_BATCH` (50).

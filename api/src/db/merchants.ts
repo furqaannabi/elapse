@@ -40,3 +40,13 @@ export async function findMerchantByEmail(email: string): Promise<Merchant | nul
   const [row] = await sql`SELECT id, name, email, created_at FROM merchants WHERE email = ${email.toLowerCase()}`;
   return (row as Merchant | undefined) ?? null;
 }
+
+/** The address `StreamFactory.create` pays (FR-API-106 sets it; FR-API-032 requires it). Lowercase hex or null. */
+export async function getPayoutAddress(merchantId: string): Promise<string | null> {
+  const [row] = await sql`SELECT payout_address FROM merchants WHERE id = ${merchantId}`;
+  return (row?.payout_address as string | undefined) ?? null;
+}
+
+export async function setPayoutAddress(merchantId: string, address: string): Promise<void> {
+  await sql`UPDATE merchants SET payout_address = ${address.toLowerCase()} WHERE id = ${merchantId}`;
+}

@@ -1,5 +1,5 @@
 import { sql } from "../src/db/client";
-import { createMerchant } from "../src/db/merchants";
+import { createMerchant, setPayoutAddress } from "../src/db/merchants";
 import { createApiKey } from "../src/db/api-keys";
 import { app } from "../src/app";
 
@@ -16,7 +16,11 @@ export interface Fixture {
   skTest: string;
   skLive: string;
   pkTest: string;
+  /** Where streams pay this merchant; a fixed test address. */
+  payoutAddress: string;
 }
+
+export const TEST_PAYOUT_ADDRESS = "0x1111111111111111111111111111111111111111";
 
 /** A merchant with one secret key per mode and a test publishable key, plaintexts returned for the test. */
 export async function seedMerchant(email = `m-${Math.random().toString(36).slice(2)}@example.com`): Promise<Fixture> {
@@ -24,7 +28,8 @@ export async function seedMerchant(email = `m-${Math.random().toString(36).slice
   const skTest = await createApiKey({ merchantId: merchant.id, kind: "sk", livemode: false, name: "default", actor: "test" });
   const skLive = await createApiKey({ merchantId: merchant.id, kind: "sk", livemode: true, name: "default", actor: "test" });
   const pkTest = await createApiKey({ merchantId: merchant.id, kind: "pk", livemode: false, name: "default", actor: "test" });
-  return { merchantId: merchant.id, skTest: skTest.plaintext, skLive: skLive.plaintext, pkTest: pkTest.plaintext };
+  await setPayoutAddress(merchant.id, TEST_PAYOUT_ADDRESS);
+  return { merchantId: merchant.id, skTest: skTest.plaintext, skLive: skLive.plaintext, pkTest: pkTest.plaintext, payoutAddress: TEST_PAYOUT_ADDRESS };
 }
 
 /** JSON request against the in-process app; no port, no network. */

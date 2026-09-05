@@ -11,16 +11,18 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "worker": "bun src/worker/index.ts",
-    "seed-merchant": "bun scripts/seed-merchant.ts"
+    "seed-merchant": "bun scripts/seed-merchant.ts",
+    "sync-deployments": "sh scripts/sync-deployments.sh"
   },
   "dependencies": {
     "@hono/zod-openapi": "^1.1.5",
     "hono": "^4.9.0",
+    "viem": "^2.56.3",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@elapse/sdk": "workspace:*",
     "@types/bun": "^1.2.0",
-    "typescript": "^5.9.0",
-    "@elapse/sdk": "workspace:*"
+    "typescript": "^5.9.0"
   }
 }

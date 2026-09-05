@@ -1,0 +1,12 @@
+{
+  "ausd": "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC",
+  "ausdDecimals": 6,
+  "chainId": 10143,
+  "deployedAtBlock": 59873725,
+  "factory": "0x2A27160FC556819f2b3D293bbFA0aac5360E3C40",
+  "feeBps": 100,
+  "implementation": "0x083BFBA7C26b4F8f9FaD681632f62d5cB7A14337",
+  "mockUsd": "0x003ac9aaC1d5d7d69B5F9727144dBaee2e867BA5",
+  "treasury": "0xaf1444aBF40aFC91Bcb4A6793765553c6BcceA0d",
+  "deployTx": "0xdbb6255a18aa2caaafa81944e8a51e7fbbec559e7bc0a3237a6c86d277695195"
+}
