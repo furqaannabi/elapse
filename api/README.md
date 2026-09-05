@@ -14,7 +14,7 @@ curl -fsSL https://bun.sh/install | bash      # Bun ≥ 1.2 (native Postgres dri
 cd api
 docker compose up -d                          # Postgres 16 on :55434 with `elapse` and `elapse_test`
 pnpm install
-cp ../.env.example .env                       # then fill in DATABASE_URL
+cp .env.example .env                          # then fill in WEBHOOK_SECRET_KEK, INGEST_TOKEN, RELAYER_PRIVATE_KEY
 bun run migrate
 bun run seed-merchant you@example.com         # prints a local sk_test key (dev only)
 bun run dev                                   # :4000
@@ -71,6 +71,13 @@ from ingest. The relayer needs `RELAYER_PRIVATE_KEY` (MON for gas, never AUSD), 
 `CHAIN_ID`; without them `start` answers 503. The merchant must have a payout address.
 Platform chore (Undecided 4): keep the relayer topped up from the testnet faucet, roughly 5 MON per
 12 hours for about 100 checkouts a day. `pnpm sync-deployments` refreshes `deployments/<chainId>.json`.
+
+## Proven live (2026-09-05, Monad testnet)
+
+Checkout `prepare` → permit signature → `start` → relayer tx
+[`0x5decd1d9…75e54b`](https://testnet.monadscan.com/tx/0x5decd1d95b8fea0b2f62cb9b671106b8a9e6177165d0ae1c79e5e0878175e54b)
+→ Envio → `POST /internal/ingest` → `checkout.session.completed` + `subscription.created` → worker →
+receiver verifying with `@elapse/sdk`. 4.7 s from the start click to the verified webhook.
 
 ## Worker
 

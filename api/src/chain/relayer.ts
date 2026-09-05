@@ -101,10 +101,13 @@ let current: ChainClient | null = null;
 /** The process-wide client. Built from env on first use; `setChainClient` swaps in a fake for tests. */
 export function chainClient(): ChainClient {
   if (current) return current;
-  const privateKey = process.env.RELAYER_PRIVATE_KEY as Hex | undefined;
+  const raw = process.env.RELAYER_PRIVATE_KEY?.trim();
   const rpcUrl = process.env.MONAD_RPC_URL;
   const chainId = Number(process.env.CHAIN_ID ?? 10143);
-  if (!privateKey || !rpcUrl) throw new RelayerUnavailable();
+  if (!raw || !rpcUrl) throw new RelayerUnavailable();
+  // `cast wallet decrypt-keystore` prints the key without 0x; viem wants it prefixed.
+  const privateKey = (raw.startsWith("0x") ? raw : `0x${raw}`) as Hex;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey)) throw new RelayerUnavailable();
   current = viemChainClient({ privateKey, rpcUrl, chainId });
   return current;
 }
