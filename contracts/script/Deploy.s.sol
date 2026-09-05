@@ -39,6 +39,8 @@ contract Deploy is Script {
         vm.serializeUint(json, "feeBps", factory.feeBps());
         vm.serializeAddress(json, "ausd", ausd);
         vm.serializeUint(json, "ausdDecimals", 6);
+        // Simulation block: a safe lower bound for the indexer. deploy-testnet.sh
+        // overwrites it with the real receipt block after broadcasting.
         vm.serializeUint(json, "deployedAtBlock", block.number);
         string memory out = vm.serializeAddress(json, "mockUsd", mock);
 

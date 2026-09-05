@@ -40,7 +40,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `landing-frd.md` | Built (retro-documented) | — |
 | `checkout-frd.md` | **Signed** · built against the mock API · Surface 4 `/account` (FR-CHK-016–026) **signed 2026-09-04**, not yet built | William, 2026-09-03 and 2026-09-04 |
 | `dashboard-frd.md` | **Signed** · built against the mock API (all FR-DSH except the subscriber `/account` which lives in the checkout spec) | William, 2026-09-03 |
-| `contracts-frd.md` | **Signed** · built 2026-09-05, 51 tests + invariants green, kill gate passing locally; testnet deploy pending. Furqaan reviews money movement on arrival | William, 2026-09-05 |
+| `contracts-frd.md` | **Signed** · built and **deployed to Monad testnet 2026-09-05**; 51 tests + invariants green; kill gate FR-CON-073 passed on chain (indexer clause pending Week 3). Furqaan reviews money movement on arrival | William, 2026-09-05 |
 | `api-frd.md` | Draft — awaiting human sign-off (Furqaan) · dashboard and account routes added 2026-09-04 | — |
 | `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) · ledger entity added 2026-09-04 | — |
 | `worker-frd.md` | Draft — awaiting human sign-off (Furqaan) · per-roll grace and notifications 2026-09-04 | — |

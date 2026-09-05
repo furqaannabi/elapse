@@ -35,11 +35,23 @@ forge test
 
 `test_FR_CON_073_kill_gate_83_seconds`: create → deposit → start → 83 s → cancel.
 Merchant receives 83 × rate minus 1 %, treasury receives the 1 %, the subscriber
-gets the rest back, the stream is empty. Passing locally as of 2026-09-05.
+gets the rest back, the stream is empty. Passing locally.
 
-On testnet it runs against `MockUSD`: testnet AUSD exists but cannot be minted by
-us and no faucet dispenses it. Repeat against real AUSD before 13 Oct once someone
-at Agora or Monad sends testnet AUSD to the deployer.
+**Passed on Monad testnet 2026-09-05** against `MockUSD`, run with
+`./killgate-testnet.sh start` / `cancel` (the meter ran 220 s):
+
+| | |
+| --- | --- |
+| Factory | [`0x2A27160FC556819f2b3D293bbFA0aac5360E3C40`](https://testnet.monadscan.com/address/0x2A27160FC556819f2b3D293bbFA0aac5360E3C40) |
+| Stream | [`0x86776c5bE46d01242285aaC66040B3bf0634cd8a`](https://testnet.monadscan.com/address/0x86776c5bE46d01242285aaC66040B3bf0634cd8a) |
+| Start (mint, create, approve, deposit, start) | blocks 59876435–59876449 |
+| Cancel | [`0x6ae9632f15b27f20d1cb234deefd6d2f7f1612e2b112a235c1b3addcbeb94576`](https://testnet.monadscan.com/tx/0x6ae9632f15b27f20d1cb234deefd6d2f7f1612e2b112a235c1b3addcbeb94576), block 59877161 |
+| Result | `Settled(220, 880000, 8800)` then `StreamCanceled(…, 220, 880000, 13520000)`: merchant +0.871200, treasury +0.008800, subscriber +13.520000, stream 0 |
+
+Testnet AUSD exists but cannot be minted by us and no faucet dispenses it, so the
+gate ran on the mock. Repeat against real AUSD before 13 Oct once someone at Agora
+or Monad sends testnet AUSD to the deployer. The "indexed by Envio" clause of
+FR-CON-073 waits for the indexer (Week 3).
 
 ## Tokens
 
