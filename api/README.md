@@ -79,6 +79,20 @@ Checkout `prepare` → permit signature → `start` → relayer tx
 → Envio → `POST /internal/ingest` → `checkout.session.completed` + `subscription.created` → worker →
 receiver verifying with `@elapse/sdk`. 4.7 s from the start click to the verified webhook.
 
+## Status (judge mode)
+
+`GET /v1/status` is public: chain id, block time, factory and token, indexer lag read from Envio's GraphQL
+(`INDEXER_GRAPHQL_URL`), unsent ingest count, last ingest time, and the webhook queue depth. An unreachable
+indexer is reported as `indexer.ok: false`, never as a 500.
+
+## Keeper
+
+Inside the worker process (`src/worker/keeper.ts`): every 30 s it calls `settleBatch` for active streams
+last settled over 5 minutes ago and for any stream past its cap, whose first `settle()` emits the cap-end
+pair. It stamps `last_settle_requested_at` and nothing else; the `Settled`/`StreamCanceled` logs come back
+through the indexer. Proven live 2026-09-05: a 60 s cap ended by the keeper, `invoice.payment_failed` +
+`subscription.canceled` + `invoice.settled` delivered 78 s after the start click. `KEEPER=0` disables it.
+
 ## Worker
 
 Spec: [`docs/specs/worker-frd.md`](../docs/specs/worker-frd.md) (signed 2026-09-05). Retries `0s, 30s, 2m, 10m, 1h, 1h, 1h, 1h`, cap 8, 10 s timeout, no redirects, any `2xx` is success. Signs `{t}.{raw_body}` with the endpoint's decrypted `whsec_`, both secrets during a roll's grace window. An endpoint failing for 3 days straight is disabled (bell warning at 24 h). Env: `WORKER_CONCURRENCY` (16), `WORKER_BATCH` (50).

@@ -1,5 +1,6 @@
 /** The few contract functions the API calls or reads. Kept minimal on purpose; the full ABIs live in contracts/out. */
 export const factoryAbi = [
+  { type: "function", name: "settleBatch", stateMutability: "nonpayable", inputs: [{ name: "streams", type: "address[]" }], outputs: [] },
   {
     type: "function",
     name: "createWithPermit",

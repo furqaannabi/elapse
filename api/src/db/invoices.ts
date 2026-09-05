@@ -3,6 +3,7 @@ import { sql } from "./client";
 import { newId } from "../lib/ids";
 import { baseUnitsToDecimal } from "../lib/money";
 import { config } from "../config";
+import { keysetList } from "../lib/keyset";
 
 /** FR-API-050 storage row. `amount_wei` is gross; `net = gross − fee` on read. */
 export interface InvoiceRow {
@@ -77,4 +78,21 @@ export function serializeInvoice(row: InvoiceRow) {
     livemode: row.livemode,
     created: Math.floor(row.created_at.getTime() / 1000),
   };
+}
+
+export async function findInvoice(merchantId: string, livemode: boolean, id: string): Promise<InvoiceRow | null> {
+  const [row] = await sql`SELECT ${COLS} FROM invoices WHERE id = ${id} AND merchant_id = ${merchantId} AND livemode = ${livemode}`;
+  return (row as InvoiceRow) ?? null;
+}
+
+/** FR-API-052 list with optional subscription / customer filters, newest first. */
+export async function listInvoices(
+  merchantId: string,
+  livemode: boolean,
+  opts: { limit: number; startingAfter?: string | undefined; subscription?: string | undefined; customer?: string | undefined },
+): Promise<InvoiceRow[]> {
+  const filters = [];
+  if (opts.subscription) filters.push(sql`subscription_id = ${opts.subscription}`);
+  if (opts.customer) filters.push(sql`customer_id = ${opts.customer}`);
+  return keysetList<InvoiceRow>("invoices", COLS, sql`merchant_id = ${merchantId} AND livemode = ${livemode}`, filters, opts);
 }

@@ -35,6 +35,8 @@ export interface ChainClient {
   createWithPermit(args: CreateWithPermitArgs): Promise<Hex>;
   /** Per-stream replay nonce for `cancelFor` (FR-CON-017). */
   readCancelNonce(chainId: number, stream: Address): Promise<bigint>;
+  /** Submits `StreamFactory.settleBatch(streams)` (FR-CON-033); one bad stream never blocks the batch. */
+  settleBatch(chainId: number, streams: Address[]): Promise<Hex>;
   /** Submits `AccrualStream.cancel()` as the factory keeper (FR-CON-054, merchant-initiated cancel). */
   cancel(chainId: number, stream: Address): Promise<Hex>;
   /** Submits `AccrualStream.cancelFor(deadline, signature)`; resolves with the tx hash at broadcast. */
@@ -102,6 +104,11 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     async readCancelNonce(chainId, stream) {
       assertChain(chainId);
       return publicClient.readContract({ address: stream, abi: streamAbi, functionName: "cancelNonce" });
+    },
+    async settleBatch(chainId, streams) {
+      assertChain(chainId);
+      const { factory } = deploymentFor(chainId);
+      return wallet.writeContract({ account, chain, address: factory, abi: factoryAbi, functionName: "settleBatch", args: [streams] });
     },
     async cancel(chainId, stream) {
       assertChain(chainId);

@@ -1,6 +1,7 @@
 import type { SQL } from "bun";
 import { sql } from "./client";
 import { newId } from "../lib/ids";
+import { keysetList } from "../lib/keyset";
 
 /** FR-API-020. One Customer per (Merchant, mode, wallet). Addresses are stored lowercase. */
 export interface CustomerRow {
@@ -46,4 +47,8 @@ export function serializeCustomer(row: CustomerRow) {
     livemode: row.livemode,
     created: Math.floor(row.created_at.getTime() / 1000),
   };
+}
+
+export async function listCustomers(merchantId: string, livemode: boolean, opts: { limit: number; startingAfter?: string | undefined }): Promise<CustomerRow[]> {
+  return keysetList<CustomerRow>("customers", COLS, sql`merchant_id = ${merchantId} AND livemode = ${livemode}`, [], opts);
 }

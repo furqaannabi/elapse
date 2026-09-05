@@ -3,6 +3,7 @@ import { sql } from "./client";
 import { newId } from "../lib/ids";
 import { baseUnitsToDecimal } from "../lib/money";
 import { config } from "../config";
+import { keysetList } from "../lib/keyset";
 
 /** FR-API-040 storage row. Money columns arrive as decimal strings of base units (numeric → text). */
 export interface SubscriptionRow {
@@ -119,4 +120,17 @@ export function serializeSubscription(row: SubscriptionRow, now = Math.floor(Dat
     livemode: row.livemode,
     created: epoch(row.created_at)!,
   };
+}
+
+/** FR-API-041 list with optional status / customer / product filters, newest first. */
+export async function listSubscriptions(
+  merchantId: string,
+  livemode: boolean,
+  opts: { limit: number; startingAfter?: string | undefined; status?: SubscriptionRow["status"] | undefined; customer?: string | undefined; product?: string | undefined },
+): Promise<SubscriptionRow[]> {
+  const filters = [];
+  if (opts.status) filters.push(sql`status = ${opts.status}`);
+  if (opts.customer) filters.push(sql`customer_id = ${opts.customer}`);
+  if (opts.product) filters.push(sql`product_id = ${opts.product}`);
+  return keysetList<SubscriptionRow>("subscriptions", COLS, sql`merchant_id = ${merchantId} AND livemode = ${livemode}`, filters, opts);
 }

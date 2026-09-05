@@ -1,5 +1,8 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { findSubscription, serializeSubscription } from "../db/subscriptions";
+import { findSubscription, listSubscriptions, serializeSubscription } from "../db/subscriptions";
+import { CursorNotFound } from "../lib/keyset";
+import { ListOf, ListQuery, page } from "../lib/pagination";
+import { invalid } from "../lib/errors";
 import { RelayerUnavailable } from "../chain/relayer";
 import { ApiError, notFound } from "../lib/errors";
 import { router } from "../lib/openapi";
@@ -10,11 +13,39 @@ import { SubscriptionSchema } from "./checkout-sessions";
 /**
  * Subscriptions (FR-API-040..042): read with `sk_` or the dashboard cookie; cancel from the
  * merchant's server through the keeper. Status is never set here, it arrives from ingest
- * (BR-API-005). `list` (FR-API-041) follows with the customers/invoices read slice.
+ * (BR-API-005).
  */
 export const subscriptions = router<AuthEnv>();
 subscriptions.use("/subscriptions", merchantAuth());
 subscriptions.use("/subscriptions/*", merchantAuth());
+
+subscriptions.openapi(
+  createRoute({
+    method: "get",
+    path: "/subscriptions",
+    operationId: "subscriptions.list",
+    tags: ["Subscriptions"],
+    request: {
+      query: ListQuery.extend({
+        status: z.enum(["incomplete", "active", "paused", "canceled"]).optional(),
+        customer: z.string().optional(),
+        product: z.string().optional(),
+      }),
+    },
+    responses: { 200: { description: "Subscriptions, newest first.", content: { "application/json": { schema: ListOf(SubscriptionSchema, "SubscriptionList") } } } },
+  }),
+  async (c) => {
+    const q = c.req.valid("query");
+    const auth = c.get("auth");
+    try {
+      const rows = await listSubscriptions(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after, status: q.status, customer: q.customer, product: q.product });
+      return c.json(page(rows.map((r) => serializeSubscription(r)), q.limit, "/v1/subscriptions"), 200);
+    } catch (e) {
+      if (e instanceof CursorNotFound) throw invalid(e.message, "starting_after");
+      throw e;
+    }
+  },
+);
 
 subscriptions.openapi(
   createRoute({

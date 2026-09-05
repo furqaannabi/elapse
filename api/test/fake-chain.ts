@@ -10,6 +10,8 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   const creates: CreateWithPermitArgs[] = [];
   const cancels: Array<{ stream: string; deadline: bigint; signature: string }> = [];
   const keeperCancels: string[] = [];
+  const settleBatches: Array<{ chainId: number; streams: string[] }> = [];
+  const state = { failNextSettle: null as Error | null };
   const cancelNonces = new Map<string, bigint>();
   let n = 0;
   const hash = () => ("0x" + (++n).toString(16).padStart(64, "0")) as Hex;
@@ -37,6 +39,15 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
     async readCancelNonce(_c, stream) {
       return cancelNonces.get(stream.toLowerCase()) ?? 0n;
     },
+    async settleBatch(chainId, streams) {
+      if (state.failNextSettle) {
+        const e = state.failNextSettle;
+        state.failNextSettle = null;
+        throw e;
+      }
+      settleBatches.push({ chainId, streams: streams.map((s) => s.toLowerCase()) });
+      return hash();
+    },
     async cancel(_c, stream) {
       keeperCancels.push(stream.toLowerCase());
       return hash();
@@ -48,7 +59,10 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
     },
   };
   return {
-    client, mints, creates, cancels, keeperCancels, balances, nonces,
+    client, mints, creates, cancels, keeperCancels, settleBatches, balances, nonces,
+    set failNextSettle(e: Error | null) {
+      state.failNextSettle = e;
+    },
     setNonce: (a: Address, v: bigint) => nonces.set(a.toLowerCase(), v),
     setCancelNonce: (s: string, v: bigint) => cancelNonces.set(s.toLowerCase(), v),
   };

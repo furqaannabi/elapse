@@ -77,12 +77,19 @@ Status: **Signed 2026-09-05 (William)** · Surface: Platform (Merchant webhook d
 | FR-WRK-061 | Judge mode's "live webhook delivery log for this session" (checkout FRD FR-CHK-011) is `GET /v1/deliveries?subscription=sub_…` filtered through the session's Events; the worker adds nothing beyond attempt rows. | Panel shows the `subscription.canceled` attempt with `200` within 5 s of cancel in the demo. |
 | FR-WRK-062 | Structured log per attempt: `delivery_id, event_id, type, endpoint_id, n, status_code, duration_ms, outcome`. Never the body, never the secret. | Log snapshot. |
 
+### Keeper (contracts FR-CON-033/034, cadence Undecided 6 = 5 min; added 2026-09-05 when built, derived from the signed contracts FRD)
+
+| Id | Requirement | Acceptance |
+| --- | --- | --- |
+| FR-WRK-070 | The worker process runs a keeper tick every `KEEPER_TICK_MS` (30 s). Each tick selects `active` Subscriptions with a `stream_address` whose `COALESCE(last_settle_requested_at, started_at)` is older than `KEEPER_CADENCE_S` (300) and calls `StreamFactory.settleBatch` through the relayer in chunks of 50 per chain, then stamps `last_settle_requested_at`. Paused, incomplete and canceled Subscriptions are never selected. A failed batch is logged and left for the next tick; the loop never stops. `KEEPER=0` disables it. | Unit tests with a fake chain: due-by-cadence selection, chunking, failure leaves rows untouched. |
+| FR-WRK-071 | A Subscription past its cap (`started_at + max_duration_seconds + paused_seconds ≤ now`) is selected on the next tick regardless of cadence, because the first `settle()` after exhaustion is what emits the cap-end pair (`Settled` + `StreamCanceled`, contracts FR-CON-041). The keeper writes nothing else; the logs return through the indexer and ingest. | Test: capped stream settled at once, a paused-past-cap stream not; **live 2026-09-05**: 60 s cap ended by the keeper, `invoice.settled`, `invoice.payment_failed`, `subscription.canceled` delivered 78 s after start. |
+
 ## Build order (decided 2026-09-05, William)
 
 | Week | Ships | FRs |
 | --- | --- | --- |
 | 2 | Delivery loop: poll with `FOR UPDATE SKIP LOCKED`, decrypt and sign (both secrets in a grace window), POST with 10 s timeout and no redirects, 2xx rule, schedule capped at 8, attempt rows, `exhausted`/`skipped`, time-based auto-disable with its notification and audit rows, deliveries read routes and Resend | FR-WRK-010–016, 020–023, 030–032, 040–041, 050, 062 |
-| 3 | Keeper loop (`settleBatch` every 5 min, needs the relayer) · worker heartbeat for `GET /v1/status` (needs the status route and indexer lag) | keeper (contracts FR-CON-030s), FR-WRK-060–061 |
+| 3 | ~~Keeper loop~~ **built 2026-09-05 (FR-WRK-070/071)** · worker heartbeat for `GET /v1/status` (needs the status route and indexer lag) | keeper (contracts FR-CON-030s), FR-WRK-060–061 |
 | 4 | Expiry notices and emails (needs dashboard notifications) · success-rate view for the endpoints list · CLI `listen --forward` transport (Undecided 5) | FR-WRK-042, 051, CLI FRD |
 
 Nothing is stubbed: a Week 3 or 4 item is absent until it is built.
@@ -141,3 +148,4 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 | 2026-09-05 | Claude (for William) | Grill round: worker inside `api/` as a second process; attempts 6–8 repeat 1 h; auto-disable becomes time-based (3 days, 24 h warning, Stripe's rule) with `failing_since`; status model `skipped` + `manual` attempt flag confirmed as authoritative over the API FRD; build order table (Week 2 delivery only, keeper/heartbeat Week 3, notices/CLI Week 4). [ADR 2026-09-05](../decisions/2026-09-05-worker-in-api-and-auto-disable.md). Awaiting signature. |
 | 2026-09-05 | William | Signed. Week 2 delivery loop build begins. |
 | 2026-09-05 | Claude (for William) | Root `worker/` folder removed; the worker is only `api/src/worker/`. |
+| 2026-09-05 | Claude (for William) | FR-WRK-070/071 keeper added and built in `api/src/worker/keeper.ts`, running inside the worker process (migration 0010 `last_settle_requested_at`). Post-signature addition derived from the signed contracts FRD (FR-CON-033/034/041, cadence 5 min); William to confirm. Cap end proven live. |
