@@ -1,6 +1,6 @@
 # Indexer (`indexer/` — Envio HyperIndex on Monad) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Platform (chain → platform ingest) · Sources: detailed doc §5.2 Delivery pipeline (steps 1–2), §7 judge mode, §9 Architecture ("Index: Envio HyperIndex on chain 143"), §11 Envio bounty, §12 Week 1/3, §15 "Envio Effect double-fire (preload)"; `indexer/README.md`; contracts FRD events; API FRD FR-API-070–074.
+Status: **Signed 2026-09-05 (William)** · Surface: Platform (chain → platform ingest) · Sources: detailed doc §5.2 Delivery pipeline (steps 1–2), §7 judge mode, §9 Architecture ("Index: Envio HyperIndex on chain 143"), §11 Envio bounty, §12 Week 1/3, §15 "Envio Effect double-fire (preload)"; `indexer/README.md`; contracts FRD events; API FRD FR-API-070–074.
 
 ## Problem
 
@@ -34,24 +34,24 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | FR-IDX-011 | `StreamEvent` entity keyed `${chainId}_${txHash}_${logIndex}`: `stream, name, args (json), blockNumber, blockHash, blockTimestamp, txHash, logIndex, ingestStatus (pending|sent|failed|duplicate), ingestAttempts, lastIngestAt`. | One row per log; ingest status visible in GraphQL. |
 | FR-IDX-012 | `Settlement` entity per `Settled` event: `stream, seconds, amount, blockTimestamp, txHash` — mirrors the platform's Invoice and lets judge mode query "settled this session". | Row per `Settled`. |
 | FR-IDX-013 | `Factory` singleton: `streamCount, activeCount, totalSettled, totalFees, feeBps, treasury` aggregate counters and current fee parameters. | Counters match a raw count query. |
-| FR-IDX-014 | `LedgerEntry` entity, one per money movement, keyed `${chainId}_${txHash}_${logIndex}_${kind}`: `stream, kind (deposit \| settlement \| fee \| refund), amount, from, to, blockNumber, blockHash, blockTimestamp, txHash, logIndex`. Derivation: `Deposited` → one `deposit` (from `from`, to the stream); `Settled` → one `settlement` (`amount − fee`, to `merchant`) and, when `fee > 0`, one `fee` (to `treasury`); `StreamCanceled` → one `refund` (`Stream.deposited − Stream.settledAmount` at that point, to `subscriber`; see Open on carrying `amountRefunded` in the event). This is the source of the dashboard's Balance & payouts ledger (dashboard decision 11, FR-DSH-122) and is posted to ingest as part of the same `postIngest` body (`ledger: [...]`). | Kill-gate cancel yields four rows: deposit, settlement, fee, refund; amounts sum to zero against the stream balance. |
+| FR-IDX-014 | `LedgerEntry` entity, one per money movement, keyed `${chainId}_${txHash}_${logIndex}_${kind}`: `stream, kind (deposit \| settlement \| fee \| refund), amount, from, to, blockNumber, blockHash, blockTimestamp, txHash, logIndex`. Derivation: `Deposited` → one `deposit` (from `from`, to the stream); `Settled` → one `settlement` (`amount − fee`, to `merchant`) and, when `fee > 0`, one `fee` (to `treasury`); `StreamCanceled` → when `amountRefunded > 0`, one `refund` (from the event, to `subscriber`; contracts FR-CON-024). Zero-amount rows are never written (William, 2026-09-05): a ledger line that moves nothing is noise, and the cap-end story is told by `ended_reason`. Every row is therefore a pure function of one log. This is the source of the dashboard's Balance & payouts ledger (dashboard decision 11, FR-DSH-122) and is posted to ingest as part of the same `postIngest` body (`ledger: [...]`). | Kill-gate cancel yields four rows: deposit, settlement, fee, refund; amounts sum to zero against the stream balance. A cap end with nothing left yields no refund row. |
 
 ### Ingest via Effect API (doc §5.2 step 2 "Effect API, cache: false"; §11)
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-IDX-020 | An Effect `postIngest` (`experimental_createEffect({name:"postIngest", input, output, cache:false}, …)`) POSTs `{chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, address, event_name, args}` to `INGEST_URL` with `Authorization: Bearer $INGEST_TOKEN` (API FRD FR-API-070). Every `AccrualStream` handler awaits it. | Integration test against a local API: each event produces one `chain_events` row. |
+| FR-IDX-020 | An Effect `postIngest` (`createEffect({name:"postIngest", input, output, cache:false, rateLimit:false}, …)`; Envio ≥ 2.32 renamed `experimental_createEffect` and made `rateLimit` mandatory — `false` because the target is our own API) POSTs `{chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, address, event_name, args, ledger}` to `ENVIO_INGEST_URL` with `Authorization: Bearer $ENVIO_INGEST_TOKEN` (API FRD FR-API-070). Every `AccrualStream` handler awaits it. | Integration test against a local API: each event produces one `chain_events` row. |
 | FR-IDX-021 | `cache: false` is mandatory (the doc's own note): delivery is a side effect and must not be memoised to disk. The input carries `tx_hash+log_index` so the platform de-duplicates; the handler tolerates the Effect running more than once (Envio preload). | Run the handler twice on one log → platform reports `duplicate: true` on the second; `StreamEvent.ingestStatus == sent`. |
 | FR-IDX-022 | `args` are serialised with `uint256` as decimal strings and addresses lower-cased; no floats. | Snapshot of the JSON body for `StreamCanceled(at, 83, 332000)`. |
 | FR-IDX-023 | The Effect retries `5xx`/network errors 3× with 1 s, 4 s, 16 s backoff, then records `ingestStatus: failed` and **does not throw** (a failing ingest must not halt indexing). `4xx` → `failed` immediately, logged with body. | Fault-injection test; indexing continues. |
-| FR-IDX-024 | A `reconcile` script (`pnpm reconcile`) re-POSTs every `StreamEvent` with `ingestStatus in (pending, failed)`; safe to run any time because ingest is idempotent. | Script leaves zero `failed` rows against a healthy API. |
-| FR-IDX-025 | The indexer holds exactly one secret: `INGEST_TOKEN`. No Merchant ids, webhook URLs or `whsec_` values exist anywhere in `indexer/` (doc §5.2 "Indexer must not know merchant secrets"). | `grep -r whsec_ indexer/` empty; env review. |
+| FR-IDX-024 | **Week 4.** A `reconcile` script (`pnpm reconcile`) re-POSTs every `StreamEvent` with `ingestStatus in (pending, failed)`; safe to run any time because ingest is idempotent. | Script leaves zero `failed` rows against a healthy API. |
+| FR-IDX-025 | The indexer holds exactly one secret: `ENVIO_INGEST_TOKEN` (plus Envio's own `ENVIO_API_TOKEN` for HyperSync, which is not ours). No Merchant ids, webhook URLs or `whsec_` values exist anywhere in `indexer/` (doc §5.2 "Indexer must not know merchant secrets"). | `grep -r whsec_ indexer/` empty; env review. |
 
 ### Reorgs and ordering (doc §15)
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-IDX-030 | Every ingest carries `block_hash`; the platform stores it. Envio `rollback_on_reorg` follows Undecided 2; if enabled, a rolled-back `StreamEvent` re-posts after the reorg with the new `block_hash`, and the platform treats the old `(tx_hash, log_index)` as a duplicate unless the hash differs (API decides). | Simulated reorg fixture; no duplicate merchant Event. |
+| FR-IDX-030 | Every ingest carries `block_hash`; the platform stores it. `rollback_on_reorg: false` (Undecided 2, decided 2026-09-05): MonadBFT finality makes a post-ingest reorg a chain failure, not a normal path. The hash is stored so FR-IDX-033 reversal marking can be applied by hand (reconcile, Week 4) if it ever happens. | Simulated reorg fixture; no duplicate merchant Event. |
 | FR-IDX-031 | Handlers are pure functions of event params + entity state; no wall-clock reads, no ordering assumptions across streams. Within a stream, events are processed in `(blockNumber, logIndex)` order (HyperIndex guarantee). | Replay from `start_block` produces identical entities (deterministic). |
 | FR-IDX-032 | Unknown or malformed logs (ABI mismatch after a redeploy) are logged and skipped, never thrown. | Corrupt-ABI test. |
 | FR-IDX-033 | Reversal marking: ledger rows are never deleted downstream. If a log is re-posted with the same `(tx_hash, log_index)` but a different `block_hash` (a reorg under Undecided 2 option a, or a manual reconcile after one), the platform keeps the earlier `ledger_entries` row, marks it `reversed_by = <new row id>`, and inserts the replacement; the dashboard shows "Reversed" with a link (FR-DSH-124). The indexer's only obligation is to always send `block_hash` (FR-IDX-030). | Reorg fixture: two ingests, one reversed row, one live row, ledger totals count the live row only. |
@@ -61,8 +61,8 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-IDX-040 | The Envio GraphQL endpoint (Hasura, default `:8080/v1/graphql`) is reachable by the platform; the platform's `GET /v1/status` (FR-API-074) reads `chain_metadata.latest_processed_block` (or equivalent) and reports `lag_blocks`/`lag_seconds` vs the RPC head. | `lag_seconds < 5` on idle testnet. |
-| FR-IDX-041 | The indexer exposes `INDEXER_PUBLIC_GRAPHQL_URL` for the judge panel's "Envio query" (read-only, public entities only) — a fixed query returning the `Stream` for the session's `stream_address`. | Query returns within 300 ms. |
-| FR-IDX-042 | `StreamEvent.ingestStatus` counts (`pending/failed`) are surfaced in `GET /v1/status` as `indexer.unsent_events`. | Status shows 0 after reconcile. |
+| FR-IDX-041 | The judge panel never calls Envio from the browser (Undecided 4, decided 2026-09-05). The API reads the `Stream` for the session's `stream_address` from the Envio GraphQL endpoint (`INDEXER_GRAPHQL_URL`, server-side) and returns `indexed: {status, latest_block, lag_seconds}` inside the public checkout session projection; the panel shows an external link to the Hosted Service explorer (`INDEXER_PUBLIC_EXPLORER_URL`) for judges who want the raw query. | Projection carries `indexed.*` within 300 ms; link opens the hosted explorer. |
+| FR-IDX-042 | `StreamEvent.ingestStatus` counts (`pending/failed`) are surfaced in `GET /v1/status` as `indexer.unsent_events`. | Status shows 0 on a healthy indexer; "0 after reconcile" once FR-IDX-024 lands (Week 4). |
 | FR-IDX-043 | Structured logs per handler: `event, stream, block, ingestStatus, durationMs`. | Log snapshot. |
 
 ### Delivery and bounty (doc §11 Envio $1,000, §12)
@@ -70,7 +70,7 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-IDX-050 | Week 1: `StreamCanceled` and `Settled` from the kill-gate transaction are queryable in GraphQL (`Stream.status == Canceled`). Week 3: Envio → ingest → worker end-to-end fires a Merchant webhook. | Kill-gate checklist in `contracts/README.md`; Week 3 demo of `subscription.canceled` at an ngrok URL. |
-| FR-IDX-051 | Deployment: Envio Hosted Service (preferred, Undecided 1) with the same `config.yaml`; `INGEST_URL`/`INGEST_TOKEN` as hosted env vars; fallback `docker compose` in `indexer/`. | Hosted deployment URL recorded in `indexer/README.md`. |
+| FR-IDX-051 | Deployment (Undecided 1, decided 2026-09-05, option c): Envio Hosted Service for the demo and video with the same `config.yaml` and `INGEST_URL`/`INGEST_TOKEN` as hosted env vars; `pnpm envio dev` (the CLI's own Docker Postgres + Hasura) for development and CI. No hand-written `docker compose`. | Hosted deployment URL recorded in `indexer/README.md`; `pnpm envio dev` reaches head locally. |
 | FR-IDX-052 | Bounty note in `indexer/README.md` and docs "Contracts" page: HyperIndex + Effect API is the canonical stream → event ingest; the signed, retried, secret-rotated Merchant hop is ours (doc §5.2 last paragraph). Video timestamp for "Envio delivery" (doc §16 item 4). | README section present; timestamp in submission notes. |
 
 ### Tests and local run (doc §12 Week 1 "Envio indexes StreamCanceled and Settled", §15 "Quickstart is a CI script")
@@ -79,7 +79,7 @@ The contract emits events; the platform needs rows. The indexer is the only brid
 | --- | --- | --- |
 | FR-IDX-060 | Handler unit tests with Envio's generated `TestHelpers`/`MockDb`: one test per event name asserting the `Stream` and `StreamEvent` entity after the handler, named `FR_IDX_010_*`. | `pnpm test` green in `indexer/`. |
 | FR-IDX-061 | Effect tests inject a fake `fetch`: success, `5xx` then success (retry), `4xx` (fail fast), network error ×4 (`failed`, no throw). | Four tests green. |
-| FR-IDX-062 | Integration test (`pnpm test:e2e`): anvil + deployed factory + local indexer + local API; run the kill-gate sequence (`create → deposit → start → warp 83 → cancel`) and assert `GET /v1/subscriptions/:id` shows `canceled`, `seconds_elapsed: 83`. | Runs in CI nightly and before the Week 1 and Week 3 checkpoints. |
+| FR-IDX-062 | **Week 4.** Integration test (`pnpm test:e2e`): anvil + deployed factory + local indexer + local API; run the kill-gate sequence (`create → deposit → start → warp 83 → cancel`) and assert `GET /v1/subscriptions/:id` shows `canceled`, `seconds_elapsed: 83`. | Runs in CI nightly and before the Week 1 and Week 3 checkpoints. |
 | FR-IDX-063 | `indexer/README.md` documents the one-command local run (`pnpm envio dev` with `.env` from `.env.example`), the hosted deploy, and the reconcile script. | A newcomer follows it to a synced indexer without asking. |
 
 ## Business rules
@@ -103,25 +103,37 @@ handlers.ts   StreamFactory.StreamCreated.contractRegister → addAccrualStream
               StreamFactory.StreamCreated.handler → Stream(Created), Factory.streamCount++
               AccrualStream.{Deposited,StreamStarted,StreamPaused,StreamResumed,Settled,StreamCanceled}.handler
                  → update Stream, write StreamEvent, await context.effect(postIngest, {...})
-effects.ts    postIngest (cache:false) → POST $INGEST_URL, Bearer $INGEST_TOKEN, 3 retries
-env           INGEST_URL, INGEST_TOKEN, ENVIO_API_TOKEN (hosted), CHAIN_ID
+effects.ts    postIngest (createEffect, cache:false, rateLimit:false) → POST $INGEST_URL, Bearer $INGEST_TOKEN, 3 retries
+env           ENVIO_INGEST_URL, ENVIO_INGEST_TOKEN, ENVIO_API_TOKEN (Envio Cloud only injects ENVIO_-prefixed vars)
+              (API side: INDEXER_GRAPHQL_URL, INDEXER_PUBLIC_EXPLORER_URL)
 ```
 
 Ingest body (shared type in `packages/shared` with the API): see FR-IDX-020; `event_name ∈ {StreamCreated, Deposited, StreamStarted, StreamPaused, StreamResumed, Settled, StreamCanceled}`.
 
 ## Undecided (human)
 
-1. **Hosting.** (a) Envio Hosted Service; (b) self-hosted Docker on the same box as the API; (c) both (hosted for demo, Docker for CI). **Recommend (c)** — hosted is zero-ops for the video, Docker keeps the Week-1 gate independent of a third party.
-2. **Reorg handling.** (a) `rollback_on_reorg: true` and platform keys on `(tx_hash, log_index, block_hash)`; (b) `rollback_on_reorg: false`, rely on MonadBFT fast finality and record `block_hash` for audit; (c) delay ingest by N blocks. **Recommend (b)** for 13 Oct with `block_hash` stored, revisit post-hackathon.
-3. **Ingest transport.** (a) HTTP POST per log (as doc); (b) batch POST per block; (c) platform pulls from GraphQL. **Recommend (a)** — it is the Envio-documented Effect pattern the bounty is judged on.
-4. **Public GraphQL for judge mode.** (a) expose Envio endpoint directly; (b) proxy through `GET /v1/status`. **Recommend (b)** plus a link to the raw endpoint in the panel.
+All four decided by William on 2026-09-05 (ADR `docs/decisions/2026-09-05-indexer-hosting-reorg-transport.md`):
+
+1. ~~**Hosting.**~~ **(c)** Envio Hosted Service for demo and video, `pnpm envio dev` locally and in CI (FR-IDX-051).
+2. ~~**Reorg handling.**~~ **(b)** `rollback_on_reorg: false`, `block_hash` stored on every row, revisit after submission (FR-IDX-030).
+3. ~~**Ingest transport.**~~ **(a)** one HTTP POST per log from a `createEffect` with `rateLimit: false` (FR-IDX-020).
+4. ~~**Public GraphQL for judge mode.**~~ **(b)** the API reads Envio server-side and the panel links out to the hosted explorer (FR-IDX-041).
+5. **Week 3 scope.** **(b)** everything except FR-IDX-024 (`reconcile`) and FR-IDX-062 (anvil end-to-end), which move to Week 4. The Week 3 proof is the real testnet kill-gate script against the hosted indexer with a Merchant webhook landing (FR-IDX-050).
+
+## Schedule
+
+| Week | Ships |
+| --- | --- |
+| 3 | FR-IDX-001–004, 010–014, 020–023, 025, 030–033, 040–043, 050–052, 060, 061, 063 |
+| 4 | FR-IDX-024 `reconcile` script; FR-IDX-062 anvil end-to-end test; FR-IDX-042 "0 after reconcile" acceptance |
+| 5 | Mainnet network block in `config.yaml` (chain 143), `start_block` from `deployments/143.json` |
 
 ## Open
 
-- Confirm HyperSync coverage for Monad testnet 10143 and mainnet 143 at Week 1 start; if absent, RPC mode with `MONAD_RPC_URL`.
-- Envio API surface (`experimental_createEffect`, `contractRegister`) is version-specific — pin the `envio` version in `indexer/package.json` and record it here.
+- ~~Confirm HyperSync coverage for Monad testnet 10143 and mainnet 143~~ **Confirmed 2026-09-05** from Envio's supported-networks page: `monad-testnet.hypersync.xyz` (10143) and `monad.hypersync.xyz` (143). `MONAD_RPC_URL` stays fallback only.
+- Envio API surface is version-specific: `createEffect` (≥ 2.32, `rateLimit` required) and `contractRegister`. Pin the exact `envio` version in `indexer/package.json` and record it here at build time.
 - Whether `Deposited` should trigger a platform update at all (API FRD FR-API-071 says yes, no merchant Event). It must at least produce the `deposit` ledger row (FR-IDX-014).
-- `StreamCanceled` does not carry `amountRefunded`; the `refund` ledger row is computed from entity state (FR-IDX-014). Contracts FRD Open asks whether to add it to the event, which would make the row a pure function of the log.
+- ~~`StreamCanceled` does not carry `amountRefunded`~~ Closed: contracts FR-CON-024 added it (2026-09-05); FR-IDX-014 reads it from the log.
 
 ## Revision
 
@@ -129,3 +141,6 @@ Ingest body (shared type in `packages/shared` with the API): see FR-IDX-020; `ev
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | Dashboard decisions 4b and 11 applied: `Settled` carries `fee`, `Factory` tracks fee parameters, FR-IDX-014 `LedgerEntry` with the four kinds, FR-IDX-033 reversal marking for FR-DSH-124. |
+| 2026-09-05 | Claude (for William) | Grill answered: Undecided 1–4 closed (c, b, a, b) and Week 3 scope (b) with FR-IDX-024/062 moved to Week 4 (Schedule table added). FR-IDX-020 renamed to `createEffect` with `rateLimit: false`; FR-IDX-014 refund row from `amountRefunded` (FR-CON-024); HyperSync coverage confirmed. ADR `2026-09-05-indexer-hosting-reorg-transport.md`. |
+| 2026-09-05 | William | **Signed.** |
+| 2026-09-05 | Claude (for William) | Built on Envio 3.9.0 (V3: `indexer.onEvent`, `context.chain.AccrualStream.add`, `createTestIndexer`; no `MockDb`). Env vars take the `ENVIO_` prefix Envio Cloud requires. Zero-amount `fee`/`refund` ledger rows are omitted. `Factory` seeds fee/treasury from `deployments/<chainId>.json` because the constructor emits no `FeeChanged`. 21 tests green; FR-IDX-032 is satisfied by Envio's decoder dropping non-matching logs, no handler code. |

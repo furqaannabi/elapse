@@ -1,0 +1,107 @@
+# Elapse indexer entities (indexer FRD FR-IDX-010..014).
+# Money is BigInt in token base units (AUSD, 6 decimals). Never floats.
+
+enum StreamStatus {
+  Created
+  Active
+  Paused
+  Canceled
+}
+
+enum IngestStatus {
+  pending
+  sent
+  failed
+  duplicate
+}
+
+enum LedgerKind {
+  deposit
+  settlement
+  fee
+  refund
+}
+
+# One AccrualStream clone. id = clone address (lowercase). FR-IDX-010.
+type Stream {
+  id: ID!
+  factory: String!
+  merchant: String! @index
+  subscriber: String! @index
+  token: String!
+  ratePerSecond: BigInt!
+  maxEscrow: BigInt!
+  status: StreamStatus! @index
+  pauseReason: Int
+  startedAt: BigInt
+  pausedAt: BigInt
+  canceledAt: BigInt
+  deposited: BigInt!
+  settledSeconds: BigInt!
+  settledAmount: BigInt!
+  settledFee: BigInt!
+  refunded: BigInt!
+  createdBlock: BigInt!
+  updatedBlock: BigInt!
+  events: [StreamEvent!]! @derivedFrom(field: "stream")
+  settlements: [Settlement!]! @derivedFrom(field: "stream")
+  ledger: [LedgerEntry!]! @derivedFrom(field: "stream")
+}
+
+# One row per log on a stream or the factory. id = chainId_txHash_logIndex. FR-IDX-011.
+type StreamEvent {
+  id: ID!
+  chainId: Int!
+  stream: Stream
+  address: String! @index
+  name: String! @index
+  args: Json!
+  blockNumber: BigInt!
+  blockHash: String!
+  blockTimestamp: BigInt!
+  txHash: String!
+  logIndex: Int!
+  ingestStatus: IngestStatus! @index
+  ingestAttempts: Int!
+  lastIngestAt: BigInt
+  ingestError: String
+}
+
+# One per Settled log; mirrors the platform Invoice. FR-IDX-012.
+type Settlement {
+  id: ID!
+  stream: Stream!
+  seconds: BigInt!
+  amount: BigInt!
+  fee: BigInt!
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  txHash: String!
+}
+
+# Singleton per factory address. FR-IDX-013.
+type Factory {
+  id: ID!
+  chainId: Int!
+  streamCount: Int!
+  activeCount: Int!
+  totalSettled: BigInt!
+  totalFees: BigInt!
+  feeBps: Int!
+  treasury: String!
+}
+
+# One row per money movement. id = chainId_txHash_logIndex_kind. FR-IDX-014.
+type LedgerEntry {
+  id: ID!
+  stream: Stream!
+  kind: LedgerKind! @index
+  amount: BigInt!
+  from: String!
+  to: String!
+  blockNumber: BigInt!
+  blockHash: String!
+  blockTimestamp: BigInt!
+  txHash: String!
+  logIndex: Int!
+}

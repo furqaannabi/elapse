@@ -42,7 +42,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `dashboard-frd.md` | **Signed** · built against the mock API (all FR-DSH except the subscriber `/account` which lives in the checkout spec) | William, 2026-09-03 |
 | `contracts-frd.md` | **Signed** · built and **deployed to Monad testnet 2026-09-05**; 51 tests + invariants green; kill gate FR-CON-073 passed on chain (indexer clause pending Week 3). Furqaan reviews money movement on arrival | William, 2026-09-05 |
 | `api-frd.md` | **Signed** · grilled 2026-09-05 · not yet built | William, 2026-09-05 |
-| `indexer-frd.md` | Draft — awaiting human sign-off (Furqaan) · ledger entity added 2026-09-04 | — |
+| `indexer-frd.md` | **Signed** · Undecided 1–5 closed; FR-IDX-024/062 deferred to Week 4 | William, 2026-09-05 |
 | `worker-frd.md` | **Signed** · Week 2 delivery loop first; keeper/heartbeat Week 3, notices/CLI Week 4 | William, 2026-09-05 |
 | `sdk-frd.md` | **Signed** · TS client + `constructEvent` next; Python Week 5 | William, 2026-09-05 |
 | `cli-frd.md` | Draft — awaiting human sign-off | — |

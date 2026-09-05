@@ -1,0 +1,24 @@
+{
+  "name": "@elapse/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Envio HyperIndex for Elapse on Monad: watches StreamFactory clones and posts lifecycle events to the platform ingest URL",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": {
+    "codegen": "envio codegen",
+    "dev": "envio dev",
+    "start": "envio start",
+    "sync-abi": "sh scripts/sync-abi.sh",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "envio": "3.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "typescript": "6.0.3",
+    "vitest": "4.1.0"
+  }
+}
