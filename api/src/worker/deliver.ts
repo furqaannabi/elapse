@@ -7,6 +7,8 @@ import type { Job } from "./queue";
 import { MAX_ATTEMPTS, nextAttemptAt } from "./schedule";
 
 export type Outcome = "succeeded" | "retrying" | "exhausted" | "skipped";
+/** A manual (Resend) attempt reports only whether the endpoint answered 2xx; the delivery keeps its status. */
+export type AttemptResult = { status: Outcome } | { status: "manual"; ok: boolean };
 
 /** FR-WRK-062: ids and outcome only. Never the body, never a secret. */
 export type DeliveryLogger = (entry: {
@@ -17,7 +19,7 @@ export type DeliveryLogger = (entry: {
   n: number;
   status_code: number | null;
   duration_ms: number;
-  outcome: Outcome;
+  outcome: Outcome | "manual_ok" | "manual_failed";
   error: string | null;
 }) => void;
 
@@ -38,8 +40,10 @@ const DISABLE_AFTER_MS = 3 * 24 * 3_600_000;
  * the previous one too; POSTs; records the attempt; schedules or finishes the
  * delivery; updates the endpoint's failure streak. Returns the new status.
  */
-export async function attemptDelivery(job: Job, o: AttemptOptions): Promise<{ status: Outcome }> {
+export async function attemptDelivery(job: Job, o: AttemptOptions): Promise<AttemptResult> {
   const n = job.attempt + 1;
+
+  if (job.manual_actor) return manualAttempt(job, o, job.manual_actor);
 
   if (job.reclaimed) {
     // The previous holder died mid-attempt; keep the same n for the retry (FR-WRK-015).
@@ -54,40 +58,7 @@ export async function attemptDelivery(job: Job, o: AttemptOptions): Promise<{ st
   }
 
   const sentAt = o.now();
-  const secrets = await activeSecrets(job, sentAt);
-  const t = Math.floor(sentAt.getTime() / 1000);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "User-Agent": "Elapse/1.0",
-    "X-Elapse-Signature": signPayload(job.raw_body, secrets, t),
-    "X-Elapse-Delivery": job.id,
-  };
-
-  let statusCode: number | null = null;
-  let error: string | null = null;
-  let excerpt: string | null = null;
-  const started = performance.now();
-
-  const unsafe = await webhookUrlProblem(job.url, job.livemode);
-  if (unsafe) {
-    error = "unsafe_url";
-  } else {
-    try {
-      const res = await (o.fetchImpl ?? fetch)(job.url, {
-        method: "POST",
-        headers,
-        body: job.raw_body,
-        redirect: "manual",
-        signal: AbortSignal.timeout(o.timeoutMs),
-      });
-      statusCode = res.status;
-      excerpt = truncateUtf8(await res.text().catch(() => ""), EXCERPT_BYTES);
-    } catch (e) {
-      error = describeError(e);
-    }
-  }
-  const durationMs = Math.round(performance.now() - started);
-  const ok = statusCode !== null && statusCode >= 200 && statusCode < 300;
+  const { headers, statusCode, error, excerpt, durationMs, ok } = await send(job, o, sentAt);
 
   let outcome: Outcome;
   let next: Date | null = null;
@@ -112,6 +83,61 @@ export async function attemptDelivery(job: Job, o: AttemptOptions): Promise<{ st
 
   o.log({ delivery_id: job.id, event_id: job.event_id, type: job.type, endpoint_id: job.endpoint_id, n, status_code: statusCode, duration_ms: durationMs, outcome, error });
   return { status: outcome };
+}
+
+/** Sign and POST once; the HTTP result, nothing persisted. Shared by automatic and manual attempts. */
+async function send(job: Job, o: AttemptOptions, sentAt: Date) {
+  const secrets = await activeSecrets(job, sentAt);
+  const t = Math.floor(sentAt.getTime() / 1000);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "User-Agent": "Elapse/1.0",
+    "X-Elapse-Signature": signPayload(job.raw_body, secrets, t),
+    "X-Elapse-Delivery": job.id,
+  };
+  let statusCode: number | null = null;
+  let error: string | null = null;
+  let excerpt: string | null = null;
+  const started = performance.now();
+  const unsafe = await webhookUrlProblem(job.url, job.livemode);
+  if (unsafe) {
+    error = "unsafe_url";
+  } else {
+    try {
+      const res = await (o.fetchImpl ?? fetch)(job.url, {
+        method: "POST",
+        headers,
+        body: job.raw_body,
+        redirect: "manual",
+        signal: AbortSignal.timeout(o.timeoutMs),
+      });
+      statusCode = res.status;
+      excerpt = truncateUtf8(await res.text().catch(() => ""), EXCERPT_BYTES);
+    } catch (e) {
+      error = describeError(e);
+    }
+  }
+  const durationMs = Math.round(performance.now() - started);
+  const ok = statusCode !== null && statusCode >= 200 && statusCode < 300;
+  return { headers, statusCode, error, excerpt, durationMs, ok };
+}
+
+/**
+ * FR-WRK-030/031: a Resend. Freshly signed, sent now, recorded with
+ * `manual = true` and the actor. Status, schedule, `pending_webhooks` and the
+ * endpoint's failure streak are untouched; only the lock is released.
+ */
+async function manualAttempt(job: Job, o: AttemptOptions, actor: string): Promise<AttemptResult> {
+  const sentAt = o.now();
+  const n = job.attempt + 1;
+  const { headers, statusCode, error, excerpt, durationMs, ok } = await send(job, o, sentAt);
+  await sql.begin(async (tx) => {
+    await tx`INSERT INTO delivery_attempts (id, delivery_id, n, manual, actor, sent_at, duration_ms, status_code, error, request_headers, response_excerpt)
+             VALUES (${newId("att")}, ${job.id}, ${n}, true, ${actor}, ${sentAt}, ${durationMs}, ${statusCode}, ${error}, ${headers}, ${excerpt})`;
+    await tx`UPDATE deliveries SET locked_until = NULL, updated_at = now() WHERE id = ${job.id}`;
+  });
+  o.log({ delivery_id: job.id, event_id: job.event_id, type: job.type, endpoint_id: job.endpoint_id, n, status_code: statusCode, duration_ms: durationMs, outcome: ok ? "manual_ok" : "manual_failed", error });
+  return { status: "manual", ok };
 }
 
 /** Current secret, plus the previous one while its grace window is open; nulls an expired previous secret (FR-WRK-040). */

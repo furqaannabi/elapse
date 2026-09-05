@@ -215,10 +215,10 @@ describe("FR-WRK-015 crashed worker", () => {
     const [job] = await claimDue(1);
     expect(job!.reclaimed).toBe(true);
     await attemptDelivery(job!, opts());
-    const rows = await sql`SELECT n, error, status_code FROM delivery_attempts WHERE delivery_id = ${job!.id} ORDER BY sent_at`;
+    // Both rows can share a millisecond, so compare as a set.
+    const rows = (await sql`SELECT n, error, status_code FROM delivery_attempts WHERE delivery_id = ${job!.id}`).map((r: any) => ({ ...r }));
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({ n: 1, error: "lock_expired", status_code: null });
-    expect(rows[1]).toMatchObject({ n: 1, error: null, status_code: 200 });
+    expect(rows).toEqual(expect.arrayContaining([{ n: 1, error: "lock_expired", status_code: null }, { n: 1, error: null, status_code: 200 }]));
     expect((await delivery(job!.event_id)).attempt).toBe(1);
   });
 });

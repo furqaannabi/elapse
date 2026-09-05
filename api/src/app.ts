@@ -2,6 +2,7 @@ import { HTTPException } from "hono/http-exception";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
 import { checkoutSessions } from "./routes/checkout-sessions";
+import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { products } from "./routes/products";
 import { webhookEndpoints } from "./routes/webhook-endpoints";
@@ -17,6 +18,7 @@ app.route("/v1", products);
 app.route("/v1", checkoutSessions);
 app.route("/v1", webhookEndpoints);
 app.route("/v1", events);
+app.route("/v1", deliveries);
 
 app.notFound((c) =>
   c.json(new ApiError(404, "not_found", `Unrecognized request URL (${c.req.method}: ${c.req.path}).`).toBody(), 404),

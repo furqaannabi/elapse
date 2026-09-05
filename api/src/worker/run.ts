@@ -17,9 +17,10 @@ export async function runOnce(o: RunOptions): Promise<{ claimed: number; succeed
     while (i < jobs.length) {
       const job = jobs[i++]!;
       try {
-        const { status } = await attemptDelivery(job, { timeoutMs: o.timeoutMs, now: () => new Date(), log: o.log });
-        if (status === "succeeded") counts.succeeded++;
-        else if (status === "skipped") counts.skipped++;
+        const r = await attemptDelivery(job, { timeoutMs: o.timeoutMs, now: () => new Date(), log: o.log });
+        if (r.status === "manual") r.ok ? counts.succeeded++ : counts.failed++;
+        else if (r.status === "succeeded") counts.succeeded++;
+        else if (r.status === "skipped") counts.skipped++;
         else counts.failed++;
       } catch (e) {
         // The lock expires in 60 s and another poll picks the row up (FR-WRK-015).
