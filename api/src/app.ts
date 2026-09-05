@@ -1,7 +1,9 @@
 import { HTTPException } from "hono/http-exception";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
+import { apiKeys } from "./routes/api-keys";
 import { checkoutSessions } from "./routes/checkout-sessions";
+import { dashboardAuth } from "./routes/dashboard-auth";
 import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { products } from "./routes/products";
@@ -19,6 +21,13 @@ app.route("/v1", checkoutSessions);
 app.route("/v1", webhookEndpoints);
 app.route("/v1", events);
 app.route("/v1", deliveries);
+app.route("/v1", dashboardAuth);
+app.route("/v1", apiKeys);
+
+// /internal/* takes only the platform ingest token (FR-API-070); a cookie or merchant key is refused.
+app.all("/internal/*", (c) => {
+  throw new ApiError(401, "authentication_error", "Internal route.");
+});
 
 app.notFound((c) =>
   c.json(new ApiError(404, "not_found", `Unrecognized request URL (${c.req.method}: ${c.req.path}).`).toBody(), 404),

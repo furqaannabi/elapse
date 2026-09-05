@@ -3,6 +3,9 @@ import { createMerchant } from "../src/db/merchants";
 import { createApiKey } from "../src/db/api-keys";
 import { app } from "../src/app";
 
+// Note for test authors: Bun 1.4's `toMatchObject` with asymmetric matchers (expect.any …) mutates the
+// received object. Clone first (`structuredClone(body)`) if you read the object again afterwards.
+
 /** Truncate every merchant-scoped table (cascades from merchants). */
 export async function resetDb(): Promise<void> {
   await sql`TRUNCATE merchants CASCADE`;

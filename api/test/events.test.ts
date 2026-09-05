@@ -67,7 +67,7 @@ describe("FR-API-063 event object", () => {
     const [row] = await sql`SELECT raw_body FROM events WHERE id = ${evt.id}`;
     const t = Math.floor(Date.now() / 1000);
     const parsed = constructEvent(row!.raw_body, signPayload(row!.raw_body, ["whsec_test"], t), "whsec_test");
-    expect(parsed).toEqual(evt);
+    expect(parsed as unknown).toEqual(evt);
   });
 });
 

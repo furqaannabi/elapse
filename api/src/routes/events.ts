@@ -4,7 +4,7 @@ import { invalid, notFound } from "../lib/errors";
 import { EVENT_TYPES } from "../lib/event-types";
 import { router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
-import { requireKey, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 /** Events (FR-API-063): read-only for merchants. Creation happens at ingest and from test actions. */
 
@@ -22,8 +22,8 @@ export const EventSchema = z
   .openapi("Event");
 
 export const events = router<AuthEnv>();
-events.use("/events", requireKey(["sk"]));
-events.use("/events/*", requireKey(["sk"]));
+events.use("/events", merchantAuth());
+events.use("/events/*", merchantAuth());
 
 events.openapi(
   createRoute({

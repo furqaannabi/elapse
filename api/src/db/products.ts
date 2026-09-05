@@ -45,7 +45,7 @@ export async function findProduct(merchantId: string, livemode: boolean, id: str
 }
 
 /**
- * Newest first, keyset-paginated on (created_at, id). Returns `limit + 1` rows so the
+ * Newest first, keyset-paginated on the insertion sequence. Returns `limit + 1` rows so the
  * caller can compute `has_more` (FR-API-080). Throws `invalid` when `startingAfter`
  * is not a product of this merchant and mode, so the cursor cannot probe other data.
  */
@@ -56,16 +56,16 @@ export async function listProducts(
 ): Promise<ProductRow[]> {
   const scope = sql`merchant_id = ${merchantId} AND livemode = ${livemode}`;
   if (opts.startingAfter) {
-    const [cursor] = await sql`SELECT created_at, id FROM products WHERE id = ${opts.startingAfter} AND ${scope}`;
+    const [cursor] = await sql`SELECT seq FROM products WHERE id = ${opts.startingAfter} AND ${scope}`;
     if (!cursor) throw new CursorNotFound(opts.startingAfter);
     return (await sql`
       SELECT ${COLS} FROM products
-      WHERE ${scope} AND (created_at, id) < (${cursor.created_at}, ${cursor.id})
-      ORDER BY created_at DESC, id DESC LIMIT ${opts.limit + 1}`) as ProductRow[];
+      WHERE ${scope} AND seq < ${cursor.seq}
+      ORDER BY seq DESC LIMIT ${opts.limit + 1}`) as ProductRow[];
   }
   return (await sql`
     SELECT ${COLS} FROM products WHERE ${scope}
-    ORDER BY created_at DESC, id DESC LIMIT ${opts.limit + 1}`) as ProductRow[];
+    ORDER BY seq DESC LIMIT ${opts.limit + 1}`) as ProductRow[];
 }
 
 export class CursorNotFound extends Error {

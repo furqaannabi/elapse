@@ -6,7 +6,7 @@ import { findProduct, type ProductRow } from "../db/products";
 import { invalid, notFound } from "../lib/errors";
 import { baseUnitsToDecimal } from "../lib/money";
 import { router } from "../lib/openapi";
-import { requireKey, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, requireAuth, type AuthEnv } from "../middleware/auth";
 import { ProductSchema, serializeProduct } from "./products";
 
 /**
@@ -158,7 +158,7 @@ checkoutSessions.openapi(
     path: "/checkout/sessions",
     operationId: "checkout.sessions.create",
     tags: ["Checkout"],
-    middleware: [requireKey(["sk"])] as const,
+    middleware: [merchantAuth()] as const,
     request: { body: { content: { "application/json": { schema: CreateBody } }, required: true } },
     responses: {
       200: { description: "The session; send the subscriber to `url`.", content: { "application/json": { schema: CheckoutSessionSchema } } },
@@ -194,7 +194,7 @@ checkoutSessions.openapi(
     path: "/checkout/sessions/{id}",
     operationId: "checkout.sessions.retrieve",
     tags: ["Checkout"],
-    middleware: [requireKey(["sk", "pk"])] as const,
+    middleware: [requireAuth({ keys: ["sk", "pk"], session: true })] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: {
@@ -210,7 +210,7 @@ checkoutSessions.openapi(
     if (!row) throw notFound("checkout session", id);
     const product = (await findProduct(auth.merchantId, auth.livemode, row.product_id))!;
     const merchant = (await getMerchantBranding(auth.merchantId))!;
-    const body = auth.keyKind === "pk" ? serializePublicSession(row, product, merchant) : serializeSession(row, product, merchant);
+    const body = auth.via === "key" && auth.keyKind === "pk" ? serializePublicSession(row, product, merchant) : serializeSession(row, product, merchant);
     return c.json(body, 200);
   },
 );

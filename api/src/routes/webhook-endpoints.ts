@@ -17,7 +17,7 @@ import { ListOf, ListQuery, page } from "../lib/pagination";
 import { sampleObject } from "../lib/sample-objects";
 import { webhookUrlProblem } from "../lib/url-safety";
 import { EventSchema } from "./events";
-import { requireKey, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 /**
  * Webhook endpoints (FR-API-060, 061, 062, 105). Secret returned once on
@@ -84,8 +84,8 @@ async function assertUrl(url: string, livemode: boolean) {
 }
 
 export const webhookEndpoints = router<AuthEnv>();
-webhookEndpoints.use("/webhook_endpoints", requireKey(["sk"]));
-webhookEndpoints.use("/webhook_endpoints/*", requireKey(["sk"]));
+webhookEndpoints.use("/webhook_endpoints", merchantAuth());
+webhookEndpoints.use("/webhook_endpoints/*", merchantAuth());
 
 const ok = (schema: z.ZodTypeAny, description: string) => ({ 200: { description, content: { "application/json": { schema } } } });
 

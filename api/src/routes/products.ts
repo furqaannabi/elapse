@@ -5,7 +5,7 @@ import { invalid, notFound } from "../lib/errors";
 import { decimalToBaseUnits } from "../lib/money";
 import { router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
-import { requireKey, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 /**
  * Products (FR-API-010, FR-API-011). Merchant secret key only.
@@ -75,8 +75,8 @@ function trimDecimal(s: string): string {
 
 export const products = router<AuthEnv>();
 // Scoped to this resource: a sub-app `use("*")` would apply to every route mounted under /v1.
-products.use("/products", requireKey(["sk"]));
-products.use("/products/*", requireKey(["sk"]));
+products.use("/products", merchantAuth());
+products.use("/products/*", merchantAuth());
 
 products.openapi(
   createRoute({

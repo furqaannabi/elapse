@@ -16,6 +16,7 @@ docker compose up -d                          # Postgres 16 on :55434 with `elap
 pnpm install
 cp ../.env.example .env                       # then fill in DATABASE_URL
 bun run migrate
+bun run seed-merchant you@example.com         # prints a local sk_test key (dev only)
 bun run dev                                   # :4000
 bun run worker                                # second process: webhook deliveries
 bun test                                      # migrates + runs against elapse_test
@@ -27,7 +28,8 @@ bun test                                      # migrates + runs against elapse_t
 | --- | --- |
 | `src/app.ts` | The Hono app: routers under `/v1`, FR-API-082 error shape for every failure, `GET /openapi.json` (FR-API-084) |
 | `src/routes/` | One file per resource, each an `OpenAPIHono` router with Zod request/response schemas; `operationId` equals the SDK method name |
-| `src/middleware/auth.ts` | `requireKey(kinds)`: Bearer `sk_`/`pk_`, mode scoping (FR-API-001, FR-API-004) |
+| `src/middleware/auth.ts` | `requireAuth`: Bearer `sk_`/`pk_` or the dashboard session cookie (`X-Elapse-Mode`, Origin check), mode scoping (FR-API-001, 004, 101, 102) |
+| `scripts/seed-merchant.ts` | Dev only: merchant + publishable keys + one printed `sk_test` |
 | `src/worker/` | The webhook worker, a second process (`bun run worker`): claim with `FOR UPDATE SKIP LOCKED`, sign, POST, retry schedule, attempt rows, time-based auto-disable. Imports only `db/` and `lib/` |
 | `src/db/` | Bun `SQL` client, migration runner, one repository per table |
 | `src/lib/` | Pure helpers: ids, key generation and hashing, decimal money, errors |
@@ -40,6 +42,10 @@ bun test                                      # migrates + runs against elapse_t
 - Every merchant table has `livemode`; every query is scoped by the key's mode. An id from the other mode is a `404`, never a `403` (BR-API-001, FR-API-082).
 - Money is decimal strings on the wire, `NUMERIC` in Postgres and `BigInt` in code. `rate_usd_per_second` must fit the token's 6 decimals or the request is rejected (BR-API-004).
 - Queries use Bun's tagged-template `sql`, which parameterises every value.
+
+## Dashboard sign-in
+
+Magic link (FR-API-100): `POST /v1/dashboard/auth/magic_link {email}` always answers `{sent:true}` and emails a 15-minute single-use link to `${DASHBOARD_ORIGIN}/login/verify?token=…`; `POST /v1/dashboard/auth/verify {token}` sets the `elapse_session` cookie (HttpOnly, SameSite=Lax, 7-day idle) and creates the merchant with a publishable key per mode on first sign-in. Tokens and cookie values are stored as SHA-256. Cookie requests take the mode from `X-Elapse-Mode` and must send the dashboard `Origin` to mutate. Keys (`/v1/api_keys`) are cookie-only.
 
 ## Worker
 

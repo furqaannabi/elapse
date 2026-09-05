@@ -53,12 +53,12 @@ export async function listDeliveriesForEndpoint(
   const scope = sql`d.endpoint_id = ${endpointId} AND e.merchant_id = ${merchantId} AND e.livemode = ${livemode}
     AND (${opts.eventId ?? null}::text IS NULL OR d.event_id = ${opts.eventId ?? null})`;
   if (opts.startingAfter) {
-    const [cursor] = await sql`SELECT d.created_at, d.id FROM ${FROM} WHERE d.id = ${opts.startingAfter} AND ${scope}`;
+    const [cursor] = await sql`SELECT d.seq FROM ${FROM} WHERE d.id = ${opts.startingAfter} AND ${scope}`;
     if (!cursor) throw new CursorNotFound(`No such delivery: '${opts.startingAfter}'`);
-    return (await sql`SELECT ${COLS} FROM ${FROM} WHERE ${scope} AND (d.created_at, d.id) < (${cursor.created_at}, ${cursor.id})
-      ORDER BY d.created_at DESC, d.id DESC LIMIT ${opts.limit + 1}`) as DeliveryRow[];
+    return (await sql`SELECT ${COLS} FROM ${FROM} WHERE ${scope} AND d.seq < ${cursor.seq}
+      ORDER BY d.seq DESC LIMIT ${opts.limit + 1}`) as DeliveryRow[];
   }
-  return (await sql`SELECT ${COLS} FROM ${FROM} WHERE ${scope} ORDER BY d.created_at DESC, d.id DESC LIMIT ${opts.limit + 1}`) as DeliveryRow[];
+  return (await sql`SELECT ${COLS} FROM ${FROM} WHERE ${scope} ORDER BY d.seq DESC LIMIT ${opts.limit + 1}`) as DeliveryRow[];
 }
 
 /** FR-WRK-030: flag the delivery for one manual attempt; the worker picks it up on its next poll. Audit row (FR-WRK-031). */

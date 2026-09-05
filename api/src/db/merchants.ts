@@ -35,3 +35,8 @@ export async function getMerchantBranding(merchantId: string): Promise<MerchantB
     FROM merchants WHERE id = ${merchantId}`;
   return (row as MerchantBranding | undefined) ?? null;
 }
+
+export async function findMerchantByEmail(email: string): Promise<Merchant | null> {
+  const [row] = await sql`SELECT id, name, email, created_at FROM merchants WHERE email = ${email.toLowerCase()}`;
+  return (row as Merchant | undefined) ?? null;
+}

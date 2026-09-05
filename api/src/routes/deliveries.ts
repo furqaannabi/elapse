@@ -4,7 +4,7 @@ import { findWebhookEndpoint } from "../db/webhook-endpoints";
 import { invalid, notFound } from "../lib/errors";
 import { router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
-import { requireKey, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 /** Deliveries (FR-API-064; worker FR-WRK-030/031): the dashboard's delivery log and Resend. */
 
@@ -60,7 +60,7 @@ export const serializeDeliverySummary = (d: DeliveryRow) => ({ ...base(d), last_
 export const serializeDelivery = (d: DeliveryRow, attempts: AttemptRow[]) => ({ ...base(d), attempts: attempts.map(serializeAttempt) });
 
 export const deliveries = router<AuthEnv>();
-for (const p of ["/deliveries", "/deliveries/*", "/webhook_endpoints/*/deliveries"]) deliveries.use(p, requireKey(["sk"]));
+for (const p of ["/deliveries", "/deliveries/*", "/webhook_endpoints/*/deliveries"]) deliveries.use(p, merchantAuth());
 
 deliveries.openapi(
   createRoute({

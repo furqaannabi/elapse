@@ -12,6 +12,11 @@ export const config = {
     live: 143,
   },
   checkoutBaseUrl: process.env.NEXT_PUBLIC_CHECKOUT_URL ?? "http://localhost:3000",
+  /** Where the dashboard is served; magic links point here and it is the only Origin allowed to mutate with a cookie (FR-API-101). */
+  dashboardOrigin: (process.env.DASHBOARD_ORIGIN ?? "http://localhost:3000").replace(/\/+$/, ""),
+  email: {
+    from: process.env.EMAIL_FROM ?? "Elapse <no-reply@elapse.dev>",
+  },
 } as const;
 
 export function chainIdFor(livemode: boolean): number {

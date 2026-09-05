@@ -59,12 +59,12 @@ export async function listWebhookEndpoints(
 ): Promise<WebhookEndpointRow[]> {
   const scope = sql`merchant_id = ${merchantId} AND livemode = ${livemode}`;
   if (opts.startingAfter) {
-    const [cursor] = await sql`SELECT created_at, id FROM webhook_endpoints WHERE id = ${opts.startingAfter} AND ${scope}`;
+    const [cursor] = await sql`SELECT seq FROM webhook_endpoints WHERE id = ${opts.startingAfter} AND ${scope}`;
     if (!cursor) throw new CursorNotFound(`No such webhook endpoint: '${opts.startingAfter}'`);
-    return (await sql`SELECT ${COLS} FROM webhook_endpoints WHERE ${scope} AND (created_at, id) < (${cursor.created_at}, ${cursor.id})
-      ORDER BY created_at DESC, id DESC LIMIT ${opts.limit + 1}`) as WebhookEndpointRow[];
+    return (await sql`SELECT ${COLS} FROM webhook_endpoints WHERE ${scope} AND seq < ${cursor.seq}
+      ORDER BY seq DESC LIMIT ${opts.limit + 1}`) as WebhookEndpointRow[];
   }
-  return (await sql`SELECT ${COLS} FROM webhook_endpoints WHERE ${scope} ORDER BY created_at DESC, id DESC LIMIT ${opts.limit + 1}`) as WebhookEndpointRow[];
+  return (await sql`SELECT ${COLS} FROM webhook_endpoints WHERE ${scope} ORDER BY seq DESC LIMIT ${opts.limit + 1}`) as WebhookEndpointRow[];
 }
 
 export async function updateWebhookEndpoint(
