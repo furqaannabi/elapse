@@ -74,7 +74,6 @@ elapse/
 ├── contracts/        # Foundry — AccrualStream, StreamFactory
 ├── api/              # Platform REST (Bun + Hono + Postgres); src/worker/ = webhook deliveries, second Bun process
 ├── indexer/          # Envio HyperIndex → platform ingest
-├── worker/           # Pointer README only (worker code is api/src/worker/, ADR 2026-09-05)
 ├── sdk/ts/           # @elapse/sdk
 ├── sdk/python/       # elapse (later)
 ├── web/              # Next.js: landing (/), checkout (/c/:session), dashboard (/dashboard)

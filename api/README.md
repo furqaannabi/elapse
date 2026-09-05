@@ -17,6 +17,7 @@ pnpm install
 cp ../.env.example .env                       # then fill in DATABASE_URL
 bun run migrate
 bun run dev                                   # :4000
+bun run worker                                # second process: webhook deliveries
 bun test                                      # migrates + runs against elapse_test
 ```
 
@@ -27,6 +28,7 @@ bun test                                      # migrates + runs against elapse_t
 | `src/app.ts` | The Hono app: routers under `/v1`, FR-API-082 error shape for every failure, `GET /openapi.json` (FR-API-084) |
 | `src/routes/` | One file per resource, each an `OpenAPIHono` router with Zod request/response schemas; `operationId` equals the SDK method name |
 | `src/middleware/auth.ts` | `requireKey(kinds)`: Bearer `sk_`/`pk_`, mode scoping (FR-API-001, FR-API-004) |
+| `src/worker/` | The webhook worker, a second process (`bun run worker`): claim with `FOR UPDATE SKIP LOCKED`, sign, POST, retry schedule, attempt rows, time-based auto-disable. Imports only `db/` and `lib/` |
 | `src/db/` | Bun `SQL` client, migration runner, one repository per table |
 | `src/lib/` | Pure helpers: ids, key generation and hashing, decimal money, errors |
 | `migrations/` | Plain SQL, `NNNN_name.sql`, applied once each by `bun run migrate` |
@@ -38,6 +40,10 @@ bun test                                      # migrates + runs against elapse_t
 - Every merchant table has `livemode`; every query is scoped by the key's mode. An id from the other mode is a `404`, never a `403` (BR-API-001, FR-API-082).
 - Money is decimal strings on the wire, `NUMERIC` in Postgres and `BigInt` in code. `rate_usd_per_second` must fit the token's 6 decimals or the request is rejected (BR-API-004).
 - Queries use Bun's tagged-template `sql`, which parameterises every value.
+
+## Worker
+
+Spec: [`docs/specs/worker-frd.md`](../docs/specs/worker-frd.md) (signed 2026-09-05). Retries `0s, 30s, 2m, 10m, 1h, 1h, 1h, 1h`, cap 8, 10 s timeout, no redirects, any `2xx` is success. Signs `{t}.{raw_body}` with the endpoint's decrypted `whsec_`, both secrets during a roll's grace window. An endpoint failing for 3 days straight is disabled (bell warning at 24 h). Env: `WORKER_CONCURRENCY` (16), `WORKER_BATCH` (50).
 
 ## Modes and chains
 

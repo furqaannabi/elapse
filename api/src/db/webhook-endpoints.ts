@@ -80,6 +80,10 @@ export async function updateWebhookEndpoint(
         url = COALESCE(${patch.url ?? null}, url),
         events = COALESCE(${patch.events ? textArray(patch.events) : null}, events),
         disabled = COALESCE(${patch.disabled ?? null}, disabled),
+        -- Re-enabling clears an auto-disable and its failure streak (FR-WRK-050).
+        disabled_reason = CASE WHEN ${patch.disabled === false} THEN NULL ELSE disabled_reason END,
+        failing_since = CASE WHEN ${patch.disabled === false} THEN NULL ELSE failing_since END,
+        warned_24h_at = CASE WHEN ${patch.disabled === false} THEN NULL ELSE warned_24h_at END,
         updated_at = clock_timestamp()
       WHERE id = ${id} AND merchant_id = ${merchantId} AND livemode = ${livemode}
       RETURNING ${COLS}`;
