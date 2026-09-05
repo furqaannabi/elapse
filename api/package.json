@@ -1,0 +1,23 @@
+{
+  "name": "@elapse/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Elapse platform API: merchant REST, hosted-checkout backend, indexer ingest. Bun + Hono + Postgres.",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "migrate": "bun src/db/migrate.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "^1.1.5",
+    "hono": "^4.9.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.9.0"
+  }
+}

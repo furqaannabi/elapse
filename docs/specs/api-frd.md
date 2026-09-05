@@ -1,6 +1,6 @@
 # Platform API (`api/` — REST + Postgres) — FRD
 
-Status: **Draft — grilled 2026-09-05, awaiting William's signature** · Surface: Platform (merchant-facing REST, internal ingest, dashboard backend) · Sources: detailed doc §2, §3 Objects, §4.2 frozen SDK surface, §4.4, §5.1–5.3, §6 item 7 & 9, §8, §9 Architecture, §12 Week 2/4, §15; `api/README.md`; `.env.example`; checkout FRD (Data block, BR-CHK-005); dashboard FRD outline; design brief §3.
+Status: **Signed 2026-09-05 (William)** · Surface: Platform (merchant-facing REST, internal ingest, dashboard backend) · Sources: detailed doc §2, §3 Objects, §4.2 frozen SDK surface, §4.4, §5.1–5.3, §6 item 7 & 9, §8, §9 Architecture, §12 Week 2/4, §15; `api/README.md`; `.env.example`; checkout FRD (Data block, BR-CHK-005); dashboard FRD outline; design brief §3.
 
 ## Problem
 
@@ -205,3 +205,4 @@ Env: `DATABASE_URL`, `MONAD_RPC_URL`, `CHAIN_ID`, `RELAYER_PRIVATE_KEY` (holds M
 | 2026-09-04 | Claude (for William) | Cap end fires `invoice.payment_failed` with `subscription.canceled` (William's option 2): FR-API-051, FR-API-071, BR-API-006; the frozen §5.1 catalog keeps all six types. |
 | 2026-09-04 | Claude (for William) | FR-API-041 becomes a public, SDK-backed operation for the new `subscriptions.list` method. |
 | 2026-09-05 | Claude (for William) | Grill round: wire casing, test mode (real streams on testnet, relayer mints MockUSD at test checkout), rate limits, webhook secret at rest, logo storage, Resend, Railway + Neon hosting, `checkout.session.completed` timing all decided; pause/resume, `mrc_` and dashboard visibility confirmed; relayer key custody recorded (Undecided 12). Awaiting signature. |
+| 2026-09-05 | William | Signed. Week 2 build begins against this spec. |

@@ -1,0 +1,23 @@
+# Local Postgres for the API and its tests. Production is Neon (Undecided 11).
+#   docker compose up -d      # from api/
+# Two databases: `elapse` for `bun dev`, `elapse_test` for `bun test`.
+services:
+  db:
+    image: postgres:16
+    container_name: elapse-db
+    environment:
+      POSTGRES_USER: elapse
+      POSTGRES_PASSWORD: elapse
+      POSTGRES_DB: elapse
+    ports:
+      - "55434:5432"
+    volumes:
+      - elapse-db:/var/lib/postgresql/data
+      - ./docker/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elapse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  elapse-db:
