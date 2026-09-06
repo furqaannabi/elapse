@@ -38,14 +38,12 @@ jobs:
       - uses: pnpm/action-setup@v4
         with: { version: "${{ env.PNPM_VERSION }}" }
       - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: pnpm }
+        with: { node-version: 22, cache: pnpm } # web's test stack needs Node ≥ 22 (undici in Node 20 lacks markAsUncloneable)
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: "${{ env.BUN_VERSION }}" }
       - run: pnpm install --frozen-lockfile
       - name: SDK
         run: pnpm --filter @elapse/sdk build && pnpm --filter @elapse/sdk test
-      - name: CLI
-        run: pnpm --filter @elapse/cli typecheck && pnpm --filter @elapse/cli test
       - name: Example merchant
         run: pnpm --filter elapse-example-saas typecheck && pnpm --filter elapse-example-saas test
       - name: Web
@@ -57,6 +55,20 @@ jobs:
         run: bun run typecheck && bun test
       - name: Indexer
         run: pnpm --filter indexer test
+
+  cli-node20:
+    name: CLI on Node 20 (its floor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @elapse/sdk build
+      - run: pnpm --filter @elapse/cli typecheck && pnpm --filter @elapse/cli test && pnpm --filter @elapse/cli build
 
   docs:
     name: Docs checks
