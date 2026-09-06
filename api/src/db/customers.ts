@@ -2,6 +2,8 @@ import type { SQL } from "bun";
 import { sql } from "./client";
 import { newId } from "../lib/ids";
 import { keysetList } from "../lib/keyset";
+import { baseUnitsToDecimal } from "../lib/money";
+import { config } from "../config";
 
 /** FR-API-020. One Customer per (Merchant, mode, wallet). Addresses are stored lowercase. */
 export interface CustomerRow {
@@ -12,9 +14,14 @@ export interface CustomerRow {
   passkey_id: string | null;
   wallet_address: string;
   created_at: Date;
+  /** Dashboard aggregates (FR-DSH-050). */
+  subscription_count: number;
+  total_settled_wei: string;
 }
 
-const COLS = sql`id, merchant_id, livemode, email, passkey_id, wallet_address, created_at`;
+const COLS = sql`id, merchant_id, livemode, email, passkey_id, wallet_address, created_at,
+  (SELECT count(*)::int FROM subscriptions s WHERE s.customer_id = customers.id) AS subscription_count,
+  (SELECT COALESCE(sum(settled_wei), 0)::text FROM subscriptions s WHERE s.customer_id = customers.id) AS total_settled_wei`;
 
 /** Insert or return the existing Customer for this wallet (FR-API-020 "second session reuses cus_"). */
 export async function insertCustomer(
@@ -46,9 +53,13 @@ export function serializeCustomer(row: CustomerRow) {
     default_payment: "ausd" as const,
     livemode: row.livemode,
     created: Math.floor(row.created_at.getTime() / 1000),
+    subscription_count: row.subscription_count ?? 0,
+    total_settled_usd: baseUnitsToDecimal(BigInt(row.total_settled_wei ?? "0"), config.tokenDecimals),
   };
 }
 
-export async function listCustomers(merchantId: string, livemode: boolean, opts: { limit: number; startingAfter?: string | undefined }): Promise<CustomerRow[]> {
-  return keysetList<CustomerRow>("customers", COLS, sql`merchant_id = ${merchantId} AND livemode = ${livemode}`, [], opts);
+export async function listCustomers(merchantId: string, livemode: boolean, opts: { limit: number; startingAfter?: string | undefined; search?: string | undefined }): Promise<CustomerRow[]> {
+  const filters = [];
+  if (opts.search) filters.push(sql`(email ILIKE ${"%" + opts.search + "%"} OR id = ${opts.search})`);
+  return keysetList<CustomerRow>("customers", COLS, sql`merchant_id = ${merchantId} AND livemode = ${livemode}`, filters, opts);
 }

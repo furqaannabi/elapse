@@ -66,7 +66,7 @@ describe("FR-API-020/021 customers", () => {
     const f = await seed();
     const one = await api("GET", `/v1/customers/${f.a.id}`, { key: m.skTest });
     expect(one.status).toBe(200);
-    expect(one.body).toEqual({ id: f.a.id, object: "customer", email: "a@example.com", wallet_address: addr(1), default_payment: "ausd", livemode: false, created: expect.any(Number) });
+    expect(one.body).toEqual({ id: f.a.id, object: "customer", email: "a@example.com", wallet_address: addr(1), default_payment: "ausd", livemode: false, created: expect.any(Number), subscription_count: 2, total_settled_usd: "0" });
     const list = await api("GET", "/v1/customers", { key: m.skTest });
     expect(list.body.data.map((c: any) => c.id)).toEqual([f.b.id, f.a.id]);
     const other = await seedMerchant();

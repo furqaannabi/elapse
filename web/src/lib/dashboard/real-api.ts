@@ -4,14 +4,14 @@
  * mode header, and an `Idempotency-Key` on writes (FR-DSH-112). Snake_case wire objects
  * become the dashboard's types here and nowhere else.
  *
- * Slice 1 (2026-09-06): auth, profile, keys, webhooks, deliveries, events. Methods whose
- * API routes do not exist yet throw `NotWired`, so their pages show the error state
- * (FR-DSH-006) rather than a placeholder.
+ * Every `DashboardApi` method is served (2026-09-06): auth, profile, home, keys, webhooks,
+ * deliveries, events, products, subscriptions, customers, invoices, ledger, balance, payout
+ * address, notifications, activity, search, delete test data.
  */
 import { DashboardApiError as MockError, type DashboardApi, type WriteOpts } from "./mock-api";
 import { newIdempotencyKey } from "./idempotency";
 import type {
-  ApiKey, Attempt, ChecklistState, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyList, KeyStatus, Merchant, Mode, Overview, Product, Subscription, WebhookEndpoint,
+  ApiKey, Attempt, AuditAction, AuditEntry, Balance, ChecklistState, Customer, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyList, KeyStatus, LedgerEntry, Merchant, Mode, Notification, NotificationKind, Overview, Product, Subscription, WebhookEndpoint,
 } from "./types";
 
 /**
@@ -28,11 +28,6 @@ export class DashboardApiError extends MockError {
     public readonly param?: string,
   ) {
     super(code, message);
-  }
-}
-export class NotWired extends DashboardApiError {
-  constructor(what: string) {
-    super("invalid_state", `${what} is not connected to the API yet.`, 501, "not_wired");
   }
 }
 
@@ -69,6 +64,10 @@ type WireSubscription = {
 };
 type WireInvoice = { id: string; subscription: string; customer: string; period_start: number; period_end: number; seconds: number; amount_settled: string; gross: string; fee: string; net: string; status: "paid" | "failed"; tx_hash: string; livemode: boolean; created: number };
 type WireOverview = { running_now: number; accrued_today_usd: string; settled_week_net_usd: string; failed_payments_week: number; running: WireSubscription[]; recent_events: WireEvent[]; as_of: number };
+type WireCustomer = { id: string; email: string | null; wallet_address: string; livemode: boolean; created: number; subscription_count: number; total_settled_usd: string };
+type WireLedger = { id: string; kind: LedgerEntry["kind"]; amount_usd: string; subscription: string; customer: string; customer_email: string | null; tx_hash: string; log_index: number; block_timestamp: number; reversed_by: string | null; livemode: boolean };
+type WireNotification = { id: string; kind: string; summary: string; target_id: string | null; created: number; read_at: number | null; emailed_at: number | null; livemode: boolean };
+type WireAudit = { id: string; at: number; actor: string; action: string; target: string | null; ip: string | null };
 type List<T> = { object: "list"; data: T[]; has_more: boolean };
 
 // ─── mapping ──────────────────────────────────────────────────────────────────
@@ -245,6 +244,48 @@ export function receiptOf(w: WireSubscription) {
   return { secondsElapsed: w.seconds_elapsed, amountSettledUsd: w.settled_usd, refundedUsd: fmt(refunded < 0n ? 0n : refunded), canceledAt: (w.canceled_at ?? 0) * 1000 };
 }
 
+export function mapCustomer(w: WireCustomer): Customer {
+  return { id: w.id as Customer["id"], livemode: w.livemode, email: w.email, createdAt: w.created * 1000, totalSettledUsd: w.total_settled_usd, subscriptionCount: w.subscription_count };
+}
+
+export function mapLedger(w: WireLedger): LedgerEntry {
+  return {
+    id: w.id as LedgerEntry["id"], livemode: w.livemode, kind: w.kind, amountUsd: w.amount_usd, subscription: w.subscription as `sub_${string}`,
+    customer: { id: w.customer as `cus_${string}`, email: w.customer_email }, txId: w.tx_hash, blockTime: w.block_timestamp * 1000,
+    reversedBy: w.reversed_by as LedgerEntry["reversedBy"], invoice: null,
+  };
+}
+
+/** API notification kinds → the page's; `endpoint_failing` reads as the exhausted family, `first_delivery_succeeded` as `first_delivery`. */
+function notificationKind(k: string): NotificationKind {
+  if (k === "endpoint_failing" || k === "endpoint_exhausted") return "endpoint_exhausted";
+  if (k === "first_delivery_succeeded") return "first_delivery";
+  return (["key_expiring", "secret_expiring", "payment_failed"].includes(k) ? k : "payment_failed") as NotificationKind;
+}
+const hrefFor = (kind: string, target: string | null): string => {
+  if (!target) return "/dashboard";
+  if (target.startsWith("wh_")) return `/dashboard/developers/webhooks/${target}`;
+  if (target.startsWith("key_")) return "/dashboard/developers/keys";
+  if (target.startsWith("sub_")) return `/dashboard/subscriptions/${target}`;
+  return "/dashboard";
+};
+export function mapNotification(w: WireNotification): Notification {
+  return { id: w.id as Notification["id"], livemode: w.livemode, kind: notificationKind(w.kind), summary: w.summary, objectId: w.target_id ?? "", href: hrefFor(w.kind, w.target_id), createdAt: w.created * 1000, readAt: ms(w.read_at), emailedAt: ms(w.emailed_at) };
+}
+
+const AUDIT_ACTIONS: Record<string, AuditAction> = {
+  sign_in: "signin", "api_key.created": "key.created", "api_key.rolled": "key.rolled", "api_key.revoked": "key.revoked",
+  "webhook_endpoint.created": "endpoint.added", "webhook_endpoint.updated": "endpoint.changed", "webhook_endpoint.secret_rolled": "secret.rolled",
+  "webhook_endpoint.auto_disabled": "endpoint.disabled", "webhook_endpoint.deleted": "endpoint.changed", payout_address_changed: "payout_address.changed",
+  "delivery.resent": "delivery.resent", "test_data.deleted": "test_data.deleted",
+};
+const AUDIT_TO_API: Partial<Record<AuditAction, string>> = Object.fromEntries(Object.entries(AUDIT_ACTIONS).map(([k, v]) => [v, k]));
+export function mapAudit(w: WireAudit): AuditEntry | null {
+  const action = AUDIT_ACTIONS[w.action];
+  if (!action) return null; // merchant.onboarded / merchant.updated have no row in the page's vocabulary
+  return { id: w.id as AuditEntry["id"], at: w.at * 1000, actor: w.actor, action, target: w.target ?? "", ip: w.ip ?? "" };
+}
+
 // ─── client ───────────────────────────────────────────────────────────────────
 
 export interface RealDashboardOptions {
@@ -275,10 +316,6 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
     return json as T;
   }
   const idem = (opts?: WriteOpts) => opts?.idempotencyKey;
-
-  const notWired = (what: string) => async (): Promise<never> => {
-    throw new NotWired(what);
-  };
 
   return {
     // ── auth (FR-DSH-010..014) ──
@@ -457,8 +494,23 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       if (w.status !== "canceled") throw new DashboardApiError("network", "The cancel was submitted but the network is slow to confirm. The meter will show as stopped shortly.", 0);
       return { subscription: mapSubscription(w), receipt: receiptOf(w) };
     },
-    listCustomers: notWired("Customers"),
-    getCustomer: notWired("Customers"),
+    // ── customers (FR-DSH-050/051) ──
+    async listCustomers(mode, filter) {
+      currentMode = mode;
+      const q = new URLSearchParams({ limit: "100" });
+      if (filter.search) q.set("search", filter.search);
+      return (await call<List<WireCustomer>>("GET", `/v1/customers?${q}`, { mode })).data.map(mapCustomer);
+    },
+    async getCustomer(id) {
+      const [w, subs, events] = await Promise.all([
+        call<WireCustomer>("GET", `/v1/customers/${id}`),
+        call<List<WireSubscription>>("GET", `/v1/subscriptions?customer=${id}&limit=100`),
+        call<List<WireEvent>>("GET", "/v1/events?limit=100"),
+      ]);
+      const subIds = new Set(subs.data.map((s) => s.id));
+      const mine = events.data.filter((e) => (e.object_id && subIds.has(e.object_id)) || subIds.has(String((e.data.object as { subscription?: string }).subscription ?? "")));
+      return { customer: mapCustomer(w), subscriptions: subs.data.map(mapSubscription), events: mine.map(mapEvent) };
+    },
     async listInvoices(mode, filter) {
       currentMode = mode;
       const q = new URLSearchParams({ limit: "100" });
@@ -468,8 +520,26 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       const until = filter.until ? Math.floor(filter.until / 1000) : null;
       return rows.filter((i) => (since === null || i.period_end >= since) && (until === null || i.period_end <= until)).map((i) => mapInvoice(i));
     },
-    listLedger: notWired("Balance & payouts"),
-    getBalance: notWired("Balance & payouts"),
+    // ── balance & payouts (FR-DSH-120..124) ──
+    async listLedger(mode, filter) {
+      currentMode = mode;
+      const q = new URLSearchParams({ limit: "500" });
+      if (filter.kind) q.set("kind", filter.kind);
+      if (filter.subscription) q.set("subscription", filter.subscription);
+      if (filter.since) q.set("from", String(Math.floor(filter.since / 1000)));
+      if (filter.until) q.set("to", String(Math.floor(filter.until / 1000)));
+      return (await call<{ data: WireLedger[] }>("GET", `/v1/dashboard/ledger?${q}`, { mode })).data.map(mapLedger);
+    },
+    async getBalance(mode) {
+      currentMode = mode;
+      try {
+        const b = await call<{ payout_address: string; balance_usd: string; settled_this_month_net_usd: string; as_of: number }>("GET", "/v1/dashboard/balance", { mode });
+        return { payoutAddress: b.payout_address, ausdUsd: b.balance_usd, settledThisMonthNetUsd: b.settled_this_month_net_usd, asOf: b.as_of * 1000 } satisfies Balance;
+      } catch (e) {
+        if (e instanceof DashboardApiError && e.apiCode === "no_payout_address") return { payoutAddress: null, ausdUsd: "0", settledThisMonthNetUsd: "0", asOf: Date.now() };
+        throw e;
+      }
+    },
     async updateMerchant(input, opts) {
       const body: Record<string, unknown> = {};
       if (input.name !== undefined) body.name = input.name;
@@ -478,7 +548,10 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       if (input.branding) body.branding = { display_name: input.branding.name ?? null, accent: input.branding.accent ?? null, support_url: input.branding.supportUrl ?? null };
       return mapMerchant(await call<WireProfile>("POST", "/v1/dashboard/me", { body, idempotencyKey: idem(opts) }));
     },
-    changePayoutAddress: notWired("Payout address"),
+    async changePayoutAddress(input, opts) {
+      await call("POST", "/v1/dashboard/payout_address", { body: { address: input.address, confirm: input.confirm }, idempotencyKey: idem(opts) });
+      return mapMerchant(await call<WireProfile>("GET", "/v1/dashboard/me"));
+    },
     async getNotificationSettings() {
       const p = await call<WireProfile>("GET", "/v1/dashboard/me");
       return { emailOnExhausted: p.notifications.endpoint_exhausted_email, emailOnExpiring: p.notifications.key_expiry_email };
@@ -490,14 +563,46 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       });
       return { emailOnExhausted: p.notifications.endpoint_exhausted_email, emailOnExpiring: p.notifications.key_expiry_email };
     },
-    listNotifications: notWired("Notifications"),
-    async unreadCounts() {
-      return { test: 0, live: 0 };
+    // ── notifications (FR-DSH-130..132) ──
+    async listNotifications(mode) {
+      currentMode = mode;
+      return (await call<{ data: WireNotification[] }>("GET", "/v1/dashboard/notifications", { mode })).data.map(mapNotification);
     },
-    async markNotificationsRead() {},
-    listActivity: notWired("Activity"),
-    deleteTestData: notWired("Delete test data"),
-    async resolveSearch() {
+    async unreadCounts() {
+      const r = await call<{ unread: number; other_mode_unread: number }>("GET", "/v1/dashboard/notifications");
+      const mode = modeOf();
+      return mode === "test" ? { test: r.unread, live: r.other_mode_unread } : { live: r.unread, test: r.other_mode_unread };
+    },
+    async markNotificationsRead(mode) {
+      await call("POST", "/v1/dashboard/notifications/read_all", { mode });
+    },
+    // ── activity (FR-DSH-140) ──
+    async listActivity(filter) {
+      const q = new URLSearchParams({ limit: "200" });
+      if (filter.action && AUDIT_TO_API[filter.action]) q.set("action", AUDIT_TO_API[filter.action]!);
+      if (filter.since) q.set("since", String(Math.floor(filter.since / 1000)));
+      if (filter.until) q.set("until", String(Math.floor(filter.until / 1000)));
+      return (await call<{ data: WireAudit[] }>("GET", `/v1/dashboard/activity?${q}`)).data.map(mapAudit).filter((a): a is AuditEntry => a !== null);
+    },
+    async deleteTestData(input, opts) {
+      await call("POST", "/v1/dashboard/test_data/delete", { body: { confirm_name: input.confirmName }, idempotencyKey: idem(opts) });
+    },
+    // ── search (FR-DSH-005): an id prefix routes to its page; an email to the customer ──
+    async resolveSearch(mode, query) {
+      currentMode = mode;
+      const q = query.trim();
+      const routes: Array<[string, string]> = [["prod_", "/dashboard/products"], ["sub_", "/dashboard/subscriptions/"], ["cus_", "/dashboard/customers/"], ["evt_", "/dashboard/developers/events/"], ["wh_", "/dashboard/developers/webhooks/"], ["cs_", "/dashboard/subscriptions"]];
+      for (const [prefix, path] of routes) {
+        if (q.startsWith(prefix)) {
+          const exists = await call<unknown>("GET", prefix === "prod_" ? `/v1/products/${q}` : prefix === "sub_" ? `/v1/subscriptions/${q}` : prefix === "cus_" ? `/v1/customers/${q}` : prefix === "evt_" ? `/v1/events/${q}` : prefix === "wh_" ? `/v1/webhook_endpoints/${q}` : `/v1/checkout/sessions/${q}`).then(() => true).catch(() => false);
+          if (!exists) return null;
+          return path.endsWith("/") ? `${path}${q}` : path;
+        }
+      }
+      if (q.includes("@")) {
+        const c = (await call<List<WireCustomer>>("GET", `/v1/customers?search=${encodeURIComponent(q)}&limit=1`)).data[0];
+        return c ? `/dashboard/customers/${c.id}` : null;
+      }
       return null;
     },
   };

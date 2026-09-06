@@ -16,6 +16,8 @@ export const CustomerSchema = z
     default_payment: z.literal("ausd"),
     livemode: z.boolean(),
     created: z.number().int(),
+    subscription_count: z.number().int(),
+    total_settled_usd: z.string(),
   })
   .openapi("Customer");
 
@@ -29,14 +31,14 @@ customers.openapi(
     path: "/customers",
     operationId: "customers.list",
     tags: ["Customers"],
-    request: { query: ListQuery },
+    request: { query: ListQuery.extend({ search: z.string().max(254).optional() }) },
     responses: { 200: { description: "Customers, newest first.", content: { "application/json": { schema: ListOf(CustomerSchema, "CustomerList") } } } },
   }),
   async (c) => {
     const q = c.req.valid("query");
     const auth = c.get("auth");
     try {
-      const rows = await listCustomers(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after });
+      const rows = await listCustomers(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after, search: q.search });
       return c.json(page(rows.map(serializeCustomer), q.limit, "/v1/customers"), 200);
     } catch (e) {
       if (e instanceof CursorNotFound) throw invalid(e.message, "starting_after");

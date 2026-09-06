@@ -74,3 +74,19 @@ describe("products carry active_subscriptions", () => {
     expect((await api("GET", "/v1/products", { key: m.skTest })).body.data[0].active_subscriptions).toBe(2);
   });
 });
+
+describe("customers carry subscription_count and total_settled_usd", () => {
+  it("aggregates per customer and searches by email", async () => {
+    const p = await api("POST", "/v1/products", { key: m.skTest, body: { name: "GPU", rate_usd_per_second: "0.004" } });
+    await sql`INSERT INTO customers (id, merchant_id, livemode, wallet_address, email) VALUES ('cus_1', ${m.merchantId}, false, '0x0000000000000000000000000000000000000001', 'ann@x.test'), ('cus_2', ${m.merchantId}, false, '0x0000000000000000000000000000000000000002', NULL)`;
+    for (const [id, cus, settled] of [["sub_1", "cus_1", 332000], ["sub_2", "cus_1", 100000], ["sub_3", "cus_2", 0]]) {
+      await sql`INSERT INTO subscriptions (id, merchant_id, livemode, product_id, customer_id, status, chain_id, rate_per_second_wei, max_duration_seconds, max_escrow_wei, settled_wei)
+                VALUES (${id}, ${m.merchantId}, false, ${p.body.id}, ${cus}, 'canceled', 10143, 4000, 60, 240000, ${settled})`;
+    }
+    const one = await api("GET", "/v1/customers/cus_1", { key: m.skTest });
+    expect(one.body).toMatchObject({ subscription_count: 2, total_settled_usd: "0.432" });
+    const list = await api("GET", "/v1/customers?search=ann", { key: m.skTest });
+    expect(list.body.data.map((c: any) => c.id)).toEqual(["cus_1"]);
+    expect((await api("GET", "/v1/customers", { key: m.skTest })).body.data).toHaveLength(2);
+  });
+});

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRealDashboardApi, keyStatus, mapDelivery, mapEndpoint, mapEvent, mapKey, mapMerchant, mapProduct, mapSubscription, receiptOf, NotWired } from "./real-api";
+import { createRealDashboardApi, keyStatus, mapAudit, mapDelivery, mapEndpoint, mapEvent, mapKey, mapLedger, mapMerchant, mapNotification, mapProduct, mapSubscription, receiptOf } from "./real-api";
 
 const BASE = "http://api.test";
 const T0 = 1_757_000_000;
@@ -83,7 +83,6 @@ describe("real DashboardApi", () => {
   it("errors carry the API's message, param and status", async () => {
     responses = [{ __status: 400, error: { type: "invalid_request_error", message: "Invalid url: must use https", param: "url" } }];
     await expect(api().createEndpoint("test", { url: "http://x", events: "*" })).rejects.toMatchObject({ status: 400, code: "invalid_input", param: "url", message: "Invalid url: must use https" });
-    await expect(api().listLedger("test", {})).rejects.toBeInstanceOf(NotWired);
     responses = [{ __status: 401, error: { type: "authentication_error", message: "Sign in to continue." } }];
     await expect(api().me()).rejects.toMatchObject({ code: "unauthenticated" }); // the gate redirects on this
     responses = [{ __status: 401, error: { type: "authentication_error", message: "This sign-in link is invalid or has expired." } }];
@@ -116,6 +115,17 @@ describe("real DashboardApi", () => {
     expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/subscriptions/sub_1/cancel` });
     expect(r.subscription.status).toBe("canceled");
     expect(r.receipt.refundedUsd).toBe("14.068");
+  });
+
+  it("ledger, notifications and audit rows map to the page vocabulary; balance without a payout address is empty, not an error", async () => {
+    expect(mapLedger({ id: "led_1", kind: "refund", amount_usd: "13.52", subscription: "sub_1", customer: "cus_1", customer_email: null, tx_hash: "0xt", log_index: 1, block_timestamp: T0, reversed_by: null, livemode: false })).toMatchObject({ amountUsd: "13.52", blockTime: T0 * 1000, reversedBy: null });
+    expect(mapNotification({ id: "ntf_1", kind: "endpoint_failing", summary: "x", target_id: "wh_9", created: T0, read_at: null, emailed_at: null, livemode: false })).toMatchObject({ kind: "endpoint_exhausted", href: "/dashboard/developers/webhooks/wh_9", readAt: null });
+    expect(mapAudit({ id: "aud_1", at: T0, actor: "dashboard", action: "api_key.rolled", target: "key_1", ip: null })).toMatchObject({ action: "key.rolled", target: "key_1", ip: "" });
+    expect(mapAudit({ id: "aud_2", at: T0, actor: "dashboard", action: "merchant.onboarded", target: null, ip: null })).toBeNull();
+    responses = [{ __status: 404, error: { type: "not_found", code: "no_payout_address", message: "Set a payout address first." } }];
+    expect((await api().getBalance("test")).payoutAddress).toBeNull();
+    responses = [{ object: "list", data: [], unread: 3, other_mode_unread: 1 }];
+    expect(await api().unreadCounts()).toEqual({ test: 3, live: 1 });
   });
 
   it("verifyMagicLink posts the token then reads the profile", async () => {
