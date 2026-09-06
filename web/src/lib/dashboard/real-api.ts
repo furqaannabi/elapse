@@ -11,7 +11,7 @@
 import { DashboardApiError as MockError, type DashboardApi, type WriteOpts } from "./mock-api";
 import { newIdempotencyKey } from "./idempotency";
 import type {
-  ApiKey, Attempt, ChecklistState, Delivery, DeliveryStatus, Event, EventType, KeyList, KeyStatus, Merchant, Mode, WebhookEndpoint,
+  ApiKey, Attempt, ChecklistState, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyList, KeyStatus, Merchant, Mode, Overview, Product, Subscription, WebhookEndpoint,
 } from "./types";
 
 /**
@@ -60,6 +60,15 @@ type WireEndpoint = { id: string; url: string; events: string[]; disabled: boole
 type WireAttempt = { n: number; manual: boolean; actor: string | null; sent_at: number; duration_ms: number | null; status_code: number | null; error: string | null; request_headers: Record<string, string>; response_excerpt: string | null };
 type WireDelivery = { id: string; event: string; endpoint: string; status: "queued" | "retrying" | "succeeded" | "exhausted" | "skipped"; attempt: number; next_attempt_at: number | null; livemode: boolean; created: number; resend_requested: boolean; max_attempts: number; event_type: string; event_created: number; endpoint_url: string; last_attempt?: WireAttempt | null; attempts?: WireAttempt[] };
 type WireEvent = { id: string; type: EventType; created: number; livemode: boolean; data: { object: Record<string, unknown> }; pending_webhooks: number; object_id: string | null; delivery_state: "pending" | "delivered" | "failed"; deliveries?: WireDelivery[] };
+type WireProduct = { id: string; name: string; description: string | null; rate_usd_per_second: string; allow_pause: boolean; active: boolean; livemode: boolean; created: number; active_subscriptions: number };
+type WireSubscription = {
+  id: string; status: Subscription["status"]; product: string; customer: string; checkout_session: string | null; rate_usd_per_second: string;
+  started_at: number | null; paused_at: number | null; canceled_at: number | null; ended_reason: "canceled" | "cap_reached" | null;
+  max_duration_seconds: number; max_escrow_usd: string; funded_usd: string; settled_usd: string; seconds_elapsed: number; stream_address: string | null;
+  chain_id: number; livemode: boolean; created: number; product_name: string; customer_email: string | null;
+};
+type WireInvoice = { id: string; subscription: string; customer: string; period_start: number; period_end: number; seconds: number; amount_settled: string; gross: string; fee: string; net: string; status: "paid" | "failed"; tx_hash: string; livemode: boolean; created: number };
+type WireOverview = { running_now: number; accrued_today_usd: string; settled_week_net_usd: string; failed_payments_week: number; running: WireSubscription[]; recent_events: WireEvent[]; as_of: number };
 type List<T> = { object: "list"; data: T[]; has_more: boolean };
 
 // ─── mapping ──────────────────────────────────────────────────────────────────
@@ -171,12 +180,79 @@ export function mapEvent(w: WireEvent): Event {
   };
 }
 
+export function mapProduct(w: WireProduct): Product {
+  return {
+    id: w.id as Product["id"],
+    livemode: w.livemode,
+    name: w.name,
+    description: w.description,
+    rateUsdPerSecond: w.rate_usd_per_second,
+    allowPause: w.allow_pause,
+    status: w.active ? "active" : "archived",
+    activeSubscriptions: w.active_subscriptions,
+    createdAt: w.created * 1000,
+  };
+}
+
+export function mapSubscription(w: WireSubscription): Subscription {
+  return {
+    id: w.id as Subscription["id"],
+    livemode: w.livemode,
+    status: w.status,
+    product: { id: w.product as Product["id"], name: w.product_name },
+    customer: { id: w.customer as `cus_${string}`, email: w.customer_email },
+    rateUsdPerSecond: w.rate_usd_per_second,
+    startedAt: ms(w.started_at),
+    pausedAt: ms(w.paused_at),
+    canceledAt: ms(w.canceled_at),
+    ...(w.status === "paused" ? { pauseReason: "user" as const } : {}),
+    ...(w.ended_reason ? { endedReason: w.ended_reason } : {}),
+    fundedUsd: w.max_escrow_usd,
+    settledUsd: w.settled_usd,
+    checkoutSession: (w.checkout_session ?? "cs_") as `cs_${string}`,
+    createdAt: w.created * 1000,
+  };
+}
+
+export function mapInvoice(w: WireInvoice, customerEmail: string | null = null): Invoice {
+  return {
+    id: w.id as Invoice["id"],
+    livemode: w.livemode,
+    subscription: w.subscription as `sub_${string}`,
+    customer: { id: w.customer as `cus_${string}`, email: customerEmail },
+    settledAt: w.period_end * 1000,
+    seconds: w.seconds,
+    grossUsd: w.gross,
+    feeUsd: w.fee,
+    netUsd: w.net,
+    txId: w.tx_hash,
+  };
+}
+
+/** Whole-second receipt from the ended subscription's own numbers (BR-DSH-003). */
+export function receiptOf(w: WireSubscription) {
+  const scale = 1_000_000n; // 6-decimal token math, no floats
+  const toUnits = (d: string) => {
+    const [i, f = ""] = d.split(".");
+    return BigInt(i ?? "0") * scale + BigInt((f + "000000").slice(0, 6));
+  };
+  const fmt = (n: bigint) => {
+    const s = n.toString().padStart(7, "0");
+    const frac = s.slice(-6).replace(/0+$/, "");
+    return frac ? `${s.slice(0, -6)}.${frac}` : s.slice(0, -6);
+  };
+  const refunded = toUnits(w.max_escrow_usd) - toUnits(w.settled_usd);
+  return { secondsElapsed: w.seconds_elapsed, amountSettledUsd: w.settled_usd, refundedUsd: fmt(refunded < 0n ? 0n : refunded), canceledAt: (w.canceled_at ?? 0) * 1000 };
+}
+
 // ─── client ───────────────────────────────────────────────────────────────────
 
 export interface RealDashboardOptions {
   baseUrl: string;
   /** Test hook: the mode is otherwise read per call. */
   getMode?: () => Mode;
+  /** Where a "Copy Checkout URL" session returns the subscriber (FR-DSH-032): the dashboard itself. */
+  dashboardOrigin?: string;
 }
 
 export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
@@ -229,7 +305,18 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       currentMode = mode;
       return mapChecklist((await call<WireProfile>("GET", "/v1/dashboard/me", { mode })).checklist);
     },
-    overview: notWired("Overview"),
+    async overview(mode) {
+      currentMode = mode;
+      const o = await call<WireOverview>("GET", "/v1/dashboard/overview", { mode });
+      return {
+        runningNow: o.running_now,
+        accruedTodayUsd: o.accrued_today_usd,
+        settledWeekNetUsd: o.settled_week_net_usd,
+        failedPaymentsWeek: o.failed_payments_week,
+        running: o.running.map(mapSubscription),
+        recentEvents: o.recent_events.map(mapEvent),
+      } satisfies Overview;
+    },
 
     // ── keys (FR-DSH-070..074) ──
     async listKeys(mode) {
@@ -314,17 +401,73 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       return { event: mapEvent(ev), deliveries: (deliveries ?? []).map((d) => mapDelivery(d, body)) };
     },
 
-    // ── later slices ──
-    listProducts: notWired("Products"),
-    createProduct: notWired("Products"),
-    updateProduct: notWired("Products"),
-    createCheckoutLink: notWired("Checkout links"),
-    listSubscriptions: notWired("Subscriptions"),
-    getSubscription: notWired("Subscriptions"),
-    cancelSubscription: notWired("Subscriptions"),
+    // ── products (FR-DSH-030..033) ──
+    async listProducts(mode, filter) {
+      currentMode = mode;
+      const rows = (await call<List<WireProduct>>("GET", "/v1/products?limit=100", { mode })).data.map(mapProduct);
+      return filter.includeArchived ? rows : rows.filter((p) => p.status === "active");
+    },
+    async createProduct(mode, input, opts) {
+      return mapProduct(await call<WireProduct>("POST", "/v1/products", { mode, body: { name: input.name, rate_usd_per_second: input.rateUsdPerSecond, ...(input.description ? { description: input.description } : {}), allow_pause: input.allowPause }, idempotencyKey: idem(opts) }));
+    },
+    async updateProduct(id, input, opts) {
+      const body: Record<string, unknown> = {};
+      if (input.name !== undefined) body.name = input.name;
+      if (input.description !== undefined) body.description = input.description;
+      if (input.allowPause !== undefined) body.allow_pause = input.allowPause;
+      if (input.status !== undefined) body.active = input.status === "active";
+      return mapProduct(await call<WireProduct>("POST", `/v1/products/${id}`, { body, idempotencyKey: idem(opts) }));
+    },
+    async createCheckoutLink(productId, opts) {
+      // A link minted from the dashboard brings the subscriber back to the dashboard's own pages.
+      const origin = o.dashboardOrigin ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+      const s = await call<{ id: string; url: string }>("POST", "/v1/checkout/sessions", {
+        body: { product: productId, success_url: `${origin}/dashboard/subscriptions`, cancel_url: `${origin}/dashboard/products` },
+        idempotencyKey: idem(opts),
+      });
+      return { id: s.id as `cs_${string}`, url: s.url };
+    },
+    // ── subscriptions (FR-DSH-040..044) ──
+    async listSubscriptions(mode, filter) {
+      currentMode = mode;
+      const q = new URLSearchParams({ limit: "100" });
+      if (filter.status) q.set("status", filter.status);
+      if (filter.product) q.set("product", filter.product);
+      if (filter.customer) q.set("customer", filter.customer);
+      return (await call<List<WireSubscription>>("GET", `/v1/subscriptions?${q}`, { mode })).data.map(mapSubscription);
+    },
+    async getSubscription(id) {
+      const w = await call<WireSubscription>("GET", `/v1/subscriptions/${id}`);
+      const [events, invoices] = await Promise.all([
+        call<List<WireEvent>>("GET", "/v1/events?limit=100"),
+        call<List<WireInvoice>>("GET", `/v1/invoices?subscription=${id}&limit=100`),
+      ]);
+      const mine = events.data.filter((e) => e.object_id === w.id || e.object_id === w.checkout_session || (e.data.object as { subscription?: string }).subscription === w.id);
+      return { subscription: mapSubscription(w), timeline: mine.map(mapEvent), invoices: invoices.data.map((i) => mapInvoice(i, w.customer_email)) };
+    },
+    async cancelSubscription(id, opts) {
+      await call("POST", `/v1/subscriptions/${id}/cancel`, { idempotencyKey: idem(opts) });
+      // The chain confirms within seconds; the subscription flips to canceled via ingest (BR-API-005).
+      const deadline = Date.now() + 90_000;
+      let w = await call<WireSubscription>("GET", `/v1/subscriptions/${id}`);
+      while (w.status !== "canceled" && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
+        w = await call<WireSubscription>("GET", `/v1/subscriptions/${id}`);
+      }
+      if (w.status !== "canceled") throw new DashboardApiError("network", "The cancel was submitted but the network is slow to confirm. The meter will show as stopped shortly.", 0);
+      return { subscription: mapSubscription(w), receipt: receiptOf(w) };
+    },
     listCustomers: notWired("Customers"),
     getCustomer: notWired("Customers"),
-    listInvoices: notWired("Invoices"),
+    async listInvoices(mode, filter) {
+      currentMode = mode;
+      const q = new URLSearchParams({ limit: "100" });
+      if (filter.subscription) q.set("subscription", filter.subscription);
+      const rows = (await call<List<WireInvoice>>("GET", `/v1/invoices?${q}`, { mode })).data.filter((i) => i.status === "paid");
+      const since = filter.since ? Math.floor(filter.since / 1000) : null;
+      const until = filter.until ? Math.floor(filter.until / 1000) : null;
+      return rows.filter((i) => (since === null || i.period_end >= since) && (until === null || i.period_end <= until)).map((i) => mapInvoice(i));
+    },
     listLedger: notWired("Balance & payouts"),
     getBalance: notWired("Balance & payouts"),
     async updateMerchant(input, opts) {

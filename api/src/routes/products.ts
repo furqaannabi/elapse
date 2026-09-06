@@ -28,6 +28,7 @@ export const ProductSchema = z
     currency: z.literal("ausd"),
     allow_pause: z.boolean(),
     active: z.boolean(),
+    active_subscriptions: z.number().int().openapi({ description: "Running or paused meters on this product." }),
     livemode: z.boolean(),
     created: z.number().int().openapi({ description: "Unix seconds." }),
   })
@@ -65,6 +66,7 @@ export function serializeProduct(p: ProductRow) {
     active: p.active,
     livemode: p.livemode,
     created: Math.floor(p.created_at.getTime() / 1000),
+    active_subscriptions: p.active_subscriptions ?? 0,
   };
 }
 

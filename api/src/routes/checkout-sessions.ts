@@ -67,6 +67,8 @@ export const SubscriptionSchema = z
     currency: z.literal("ausd"),
     livemode: z.boolean(),
     created: z.number().int(),
+    product_name: z.string(),
+    customer_email: z.string().nullable(),
   })
   .openapi("Subscription");
 

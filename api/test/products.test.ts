@@ -78,6 +78,7 @@ describe("FR-API-010 products.create", () => {
       currency: "ausd",
       allow_pause: false,
       active: true,
+      active_subscriptions: 0,
       livemode: false,
       created: expect.any(Number),
     });

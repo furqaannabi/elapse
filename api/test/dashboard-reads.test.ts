@@ -60,3 +60,17 @@ describe("dashboard-facing fields on deliveries, events, endpoints", () => {
     expect((await api("GET", `/v1/events?until=${now - 3600}`, { key: m.skTest })).body.data).toEqual([]);
   });
 });
+
+describe("products carry active_subscriptions", () => {
+  it("counts active and paused subscriptions per product, per mode", async () => {
+    const p = await api("POST", "/v1/products", { key: m.skTest, body: { name: "GPU", rate_usd_per_second: "0.004" } });
+    expect(p.body.active_subscriptions).toBe(0);
+    await sql`INSERT INTO customers (id, merchant_id, livemode, wallet_address) VALUES ('cus_x', ${m.merchantId}, false, '0x0000000000000000000000000000000000000001')`;
+    for (const [id, status] of [["sub_a", "active"], ["sub_b", "paused"], ["sub_c", "canceled"], ["sub_d", "incomplete"]]) {
+      await sql`INSERT INTO subscriptions (id, merchant_id, livemode, product_id, customer_id, status, chain_id, rate_per_second_wei, max_duration_seconds, max_escrow_wei)
+                VALUES (${id}, ${m.merchantId}, false, ${p.body.id}, 'cus_x', ${status}, 10143, 4000, 60, 240000)`;
+    }
+    expect((await api("GET", `/v1/products/${p.body.id}`, { key: m.skTest })).body.active_subscriptions).toBe(2);
+    expect((await api("GET", "/v1/products", { key: m.skTest })).body.data[0].active_subscriptions).toBe(2);
+  });
+});

@@ -31,12 +31,17 @@ export interface SubscriptionRow {
   canceled_at: Date | null;
   simulated: boolean;
   created_at: Date;
+  /** Denormalised for tables (dashboard FR-DSH-040): the product's name and the customer's email. */
+  product_name: string;
+  customer_email: string | null;
 }
 
 const COLS = sql`id, merchant_id, livemode, product_id, customer_id, checkout_session_id, status, ended_reason, chain_id,
   stream_address, pending_tx, rate_per_second_wei::text AS rate_per_second_wei, max_duration_seconds,
   max_escrow_wei::text AS max_escrow_wei, funded_wei::text AS funded_wei, settled_wei::text AS settled_wei,
-  settled_fee_wei::text AS settled_fee_wei, settled_seconds, paused_seconds, started_at, paused_at, canceled_at, simulated, created_at`;
+  settled_fee_wei::text AS settled_fee_wei, settled_seconds, paused_seconds, started_at, paused_at, canceled_at, simulated, created_at,
+  (SELECT p.name FROM products p WHERE p.id = subscriptions.product_id) AS product_name,
+  (SELECT c.email FROM customers c WHERE c.id = subscriptions.customer_id) AS customer_email`;
 
 export async function insertSubscription(
   input: {
@@ -119,6 +124,33 @@ export function serializeSubscription(row: SubscriptionRow, now = Math.floor(Dat
     currency: "ausd" as const,
     livemode: row.livemode,
     created: epoch(row.created_at)!,
+    product_name: row.product_name,
+    customer_email: row.customer_email,
+  };
+}
+
+/** Active meters plus the sums the Home tiles need (dashboard FR-DSH-021/022). */
+export async function overview(merchantId: string, livemode: boolean, now = new Date()): Promise<{
+  running_now: number;
+  accrued_today_wei: bigint;
+  settled_week_net_wei: bigint;
+  failed_payments_week: number;
+  running: SubscriptionRow[];
+}> {
+  const [tiles] = await sql`
+    SELECT
+      (SELECT count(*)::int FROM subscriptions WHERE merchant_id = ${merchantId} AND livemode = ${livemode} AND status = 'active') AS running_now,
+      (SELECT COALESCE(sum(rate_per_second_wei * GREATEST(0, floor(extract(epoch FROM (${now}::timestamptz - GREATEST(started_at, date_trunc('day', ${now}::timestamptz)))))))::text, '0')
+         FROM subscriptions WHERE merchant_id = ${merchantId} AND livemode = ${livemode} AND status = 'active' AND started_at IS NOT NULL) AS accrued_today_wei,
+      (SELECT COALESCE(sum(amount_wei - fee_wei)::text, '0') FROM invoices WHERE merchant_id = ${merchantId} AND livemode = ${livemode} AND status = 'paid' AND period_end > ${now}::timestamptz - interval '7 days') AS settled_week_net_wei,
+      (SELECT count(*)::int FROM invoices WHERE merchant_id = ${merchantId} AND livemode = ${livemode} AND status = 'failed' AND period_end > ${now}::timestamptz - interval '7 days') AS failed_payments_week`;
+  const running = (await sql`SELECT ${COLS} FROM subscriptions WHERE merchant_id = ${merchantId} AND livemode = ${livemode} AND status = 'active' ORDER BY started_at DESC NULLS LAST LIMIT 10`) as SubscriptionRow[];
+  return {
+    running_now: tiles!.running_now,
+    accrued_today_wei: BigInt(tiles!.accrued_today_wei),
+    settled_week_net_wei: BigInt(tiles!.settled_week_net_wei),
+    failed_payments_week: tiles!.failed_payments_week,
+    running,
   };
 }
 

@@ -12,11 +12,14 @@ export interface ProductRow {
   allow_pause: boolean;
   active: boolean;
   created_at: Date;
+  /** Running or paused meters on this product (dashboard FR-DSH-030). */
+  active_subscriptions: number;
 }
 
 const COLS = sql`id, merchant_id, livemode, name, description,
   rate_usd_per_second::text AS rate_usd_per_second, rate_per_second_wei::text AS rate_per_second_wei,
-  allow_pause, active, created_at`;
+  allow_pause, active, created_at,
+  (SELECT count(*)::int FROM subscriptions s WHERE s.product_id = products.id AND s.status IN ('active', 'paused')) AS active_subscriptions`;
 
 export async function insertProduct(input: {
   merchantId: string;

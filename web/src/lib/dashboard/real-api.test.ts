@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRealDashboardApi, keyStatus, mapDelivery, mapEndpoint, mapEvent, mapKey, mapMerchant, NotWired } from "./real-api";
+import { createRealDashboardApi, keyStatus, mapDelivery, mapEndpoint, mapEvent, mapKey, mapMerchant, mapProduct, mapSubscription, receiptOf, NotWired } from "./real-api";
 
 const BASE = "http://api.test";
 const T0 = 1_757_000_000;
@@ -83,11 +83,39 @@ describe("real DashboardApi", () => {
   it("errors carry the API's message, param and status", async () => {
     responses = [{ __status: 400, error: { type: "invalid_request_error", message: "Invalid url: must use https", param: "url" } }];
     await expect(api().createEndpoint("test", { url: "http://x", events: "*" })).rejects.toMatchObject({ status: 400, code: "invalid_input", param: "url", message: "Invalid url: must use https" });
-    await expect(api().listProducts("test", {})).rejects.toBeInstanceOf(NotWired);
+    await expect(api().listLedger("test", {})).rejects.toBeInstanceOf(NotWired);
     responses = [{ __status: 401, error: { type: "authentication_error", message: "Sign in to continue." } }];
     await expect(api().me()).rejects.toMatchObject({ code: "unauthenticated" }); // the gate redirects on this
     responses = [{ __status: 401, error: { type: "authentication_error", message: "This sign-in link is invalid or has expired." } }];
     await expect(api().verifyMagicLink("bad")).rejects.toMatchObject({ code: "link_invalid" });
+  });
+
+  it("products map, archive by status, and checkout links return to the dashboard", async () => {
+    const w = { id: "prod_1", name: "GPU", description: null, rate_usd_per_second: "0.004", allow_pause: false, active: false, livemode: false, created: T0, active_subscriptions: 3 };
+    expect(mapProduct(w)).toMatchObject({ status: "archived", activeSubscriptions: 3, rateUsdPerSecond: "0.004" });
+    responses = [{ object: "list", data: [w, { ...w, id: "prod_2", active: true }] }];
+    expect((await api().listProducts("test", {})).map((p) => p.id)).toEqual(["prod_2"]);
+    responses = [{ object: "list", data: [w, { ...w, id: "prod_2", active: true }] }];
+    expect((await api().listProducts("test", { includeArchived: true })).length).toBe(2);
+    responses = [{ ...w, active: true }];
+    await api().updateProduct("prod_1", { status: "active" });
+    expect(calls.at(-1)).toMatchObject({ url: `${BASE}/v1/products/prod_1`, body: { active: true } });
+    responses = [{ id: "cs_1", url: "http://localhost:3000/c/cs_1" }];
+    const link = await createRealDashboardApi({ baseUrl: BASE, getMode: () => "test", dashboardOrigin: "https://dash.test" }).createCheckoutLink("prod_2");
+    expect(link.url).toBe("http://localhost:3000/c/cs_1");
+    expect(calls.at(-1)!.body).toEqual({ product: "prod_2", success_url: "https://dash.test/dashboard/subscriptions", cancel_url: "https://dash.test/dashboard/products" });
+  });
+
+  it("subscriptions map with product and customer; cancel polls to canceled and builds the receipt", async () => {
+    const w = { id: "sub_1", status: "active" as const, product: "prod_1", customer: "cus_1", checkout_session: "cs_1", rate_usd_per_second: "0.004", started_at: T0, paused_at: null, canceled_at: null, ended_reason: null, max_duration_seconds: 3600, max_escrow_usd: "14.4", funded_usd: "14.4", settled_usd: "0", seconds_elapsed: 10, stream_address: "0x1", chain_id: 10143, livemode: false, created: T0, product_name: "GPU", customer_email: "a@x.test" };
+    expect(mapSubscription(w)).toMatchObject({ product: { id: "prod_1", name: "GPU" }, customer: { id: "cus_1", email: "a@x.test" }, fundedUsd: "14.4", startedAt: T0 * 1000 });
+    const done = { ...w, status: "canceled" as const, ended_reason: "canceled" as const, canceled_at: T0 + 83, settled_usd: "0.332", seconds_elapsed: 83 };
+    expect(receiptOf(done)).toEqual({ secondsElapsed: 83, amountSettledUsd: "0.332", refundedUsd: "14.068", canceledAt: (T0 + 83) * 1000 });
+    responses = [{ ...w, pending_tx: "0x" + "1".repeat(64) }, w, done];
+    const r = await createRealDashboardApi({ baseUrl: BASE, getMode: () => "test" }).cancelSubscription("sub_1");
+    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/subscriptions/sub_1/cancel` });
+    expect(r.subscription.status).toBe("canceled");
+    expect(r.receipt.refundedUsd).toBe("14.068");
   });
 
   it("verifyMagicLink posts the token then reads the profile", async () => {

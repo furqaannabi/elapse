@@ -10,6 +10,7 @@ import { customers } from "./routes/customers";
 import { invoices } from "./routes/invoices";
 import { dashboardAuth } from "./routes/dashboard-auth";
 import { dashboardMe } from "./routes/dashboard-me";
+import { dashboardOverview } from "./routes/dashboard-overview";
 import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { internal } from "./routes/internal";
@@ -32,14 +33,14 @@ const dashboardCors = cors({
   origin: (o) => (o === config.dashboardOrigin ? o : null),
   credentials: true,
   allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
-  allowHeaders: ["content-type", "x-elapse-mode", "idempotency-key"],
+  allowHeaders: ["content-type", "authorization", "x-elapse-mode", "idempotency-key"],
   maxAge: 600,
 });
 app.use("/v1/*", async (c, next) => {
   const origin = c.req.header("origin");
-  if (origin && origin === config.dashboardOrigin && origin !== checkoutOrigin()) return dashboardCors(c, next);
-  if (c.req.path.startsWith("/v1/checkout/sessions") || c.req.path === "/v1/status") return checkoutCors(c, next);
+  // The dashboard policy is a superset, so a shared dev origin (both on localhost:3000) still works.
   if (origin && origin === config.dashboardOrigin) return dashboardCors(c, next);
+  if (c.req.path.startsWith("/v1/checkout/sessions") || c.req.path === "/v1/status") return checkoutCors(c, next);
   return next();
 });
 
@@ -54,6 +55,7 @@ app.route("/v1", events);
 app.route("/v1", deliveries);
 app.route("/v1", dashboardAuth);
 app.route("/v1", dashboardMe);
+app.route("/v1", dashboardOverview);
 app.route("/v1", apiKeys);
 
 // /internal/* takes only the platform ingest token (FR-API-070); a cookie or merchant key is refused.
