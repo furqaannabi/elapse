@@ -8,17 +8,28 @@ You have read `docs/README.md`. This gets you running and tells you how we work.
 git clone git@github.com:furqaannabi/elapse.git && cd elapse
 corepack enable            # pnpm 9.15 is pinned in package.json
 pnpm install
-cp .env.example .env       # fill what you need for the package you work on
 ```
+
+There is no root env file. Each process loads its own, and each package ships an example next to it:
+
+| Package | Env file | Loaded by |
+| --- | --- | --- |
+| `api/` (API and worker) | `api/.env` from `api/.env.example` | Bun, automatically |
+| `web/` | `web/.env.local` | Next.js |
+| `indexer/` | `indexer/.env` from `indexer/.env.example` | Envio |
+| `examples/saas/` | `examples/saas/.env` from its `.env.example` | dotenv |
 
 | Package | Run | Test | Notes |
 | --- | --- | --- | --- |
-| `web/` | `pnpm --filter web dev -p 3100` | `pnpm --filter web test` · `typecheck` · `lint` | Next.js 16, Tailwind v4, shadcn, Motion. Screenshots: `node scripts/shots.mjs http://localhost:3100/ out/` |
+| `api/` | `bun run migrate && bun src/index.ts` (:4000); worker `bun src/worker/index.ts` | `bun test` | Postgres in Docker on 55434; `bun run seed-merchant` prints a test key; `bun run openapi` after a public route change |
+| `web/` | `pnpm --filter web dev` (:3000) | `pnpm --filter web test` · `typecheck` · `lint` | Next.js 16, Tailwind v4, shadcn, Motion |
+| `indexer/` | `pnpm envio dev` (:8080) | `pnpm test` | Envio HyperIndex; posts to the API's `/internal/ingest` |
 | `contracts/` | `forge build` | `forge test` | Foundry; install `forge-std` first (`forge install foundry-rs/forge-std`) |
-| `sdk/ts/` | — | (tests to be added per SDK FRD) | |
-| `api/`, `worker/`, `indexer/`, `cli/`, `examples/saas/` | not scaffolded yet | — | see their FRDs before creating anything |
+| `sdk/ts/` | `pnpm build` | `pnpm test` | Published as `@elapse/sdk` |
+| `cli/` | `pnpm build` then `node dist/elapse.js listen --forward …` | `pnpm test` | `@elapse/cli`, unpublished until Week 6 |
+| `examples/saas/` | `npm start` (use `PORT=3001` when `web` holds 3000) | `pnpm test` | The Quickstart merchant; installs the published SDK |
 
-Node 20+ for `web/` and the SDK; **Bun** for `api/` and `worker/` (decided by Furqaan); Foundry for `contracts/`. macOS, Linux, or WSL.
+Node 20+ for `web/`, the SDK, the CLI and the example; **Bun** for `api/` (decided by Furqaan); Foundry for `contracts/`. macOS, Linux, or WSL.
 
 ## How we work
 
