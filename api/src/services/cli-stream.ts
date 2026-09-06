@@ -2,6 +2,7 @@ import { sql } from "../db/client";
 import { decryptSecret } from "../lib/crypto";
 import { newId } from "../lib/ids";
 import { signPayload } from "../lib/signature";
+import { sleep } from "../worker/sleep";
 
 /**
  * The platform side of `elapse listen` (FR-API-131/132/134, ADR 2026-09-06).
@@ -129,6 +130,6 @@ export async function cliExpiryForever(signal?: AbortSignal, log?: (entry: Recor
     } catch (e) {
       console.error("cli expiry sweep failed", { message: (e as Error).message });
     }
-    await Bun.sleep(everyMs);
+    await sleep(everyMs, signal);
   }
 }

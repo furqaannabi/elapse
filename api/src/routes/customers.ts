@@ -52,6 +52,7 @@ customers.openapi(
     method: "get",
     path: "/customers/{id}",
     operationId: "customers.retrieve",
+    summary: "Retrieve a customer",
     ...PUBLIC,
     tags: ["Customers"],
     request: { params: z.object({ id: z.string() }) },

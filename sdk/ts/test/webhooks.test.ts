@@ -115,3 +115,15 @@ describe("FR-SDK-023 typing", () => {
     expectTypeOf<ElapseEvent["type"]>().toEqualTypeOf<string>();
   });
 });
+
+/** FR-DOC-031: the vector printed on the docs Signatures page must verify here, or the page lies. */
+describe("published test vector (sdk/ts/test/docs-vector.json, synced into the docs)", () => {
+  it("verifies with constructEvent and by hand", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { createHmac } = await import("node:crypto");
+    const v = JSON.parse(readFileSync(new URL("./docs-vector.json", import.meta.url), "utf8")) as { secret: string; t: number; body: string; v1: string };
+    expect(createHmac("sha256", v.secret).update(`${v.t}.${v.body}`).digest("hex")).toBe(v.v1);
+    const event = constructEvent(v.body, `t=${v.t},v1=${v.v1}`, v.secret, { tolerance: Infinity });
+    expect(event.type).toBe("subscription.canceled");
+  });
+});

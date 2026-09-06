@@ -1,0 +1,131 @@
+---
+title: "Quickstart"
+description: "From npm install to your first signed webhook, on your own laptop."
+---
+
+import ExampleClient from '/snippets/example-client.mdx';
+import ExampleProduct from '/snippets/example-product.mdx';
+import ExampleSession from '/snippets/example-session.mdx';
+import ExampleVerify from '/snippets/example-verify.mdx';
+import ExampleHandle from '/snippets/example-handle.mdx';
+import CliListen from '/snippets/cli-listen.mdx';
+
+Takes about 10 minutes · you need Node 20 and a dashboard account.
+
+Every snippet on this page is extracted from the finished merchant in [`examples/saas`](https://github.com/furqaannabi/elapse/tree/master/examples/saas), so it runs as written. If you would rather read code than follow steps, clone that folder and run `npm start`.
+
+<Steps>
+  <Step title="Get a test secret key">
+    Open the dashboard, go to **Developers → API keys**, and create a key. It is shown once. Keep it on the server; the SDK refuses to construct in a browser.
+
+    ```bash
+    export ELAPSE_SECRET_KEY=sk_test_…
+    export ELAPSE_API_URL=https://…        # see Authentication
+    ```
+  </Step>
+
+  <Step title="Install the SDK and construct a client">
+    <Tabs>
+      <Tab title="TypeScript">
+        ```bash
+        npm install @elapse/sdk
+        ```
+        <ExampleClient />
+        `secretKey` and `apiUrl` come from the environment. Pass `baseUrl` explicitly for now; see [Authentication](/api-reference/authentication) for why.
+      </Tab>
+      <Tab title="cURL">
+        ```bash
+        curl "$ELAPSE_API_URL/v1/products" \
+          -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+        ```
+        An empty list back means the key and the URL are right.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create a Product">
+    A Product is something billed at a rate per second. The rate is a decimal string in USD, never a float.
+    <Tabs>
+      <Tab title="TypeScript">
+        <ExampleProduct />
+        The example looks for a Product with the same name first, so restarting your server does not litter the dashboard.
+      </Tab>
+      <Tab title="cURL">
+        ```bash
+        curl "$ELAPSE_API_URL/v1/products" \
+          -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"name":"GPU · 4090","rate_usd_per_second":"0.004"}'
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Create a Checkout session and print its URL">
+    <Tabs>
+      <Tab title="TypeScript">
+        <ExampleSession />
+        Send the subscriber to `session.url`. When they cancel, Elapse returns them to `success_url` with `?session_id=cs_…` appended.
+      </Tab>
+      <Tab title="cURL">
+        ```bash
+        curl "$ELAPSE_API_URL/v1/checkout/sessions" \
+          -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+          -H "Content-Type: application/json" \
+          -d '{"product":"prod_…","success_url":"http://localhost:3000/ok","cancel_url":"http://localhost:3000/cancel"}'
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Handle subscription.canceled">
+    Read the raw request body, verify it, answer 200, then do your work. Never parse the body before verifying; the signature covers the exact bytes.
+    <Tabs>
+      <Tab title="TypeScript">
+        <ExampleVerify />
+        <ExampleHandle />
+        `constructEvent` throws on a missing, malformed, expired or mismatched signature. Anything it returns is genuine. The full handler, with the entitlement map and the six actions, is 45 lines in [`webhooks.ts`](https://github.com/furqaannabi/elapse/blob/master/examples/saas/src/webhooks.ts).
+      </Tab>
+      <Tab title="cURL">
+        ```bash
+        # Verify by hand: sign "{t}.{raw_body}" with your whsec_ secret and compare to v1.
+        printf '%s.%s' "$T" "$RAW_BODY" | openssl dgst -sha256 -hmac "$ELAPSE_WEBHOOK_SECRET"
+        ```
+        The [Signatures](/webhooks/signatures) page has a published vector to check against.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Forward webhooks to your laptop">
+    Your server is on `localhost`, which Elapse cannot reach. The CLI opens a stream and forwards each delivery, byte for byte, with the platform's real signature.
+
+    ```bash
+    npx @elapse/cli listen --forward localhost:3000/webhooks
+    ```
+
+    The first line it prints is your signing secret. Put it in `ELAPSE_WEBHOOK_SECRET` and restart your server. Then you will see:
+
+    <CliListen />
+  </Step>
+
+  <Step title="Open the URL on your phone, Start, Cancel">
+    Open the Checkout URL from step 4 on a phone. Sign in with Face ID, press **Start**, watch the meter, press **Cancel** after a few seconds. Your terminal shows `subscription.canceled` with `seconds_elapsed` and what was paid.
+
+    ```text
+    14:02:26  evt_1S2b…  subscription.canceled   → revoke access · 83s · $0.33
+    ```
+
+    That is the whole loop: a subscriber paid for 83 seconds, and your server found out through a webhook.
+  </Step>
+</Steps>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Webhooks catalog" icon="bell" href="/webhooks/events">
+    The other five events and what to do with each.
+  </Card>
+  <Card title="Clone the finished merchant" icon="github" href="https://github.com/furqaannabi/elapse/tree/master/examples/saas">
+    `examples/saas`: the code these snippets come from, with a fake product page and a demo check.
+  </Card>
+</CardGroup>

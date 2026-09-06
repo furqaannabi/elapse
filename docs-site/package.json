@@ -1,0 +1,22 @@
+{
+  "name": "docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Elapse developer docs site (Mintlify, in site/) plus the scripts that keep them honest: snippet sync, surface check, Quickstart CI.",
+  "type": "module",
+  "scripts": {
+    "dev": "mintlify dev --port 3333",
+    "sync-snippets": "tsx scripts/sync-snippets.ts",
+    "check": "tsx scripts/sync-snippets.ts --check && tsx ci/surface-check.ts && mintlify broken-links",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@elapse/sdk": "workspace:*",
+    "@types/node": "^24.0.0",
+    "mintlify": "^4.2.876",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

@@ -17,6 +17,7 @@ Track 2 · Monad Metropolis · Consumer Products & Payments.
 | CLI | `cli/` | `elapse listen --forward` |
 | Indexer | `indexer/` | Envio HyperIndex → platform ingest |
 | Docs | `docs/` | **Start here:** `docs/README.md` — product doc, architecture, glossary, specs, onboarding |
+| Docs site | `docs-site/` | Mintlify site in `docs-site/site/`: Quickstart, guides, generated API reference. `pnpm --filter docs-site dev`; snippets synced from code by `pnpm --filter docs-site sync-snippets` |
 | Example | `examples/saas/` | Merchant in the demo video |
 
 ## SDK (target)

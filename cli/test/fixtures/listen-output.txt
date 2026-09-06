@@ -1,0 +1,28 @@
+Elapse CLI 0.1.0 · test mode · merchant Acme GPU
+Your webhook signing secret is whsec_mock000000000000000000000000000  (put it in ELAPSE_WEBHOOK_SECRET)
+Ready. Forwarding to http://localhost:3000/webhooks
+
+14:02:26  evt_2b     subscription.canceled      → 200 OK (8 ms)
+          X-Elapse-Signature: t=1700000000,v1=5f1c…e9a2
+          {
+            "id": "evt_2b",
+            "object": "event",
+            "type": "subscription.canceled",
+            "created": 1756800146,
+            "livemode": false,
+            "pending_webhooks": 1,
+            "data": {
+              "object": {
+                "id": "sub_4QeABC",
+                "object": "subscription",
+                "status": "canceled",
+                "customer": "cus_7HaXYZ",
+                "product": "prod_9f2K",
+                "rate_usd_per_second": "0.004",
+                "seconds_elapsed": 83,
+                "amount_settled": "0.332",
+                "ended_reason": "canceled",
+                "description": "GPU · 4090  (2 spaces)"
+              }
+            }
+          }

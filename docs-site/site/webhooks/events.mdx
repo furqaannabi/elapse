@@ -1,0 +1,53 @@
+---
+title: "Event catalog"
+description: "The six events Elapse sends, when each fires, and what your server should do."
+---
+
+import PayloadCheckoutSessionCompleted from '/snippets/payload-checkout.session.completed.mdx';
+import PayloadSubscriptionCreated from '/snippets/payload-subscription.created.mdx';
+import PayloadSubscriptionUpdated from '/snippets/payload-subscription.updated.mdx';
+import PayloadSubscriptionCanceled from '/snippets/payload-subscription.canceled.mdx';
+import PayloadInvoiceSettled from '/snippets/payload-invoice.settled.mdx';
+import PayloadInvoicePaymentFailed from '/snippets/payload-invoice.payment_failed.mdx';
+
+Six lifecycle events. **There are no per-second events**: the meter accrues continuously and your server hears about the moments that change what a customer is entitled to.
+
+| Type | When | Merchant action |
+| --- | --- | --- |
+| `checkout.session.completed` | The subscriber pressed Start. | Provision access; the Subscription id is in `data.object.subscription`. |
+| `subscription.created` | The meter is running on the chain. | Mark the customer entitled. |
+| `subscription.updated` | Paused or resumed. | Sync entitlement with `data.object.status`. |
+| `subscription.canceled` | The meter stopped: the subscriber, your server, or the cap. | Revoke access. `seconds_elapsed` and `amount_settled` are the final totals. |
+| `invoice.settled` | Accrued dollars were pulled for a period. | Book revenue. Fires mid-run in batches and once at cancel. |
+| `invoice.payment_failed` | A settlement could not be paid, or the cap ran out. | Revoke access. The meter has stopped. |
+
+Every body has the same envelope: `id` (`evt_…`), `type`, `created`, `livemode`, `pending_webhooks`, and `data.object`, the object the event is about. Handle events by `evt_` id; a retry delivers the same id again.
+
+## Payloads
+
+These are generated from the platform's own sample objects and validated against the `Event` schema in the API reference on every build.
+
+<AccordionGroup>
+  <Accordion title="checkout.session.completed">
+    <PayloadCheckoutSessionCompleted />
+  </Accordion>
+  <Accordion title="subscription.created">
+    <PayloadSubscriptionCreated />
+  </Accordion>
+  <Accordion title="subscription.updated">
+    <PayloadSubscriptionUpdated />
+  </Accordion>
+  <Accordion title="subscription.canceled" defaultOpen>
+    <PayloadSubscriptionCanceled />
+  </Accordion>
+  <Accordion title="invoice.settled">
+    <PayloadInvoiceSettled />
+  </Accordion>
+  <Accordion title="invoice.payment_failed">
+    <PayloadInvoicePaymentFailed />
+  </Accordion>
+</AccordionGroup>
+
+## Ordering
+
+Events for one subscription arrive in lifecycle order, but two can land within the same second. `subscription.canceled` and its final `invoice.settled` are the common pair. Key your state on the subscription id and let a canceled status win.

@@ -210,6 +210,7 @@ checkoutSessions.openapi(
     method: "post",
     path: "/checkout/sessions",
     operationId: "checkout.sessions.create",
+    summary: "Create a checkout session",
     ...PUBLIC,
     tags: ["Checkout"],
     middleware: [merchantAuth()] as const,

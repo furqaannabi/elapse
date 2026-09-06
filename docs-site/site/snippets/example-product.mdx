@@ -1,0 +1,4 @@
+```ts server.ts
+const existing = (await elapse.products.list({ limit: 100 })).data.find((p) => p.name === PRODUCT.name && p.active);
+const product = existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond }));
+```

@@ -11,6 +11,7 @@
 import type { Address } from "viem";
 import { sql } from "../db/client";
 import { chainClient } from "../chain/relayer";
+import { sleep } from "./sleep";
 
 export const KEEPER_CADENCE_S = Number(process.env.KEEPER_CADENCE_S ?? 300);
 export const KEEPER_TICK_MS = Number(process.env.KEEPER_TICK_MS ?? 30_000);
@@ -75,6 +76,6 @@ export async function keeperForever(signal?: AbortSignal, log?: KeeperLogger, on
     } catch (e) {
       console.error("keeper tick crashed", { message: (e as Error).message });
     }
-    await new Promise((r) => setTimeout(r, KEEPER_TICK_MS));
+    await sleep(KEEPER_TICK_MS, signal);
   }
 }

@@ -5,8 +5,7 @@ import type { EventType } from "./event-types";
  * the real objects so a merchant's handler can be exercised end to end.
  * Ids are obviously synthetic.
  */
-export function sampleObject(type: EventType, livemode: boolean): Record<string, unknown> {
-  const now = Math.floor(Date.now() / 1000);
+export function sampleObject(type: EventType, livemode: boolean, now = Math.floor(Date.now() / 1000)): Record<string, unknown> {
   const sub = {
     id: "sub_test00000000000",
     object: "subscription",

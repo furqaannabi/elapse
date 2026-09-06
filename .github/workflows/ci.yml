@@ -1,0 +1,108 @@
+# CI (docs FR-DOC-012, FR-DOC-042; examples FR-EXM-031; CLAUDE.md "CI blocks merge on any failing test").
+#
+#   packages   unit suites for every workspace package, plus the committed-file freshness checks
+#   docs       snippet sync check, surface check, Mintlify strict validation, broken links
+#   quickstart the Quickstart's steps 2–6 against a local API and Postgres, as a judge would run them
+#
+# Nothing here touches the chain or needs a secret: the platform runs locally with throwaway keys.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "17 3 * * *" # nightly, so a stale published SDK or snippet fails a build, not a demo
+  workflow_dispatch:
+
+env:
+  PNPM_VERSION: 9.15.0
+  BUN_VERSION: 1.4.2
+
+jobs:
+  packages:
+    name: Package tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: elapse
+          POSTGRES_PASSWORD: elapse
+          POSTGRES_DB: elapse_test
+        ports: ["55434:5432"]
+        options: --health-cmd "pg_isready -U elapse" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "${{ env.BUN_VERSION }}" }
+      - run: pnpm install --frozen-lockfile
+      - name: SDK
+        run: pnpm --filter @elapse/sdk build && pnpm --filter @elapse/sdk test
+      - name: CLI
+        run: pnpm --filter @elapse/cli typecheck && pnpm --filter @elapse/cli test
+      - name: Example merchant
+        run: pnpm --filter elapse-example-saas typecheck && pnpm --filter elapse-example-saas test
+      - name: Web
+        run: pnpm --filter web typecheck && pnpm --filter web test
+      - name: API (includes the committed openapi.json freshness test)
+        working-directory: api
+        env:
+          TEST_DATABASE_URL: postgres://elapse:elapse@localhost:55434/elapse_test
+        run: bun run typecheck && bun test
+      - name: Indexer
+        run: pnpm --filter indexer test
+
+  docs:
+    name: Docs checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @elapse/sdk build
+      - name: Snippets are synced from their sources (FR-DOC-011, BR-DOC-003)
+        run: pnpm --filter docs-site sync-snippets --check
+      - name: SDK ⇄ SDKs page ⇄ openapi.json (FR-DOC-042)
+        run: pnpm --filter docs-site exec tsx ci/surface-check.ts
+      - name: Docs unit tests (nav, pages, sync)
+        run: pnpm --filter docs-site test
+      - name: Mintlify strict validation and links
+        working-directory: docs-site/site
+        run: |
+          ../node_modules/.bin/mintlify validate
+          ../node_modules/.bin/mintlify broken-links
+
+  quickstart:
+    name: Quickstart against a local platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: elapse
+          POSTGRES_PASSWORD: elapse
+          POSTGRES_DB: elapse_ci
+        ports: ["55434:5432"]
+        options: --health-cmd "pg_isready -U elapse" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: "${{ env.BUN_VERSION }}" }
+      - run: pnpm install --frozen-lockfile
+      - name: Steps 2–6 (FR-DOC-012, FR-EXM-031)
+        run: bash docs-site/ci/quickstart.sh

@@ -1,0 +1,6 @@
+```ts server.ts
+const createSession = async () => {
+  const session = await elapse.checkout.sessions.create({ product: product.id, successUrl: `${baseUrl}/ok`, cancelUrl: `${baseUrl}/cancel` });
+  return { id: session.id, url: session.url };
+};
+```

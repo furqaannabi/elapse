@@ -1,0 +1,43 @@
+---
+title: "Introduction"
+description: "Elapse is Stripe Billing for things that should charge by the second."
+---
+
+import PayloadSubscriptionCanceled from '/snippets/payload-subscription.canceled.mdx';
+
+A subscriber starts a meter, watches a live dollar counter tick, cancels whenever they like, and pays only the seconds that elapsed. Your server finds out through a signed webhook, not a cron job.
+
+<PayloadSubscriptionCanceled />
+
+That body arrives at your endpoint when someone cancels. `seconds_elapsed` and `amount_settled` are cumulative for the subscription, so one handler call tells you what was used and what was paid.
+
+## Why per second
+
+Usage is continuous. Billing never was, because card networks and slow chains made anything finer than a month uneconomic. GPU hours, API calls, live streams and seats are all metered by the second in your own logs and then rounded up to a month on the invoice.
+
+Elapse runs on Monad, where blocks land every few hundred milliseconds and fees are near zero. That makes a per-second meter honest: accrual happens continuously on a contract, the counter your subscriber sees is `rate × seconds`, and settlement is batched so nobody pays gas per tick. Subscribers never see any of that. They see Face ID, dollars and seconds.
+
+## Three surfaces
+
+**Platform API.** Products, Checkout sessions, Subscriptions, Customers, Invoices and Events, with the ids and conventions you already know from Stripe: `prod_`, `cus_`, `sub_`, `evt_`, bearer secret keys, `snake_case` JSON, cursor pagination. The [API reference](/api-reference/authentication) is generated from the same schemas the server validates with.
+
+**Hosted Checkout.** You create a session and send the subscriber to its URL. Elapse handles sign-in, funding, the live meter and cancel, then returns them to your success URL. You never hold a card or a wallet.
+
+**Webhooks.** Six lifecycle events, signed with `X-Elapse-Signature`, retried on a fixed schedule, verified with one SDK call. There are no per-second events.
+
+## Where to start
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="bolt" href="/quickstart">
+    Install the SDK, create a Product, take a Checkout URL to your phone and receive one webhook. About ten minutes.
+  </Card>
+  <Card title="Event catalog" icon="bell" href="/webhooks/events">
+    Every event, when it fires, and what your server should do with it.
+  </Card>
+  <Card title="SDKs" icon="code" href="/sdks">
+    The ten methods in `@elapse/sdk`, with a cURL twin for each.
+  </Card>
+  <Card title="Contracts" icon="link" href="/contracts">
+    Addresses and events for anyone who wants to check the chain.
+  </Card>
+</CardGroup>

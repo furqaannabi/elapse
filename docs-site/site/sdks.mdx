@@ -1,0 +1,179 @@
+---
+title: "SDKs"
+description: "The ten methods in @elapse/sdk, each with its cURL twin."
+---
+
+`@elapse/sdk` is a TypeScript client for Node 20 and newer. It is the whole surface: if a method is not here, it is not in the API for merchants. Every call maps to one operation in the [API reference](/api-reference/authentication); a CI check keeps this page, the package, and the reference in step.
+
+```bash
+npm install @elapse/sdk
+```
+
+<CodeGroup>
+```ts TypeScript
+import { Elapse } from "@elapse/sdk";
+
+const elapse = new Elapse({
+  secretKey: process.env.ELAPSE_SECRET_KEY,
+  baseUrl: process.env.ELAPSE_API_URL,
+});
+```
+```bash cURL
+# Every call below: bearer secret key, JSON in, JSON out.
+curl "$ELAPSE_API_URL/v1/…" -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+Parameters are camelCase in TypeScript and `snake_case` on the wire; the SDK maps them. Rates and amounts are decimal strings in both. Errors throw typed classes that all extend `ElapseError`: `ElapseAuthenticationError`, `ElapseInvalidRequestError` (a `404` is one of these with `type: "not_found"`), `ElapseRateLimitError`, `ElapseAPIError`, and `ElapseSignatureVerificationError` from `constructEvent`.
+
+## Products
+
+### `products.create`
+
+<CodeGroup>
+```ts TypeScript
+const product = await elapse.products.create({
+  name: "GPU · 4090",
+  rateUsdPerSecond: "0.004",
+  allowPause: false,
+});
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/products" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"GPU · 4090","rate_usd_per_second":"0.004","allow_pause":false}'
+```
+</CodeGroup>
+
+### `products.retrieve`
+
+<CodeGroup>
+```ts TypeScript
+const product = await elapse.products.retrieve("prod_…");
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/products/prod_…" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+### `products.list`
+
+<CodeGroup>
+```ts TypeScript
+const { data, has_more } = await elapse.products.list({ limit: 20 });
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/products?limit=20" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+## Checkout
+
+### `checkout.sessions.create`
+
+<CodeGroup>
+```ts TypeScript
+const session = await elapse.checkout.sessions.create({
+  product: "prod_…",
+  successUrl: "https://yourapp.example/ok",
+  cancelUrl: "https://yourapp.example/cancel",
+  maxDurationSeconds: 3600,
+});
+// send the subscriber to session.url
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/checkout/sessions" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"product":"prod_…","success_url":"https://yourapp.example/ok","cancel_url":"https://yourapp.example/cancel","max_duration_seconds":3600}'
+```
+</CodeGroup>
+
+## Subscriptions
+
+### `subscriptions.retrieve`
+
+<CodeGroup>
+```ts TypeScript
+const sub = await elapse.subscriptions.retrieve("sub_…");
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/subscriptions/sub_…" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+### `subscriptions.list`
+
+<CodeGroup>
+```ts TypeScript
+const { data } = await elapse.subscriptions.list({ customer: "cus_…", status: "active" });
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/subscriptions?customer=cus_…&status=active" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+### `subscriptions.cancel`
+
+<CodeGroup>
+```ts TypeScript
+await elapse.subscriptions.cancel("sub_…");
+// 202: the chain confirms in about a second; subscription.canceled follows with the totals.
+```
+```bash cURL
+curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/cancel" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+## Customers
+
+### `customers.retrieve`
+
+<CodeGroup>
+```ts TypeScript
+const customer = await elapse.customers.retrieve("cus_…");
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/customers/cus_…" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+## Invoices
+
+### `invoices.list`
+
+<CodeGroup>
+```ts TypeScript
+const { data } = await elapse.invoices.list({ subscription: "sub_…" });
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/invoices?subscription=sub_…" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+## Webhooks
+
+### `webhooks.constructEvent`
+
+<CodeGroup>
+```ts TypeScript
+const event = elapse.webhooks.constructEvent(rawBody, signatureHeader, process.env.ELAPSE_WEBHOOK_SECRET);
+```
+```bash cURL
+# Not an HTTP call: recompute HMAC-SHA256(secret, "{t}.{raw_body}") and compare to v1. See Signatures.
+```
+</CodeGroup>
+
+Also exported as a standalone `constructEvent` for handlers that never construct a client.
+
+## Options
+
+`new Elapse({ secretKey, baseUrl, maxRetries, timeoutMs })`. Retries apply to network errors, `429` and `5xx`, with exponential backoff and `Retry-After` honoured; `maxRetries` defaults to 2 and `timeoutMs` to 30 seconds. Pass `{ idempotencyKey }` as the second argument to any create call to make it safe to repeat.

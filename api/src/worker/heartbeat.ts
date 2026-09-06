@@ -4,6 +4,7 @@
  * older than 15 s. Without it a dead worker looks like an empty queue.
  */
 import { sql } from "../db/client";
+import { sleep } from "./sleep";
 
 export const HEARTBEAT_EVERY_MS = 5_000;
 export const HEARTBEAT_STALE_S = 15;
@@ -65,6 +66,6 @@ export async function heartbeatForever(workerId: string, keeperTick: () => Date 
     } catch (e) {
       console.error("heartbeat failed", { message: (e as Error).message });
     }
-    await new Promise((r) => setTimeout(r, HEARTBEAT_EVERY_MS));
+    await sleep(HEARTBEAT_EVERY_MS, signal);
   }
 }

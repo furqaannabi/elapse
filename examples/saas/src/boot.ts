@@ -21,8 +21,9 @@ export interface BootIO {
 }
 
 export async function boot(config: Config, io: BootIO) {
+  const { secretKey, apiUrl, baseUrl } = config;
   // region:client
-  const elapse = new Elapse({ secretKey: config.secretKey, baseUrl: config.apiUrl });
+  const elapse = new Elapse({ secretKey, baseUrl: apiUrl });
   // endregion
 
   // region:product
@@ -32,7 +33,7 @@ export async function boot(config: Config, io: BootIO) {
 
   // region:session
   const createSession = async () => {
-    const session = await elapse.checkout.sessions.create({ product: product.id, successUrl: `${config.baseUrl}/ok`, cancelUrl: `${config.baseUrl}/cancel` });
+    const session = await elapse.checkout.sessions.create({ product: product.id, successUrl: `${baseUrl}/ok`, cancelUrl: `${baseUrl}/cancel` });
     return { id: session.id, url: session.url };
   };
   // endregion

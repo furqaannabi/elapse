@@ -24,6 +24,7 @@ subscriptions.openapi(
     method: "get",
     path: "/subscriptions",
     operationId: "subscriptions.list",
+    summary: "List subscriptions",
     ...PUBLIC,
     tags: ["Subscriptions"],
     request: {
@@ -53,6 +54,7 @@ subscriptions.openapi(
     method: "get",
     path: "/subscriptions/{id}",
     operationId: "subscriptions.retrieve",
+    summary: "Retrieve a subscription",
     ...PUBLIC,
     tags: ["Subscriptions"],
     request: { params: z.object({ id: z.string() }) },
@@ -72,6 +74,7 @@ subscriptions.openapi(
     method: "post",
     path: "/subscriptions/{id}/cancel",
     operationId: "subscriptions.cancel",
+    summary: "Cancel a subscription",
     ...PUBLIC,
     tags: ["Subscriptions"],
     request: { params: z.object({ id: z.string() }) },

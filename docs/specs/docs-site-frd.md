@@ -8,7 +8,7 @@ The demo opens on the docs (§10, 0:00–0:35) and the judging bar is "clone `ex
 
 ## Solution
 
-A Mintlify site under `docs/site/` with nine pages, an API reference rendered from a committed, filtered `api/openapi.json`, code samples synced from `examples/saas` source, and a GitHub Actions job that runs the Quickstart against a local API on every relevant PR and nightly. Every snippet constructs the client with an explicit `baseUrl` until the SDK default points at `api.elapse.finance` and that host resolves.
+A Mintlify site under `docs-site/site/` with nine pages, an API reference rendered from a committed, filtered `api/openapi.json`, code samples synced from `examples/saas` source, and a GitHub Actions job that runs the Quickstart against a local API on every relevant PR and nightly. Every snippet constructs the client with an explicit `baseUrl` until the SDK default points at `api.elapse.finance` and that host resolves.
 
 ## User stories
 
@@ -32,7 +32,7 @@ A Mintlify site under `docs/site/` with nine pages, an API reference rendered fr
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-DOC-001 | The site is a **Mintlify** project in `docs/site/` (`docs.json` + MDX), hosted by Mintlify from the GitHub repo and deploying independently of `web/`, `api/`, and `contracts/`. It is served on Mintlify's own subdomain until `docs.elapse.finance` is pointed at it (Open item); the hackathon write-up carries whichever URL is final. `mintlify dev` runs the site locally. | Deploy preview per PR from the Mintlify GitHub app; `web` outage does not affect docs (separate host). |
+| FR-DOC-001 | The site is a **Mintlify** project in `docs-site/site/` (`docs.json` + MDX), hosted by Mintlify from the GitHub repo and deploying independently of `web/`, `api/`, and `contracts/`. It is served on Mintlify's own subdomain until `docs.elapse.finance` is pointed at it (Open item); the hackathon write-up carries whichever URL is final. `mintlify dev` runs the site locally. | Deploy preview per PR from the Mintlify GitHub app; `web` outage does not affect docs (separate host). |
 | FR-DOC-002 | Left nav has exactly these nine top-level entries in this order: Introduction, Quickstart, Checkout, Subscriptions, Webhooks, SDKs, API reference, Contracts, **Testing**. "Testing" replaces the detailed doc's "Test clocks" because no test-clock resource ships for 13 October (API FR-API-090/091 not built). | `docs.json` navigation snapshot test. |
 | FR-DOC-003 | Every page has a title, a one-sentence description, and headings that appear in the right-hand "On this page" list; Mintlify search covers all pages. | Lint: MDX frontmatter `title` and `description` required on every page. |
 | FR-DOC-004 | Light and dark themes from DESIGN.md tokens through `docs.json` (`colors`, `font`, logo per theme), tabular monospaced numerals in code and tables, the Elapse wordmark, and a footer with GitHub and npm links. Mintlify's own layout is accepted as is; no custom CSS beyond numerals. | Screenshot review at 1440 and 390. |
@@ -42,8 +42,8 @@ A Mintlify site under `docs/site/` with nine pages, an API reference rendered fr
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-DOC-010 | Quickstart has exactly these steps: 1 get a test secret key from the dashboard; 2 `npm install @elapse/sdk` and construct `new Elapse({ secretKey, baseUrl })` with the hosted API URL; 3 `products.create`; 4 `checkout.sessions.create` and print `session.url`; 5 handle `subscription.canceled` with `constructEvent`; 6 run `npx @elapse/cli listen --forward localhost:3000/webhooks`; 7 open the URL on a phone, Start, Cancel, see `seconds_elapsed`. | Page structure snapshot; each step has a code block. |
-| FR-DOC-011 | Every Quickstart snippet is the text between `// region:<name>` / `// endregion` markers in `examples/saas` source, never hand-typed. Because Mintlify cannot include source files, a script `docs/scripts/sync-snippets.ts` writes them into committed `docs/site/snippets/*.mdx`, and a test fails when a committed snippet differs from its region or a referenced region is missing. | `pnpm --filter docs sync-snippets --check` green in CI; deleting a region fails it. |
-| FR-DOC-012 | `docs/ci/quickstart.sh` runs steps 2–6 in GitHub Actions **against a local API**: a Postgres service, `bun run migrate`, the API and worker as background processes, `bun run seed-merchant` for the key, then the example's `npm install && npm start` with `ELAPSE_API_URL` pointing at the local API, a `POST /v1/webhook_endpoints` for `http://localhost:3000/webhooks`, that endpoint's `test` call (FR-API-063), and an assertion that the example logs the verified Event. Runs on every PR touching `sdk/`, `examples/`, `docs/`, or `api/`, and nightly. Fails on any error or wall time over 10 min. The chain is never touched; step 7 is not in CI. | GitHub Actions job green; time asserted; no secret in the workflow beyond the seeded key printed to the job. |
+| FR-DOC-011 | Every Quickstart snippet is the text between `// region:<name>` / `// endregion` markers in `examples/saas` source, never hand-typed. Because Mintlify cannot include source files, a script `docs-site/scripts/sync-snippets.ts` writes them into committed `docs-site/site/snippets/*.mdx`, and a test fails when a committed snippet differs from its region or a referenced region is missing. | `pnpm --filter docs-site sync-snippets --check` green in CI; deleting a region fails it. |
+| FR-DOC-012 | `docs-site/ci/quickstart.sh` runs steps 2–6 in GitHub Actions **against a local API**: a Postgres service, `bun run migrate`, the API and worker as background processes, `bun run seed-merchant` for the key, then the example's `npm install && npm start` with `ELAPSE_API_URL` pointing at the local API, a `POST /v1/webhook_endpoints` for `http://localhost:3000/webhooks`, that endpoint's `test` call (FR-API-063), and an assertion that the example logs the verified Event. Runs on every PR touching `sdk/`, `examples/`, `docs/`, or `api/`, and nightly. Fails on any error or wall time over 10 min. The chain is never touched; step 7 is not in CI. | GitHub Actions job green; time asserted; no secret in the workflow beyond the seeded key printed to the job. |
 | FR-DOC-013 | The Quickstart states up front: "Takes about 10 minutes · you need Node 20 and a dashboard account." and ends with "Next: Webhooks catalog" and "Clone the finished merchant: examples/saas". | Text present. |
 | FR-DOC-014 | Build order: `examples/saas` ships first in its own PR against the examples FRD (which needs its own grill and signature), because FR-DOC-011 reads from it; the docs site follows in a second PR. The examples FRD gains `ELAPSE_API_URL` in its env contract for the same reason as BR-DOC-008. | Two PRs; the docs PR contains no hand-typed snippet. |
 
@@ -74,7 +74,7 @@ A Mintlify site under `docs/site/` with nine pages, an API reference rendered fr
 | --- | --- | --- |
 | FR-DOC-040 | SDKs page has tabs TypeScript · cURL for each of the ten frozen methods (SDK FR-SDK-007, including `subscriptions.list`); the TS tab is the §4.2 snippet. Python is hidden entirely until `elapse` is published (BR-DOC-001). | Tab set snapshot; the ten methods match the SDK export list. |
 | FR-DOC-041 | API reference is rendered by Mintlify from the committed `api/openapi.json` (API FR-API-085), referenced by relative path in `docs.json`; hand-written reference pages are forbidden. The file contains only the nine public operations, grouped by tag (Products, Checkout, Subscriptions, Customers, Invoices). | Build fails if the file is missing or invalid; nav under "API reference" is generated, not authored. |
-| FR-DOC-042 | Every SDK method in the docs maps to one operation in the committed OpenAPI file and vice versa; `docs/ci/surface-check.ts` diffs the SDK's exported method list, the SDKs page's method list, and the file's `operationId`s. | Check passes; adding a doc for a non-SDK method fails it. |
+| FR-DOC-042 | Every SDK method in the docs maps to one operation in the committed OpenAPI file and vice versa; `docs-site/ci/surface-check.ts` diffs the SDK's exported method list, the SDKs page's method list, and the file's `operationId`s. | Check passes; adding a doc for a non-SDK method fails it. |
 | FR-DOC-043 | Every TS snippet has a cURL equivalent beside it (tab or adjacent block) showing the same request, with `-H "Authorization: Bearer sk_test_…"` and the hosted API URL. | Lint rule: TS block without cURL sibling fails. |
 | FR-DOC-044 | **Authentication** page above the reference: `Authorization: Bearer sk_test_…`, where keys come from (dashboard → Developers), test vs live, the `baseUrl` to pass and why (the SDK default resolves only once `api.elapse.finance` is live and a new SDK release points at it), and that secret keys never go in a browser or a client app. **Errors** page: the error envelope and each `type` from FR-API-082 with one example and the merchant's expected handling. | Both pages present; error types equal the API's enum (synced snippet). |
 | FR-DOC-045 | The reference's try-it panel is **enabled** with bearer auth so a merchant pastes a test key and calls the hosted API from the browser. The panel states that live keys are refused from the browser; the API enforces it (FR-API-086). | Manual: a `products.create` from the panel returns a `prod_`; a live key from the panel returns `401`. |
@@ -98,9 +98,9 @@ A Mintlify site under `docs/site/` with nine pages, an API reference rendered fr
 Modules, each testable alone:
 
 - **OpenAPI export** (in `api/`): a `public` marker on the nine public route definitions, a script that writes the filtered document to `api/openapi.json` with the bearer security scheme, resource tags, and the hosted server URL, and a test that the committed file is fresh and its operation set equals the SDK's exported methods (FR-API-085). This is the deep module: the docs, the surface check, and the try-it panel all consume one file.
-- **Snippet sync** (in `docs/`): region extraction from `examples/saas`, deployments, the worker schedule constant, the API error enum, and the CLI test snapshot into `docs/site/snippets/*.mdx`; `--check` mode for CI.
-- **Surface check** (in `docs/ci/`): three sets compared, SDK exports, SDKs page, `operationId`s.
-- **Site** (`docs/site/`): `docs.json` (nav, theme, openapi path), nine MDX pages, snippet imports.
+- **Snippet sync** (in `docs/`): region extraction from `examples/saas`, deployments, the worker schedule constant, the API error enum, and the CLI test snapshot into `docs-site/site/snippets/*.mdx`; `--check` mode for CI.
+- **Surface check** (in `docs-site/ci/`): three sets compared, SDK exports, SDKs page, `operationId`s.
+- **Site** (`docs-site/site/`): `docs.json` (nav, theme, openapi path), nine MDX pages, snippet imports.
 - **CI** (`.github/workflows/`): first workflow in the repo; `quickstart` job (FR-DOC-012), `docs-checks` job (snippet sync check, surface check, frontmatter lint, OpenAPI validity, payload validation), unit-test jobs for the packages the PR touches.
 - **API CORS for the docs origin** (FR-API-086): `DOCS_ORIGIN` env; live keys refused from that origin.
 
@@ -111,12 +111,12 @@ A good test asserts external behaviour, not structure: the committed file equals
 ## Interfaces
 
 ```
-docs/site/docs.json          nav (FR-DOC-002), theme (FR-DOC-004), "openapi": "../../api/openapi.json"
-docs/site/*.mdx              nine pages
-docs/site/snippets/*.mdx     synced, committed, never edited by hand
-docs/scripts/sync-snippets.ts  regions + deployments + constants → snippets; --check
-docs/ci/quickstart.sh        FR-DOC-012 against a local API
-docs/ci/surface-check.ts     SDK exports ⇄ SDKs page ⇄ operationIds
+docs-site/site/docs.json          nav (FR-DOC-002), theme (FR-DOC-004), "openapi": "../../api/openapi.json"
+docs-site/site/*.mdx              nine pages
+docs-site/site/snippets/*.mdx     synced, committed, never edited by hand
+docs-site/scripts/sync-snippets.ts  regions + deployments + constants → snippets; --check
+docs-site/ci/quickstart.sh        FR-DOC-012 against a local API
+docs-site/ci/surface-check.ts     SDK exports ⇄ SDKs page ⇄ operationIds
 api/openapi.json             committed by `bun run openapi` (FR-API-085)
 contracts/deployments/       input to the Contracts snippet
 examples/saas/src/*.ts       region source
@@ -145,6 +145,8 @@ examples/saas/src/*.ts       region source
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-04 | Claude (for William) | FR-DOC-026 "build the meter in your own product" section; FR-DOC-040 counts ten frozen methods after `subscriptions.list`. |
-| 2026-09-06 | Claude (for William) | Grill applied ([ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md)): Mintlify in `docs/site/`; committed filtered `api/openapi.json` (FR-DOC-041, FR-API-085); Quickstart CI against a local API (FR-DOC-012); example-first build order (FR-DOC-014); "Testing" replaces "Test clocks" and absorbs FR-DOC-033 (FR-DOC-024); explicit `baseUrl` everywhere (BR-DOC-008); Authentication and Errors pages (FR-DOC-044); try-it enabled with live keys refused from the browser (FR-DOC-045, FR-API-086); snippet sync replaces include-by-region (FR-DOC-011, BR-DOC-003); Undecided 1–6 closed; hosted API URL opened. Awaiting signature. |
+| 2026-09-06 | Claude (for William) | Grill applied ([ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md)): Mintlify in `docs-site/site/`; committed filtered `api/openapi.json` (FR-DOC-041, FR-API-085); Quickstart CI against a local API (FR-DOC-012); example-first build order (FR-DOC-014); "Testing" replaces "Test clocks" and absorbs FR-DOC-033 (FR-DOC-024); explicit `baseUrl` everywhere (BR-DOC-008); Authentication and Errors pages (FR-DOC-044); try-it enabled with live keys refused from the browser (FR-DOC-045, FR-API-086); snippet sync replaces include-by-region (FR-DOC-011, BR-DOC-003); Undecided 1–6 closed; hosted API URL opened. Awaiting signature. |
 | 2026-09-06 | William | Signed. Build order: examples FRD grill and signature, then `examples/saas`, then the docs site. |
 | 2026-09-06 | Claude (for William) | Domain is `elapse.finance` (William): Undecided 2, FR-DOC-001, FR-DOC-044, BR-DOC-008 and the Open list now name `api.elapse.finance` / `docs.elapse.finance`; the explicit-`baseUrl` rule stands until the SDK default is re-released. |
+| 2026-09-06 | Claude (for William) | Built FR-DOC-001–004, 010–014, 020–026, 030–033, 040–045 as a Mintlify project in `docs-site/site/`: nine nav entries, `docs.json` from DESIGN.md tokens (Archivo, ink primary, white in dark), synced snippets (`docs-site/scripts/sync-snippets.ts`: example regions, six payloads validated against the API's signed-body `Event` schema, contracts, retry schedule, error types, CLI output fixture, the signature vector the SDK suite asserts), `openapi.json` copied to the site root, `docs-site/ci/surface-check.ts`, `docs-site/ci/quickstart.sh`, and `.github/workflows/ci.yml` (packages, docs checks, Quickstart against a local API; nightly). 17 vitest tests; `mintlify validate` strict and `broken-links` green; reviewed at 1440 and 390, light and dark. Two details beyond the text: (1) the public operations gained `summary` so Mintlify's pages read "Create a product" not "post-v1products"; (2) cURL samples use `$ELAPSE_API_URL`, and the try-it panel's server is `PUBLIC_API_URL`, until the hosted URL exists (Open item). Hosting connect on Mintlify is William's step. |
+| 2026-09-06 | William | The site package moves to `docs-site/` (workspace name `docs-site`, Mintlify docs directory `docs-site/site`), so `docs/` stays the internal tree: detailed doc, design brief, specs, decisions. Every path above reads accordingly; the ADR of the same day still says `docs/site/` and is not edited. |

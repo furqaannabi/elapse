@@ -1,0 +1,9 @@
+```ts webhooks.ts
+let event;
+try {
+  event = constructEvent(rawBody, signature, secret);
+} catch (err) {
+  log(`✗ rejected: ${(err as Error).message}`);
+  return { status: 400, body: JSON.stringify({ error: "invalid signature" }) };
+}
+```

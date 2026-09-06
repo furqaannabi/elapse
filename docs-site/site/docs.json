@@ -1,0 +1,106 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Elapse",
+  "description": "Per-second billing for APIs, GPU time, streams and seats. You only pay what elapsed.",
+  "colors": {
+    "primary": "#171717",
+    "light": "#ededed",
+    "dark": "#0a0a0a"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://elapse.finance"
+  },
+  "favicon": "/logo/favicon.svg",
+  "fonts": {
+    "heading": {
+      "family": "Archivo",
+      "weight": 600
+    },
+    "body": {
+      "family": "Archivo"
+    }
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "styling": {
+    "codeblocks": "system"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://elapse.finance/dashboard"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get a test key",
+      "href": "https://elapse.finance/dashboard/developers"
+    }
+  },
+  "navigation": {
+    "pages": [
+      "introduction",
+      "quickstart",
+      "checkout",
+      "subscriptions",
+      {
+        "group": "Webhooks",
+        "pages": [
+          "webhooks/events",
+          "webhooks/signatures",
+          "webhooks/delivery"
+        ]
+      },
+      "sdks",
+      {
+        "group": "API reference",
+        "openapi": "openapi.json",
+        "pages": [
+          "api-reference/authentication",
+          "api-reference/errors"
+        ]
+      },
+      "contracts",
+      "testing"
+    ]
+  },
+  "api": {
+    "playground": {
+      "display": "interactive"
+    },
+    "examples": {
+      "languages": [
+        "javascript",
+        "curl"
+      ]
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/furqaannabi/elapse"
+    },
+    "links": [
+      {
+        "header": "Elapse",
+        "items": [
+          {
+            "label": "npm: @elapse/sdk",
+            "href": "https://www.npmjs.com/package/@elapse/sdk"
+          },
+          {
+            "label": "Dashboard",
+            "href": "https://elapse.finance/dashboard"
+          }
+        ]
+      }
+    ]
+  },
+  "seo": {
+    "indexing": "navigable"
+  }
+}

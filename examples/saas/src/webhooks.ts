@@ -22,12 +22,13 @@ export interface WebhookResponse {
 }
 
 export function handleWebhook(rawBody: string, signature: string | undefined, deps: WebhookDeps): WebhookResponse {
+  const { secret, entitlements, log } = deps;
   // region:verify
   let event;
   try {
-    event = constructEvent(rawBody, signature, deps.secret);
+    event = constructEvent(rawBody, signature, secret);
   } catch (err) {
-    deps.log(`✗ rejected: ${(err as Error).message}`);
+    log(`✗ rejected: ${(err as Error).message}`);
     return { status: 400, body: JSON.stringify({ error: "invalid signature" }) };
   }
   // endregion
@@ -36,9 +37,10 @@ export function handleWebhook(rawBody: string, signature: string | undefined, de
     status: 200,
     body: JSON.stringify({ received: true }),
     work: () => {
-      const action = deps.entitlements.first(event.id) ? deps.entitlements.apply(event) : null;
-      deps.log(action === null ? `↺ duplicate ${event.id}` : `${event.id}  ${event.type.padEnd(24)}→ ${action}`);
-      if (action !== null && deps.logJson !== false) deps.log(JSON.stringify(event, null, 2));
+      if (!entitlements.first(event.id)) return log(`↺ duplicate ${event.id}`);
+      const action = entitlements.apply(event);
+      log(`${event.id}  ${event.type.padEnd(24)}→ ${action}`);
+      if (deps.logJson !== false) log(JSON.stringify(event, null, 2));
     },
   };
   // endregion

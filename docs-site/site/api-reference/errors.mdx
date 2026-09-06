@@ -1,0 +1,61 @@
+---
+title: "Errors"
+description: "One envelope, six types, and what to do with each."
+---
+
+import ErrorTypes from '/snippets/error-types.mdx';
+
+Every error, from any route, has the same shape:
+
+```json
+{
+  "error": {
+    "type": "invalid_request_error",
+    "message": "Invalid rate_usd_per_second: must be a decimal string such as \"0.004\"",
+    "param": "rate_usd_per_second"
+  }
+}
+```
+
+`type` is one of the values below, read from the API's schema at build time. `message` is for a human. `param` names the offending field when there is one, and `code` carries a machine-readable reason when there is one.
+
+<ErrorTypes />
+
+| `type` | HTTP | What to do |
+| --- | --- | --- |
+| `authentication_error` | 401 | The key is missing, revoked, malformed, or live and sent from a browser (`code: live_key_in_browser`). Fix the key. Do not retry. |
+| `invalid_request_error` | 400 | The body or query is wrong; `param` says where. Fix the request. Do not retry. |
+| `not_found` | 404 | No such object in this mode. Also what you get for another merchant's id or a live id under a test key. |
+| `idempotency_error` | 400 | The same `Idempotency-Key` was reused with a different body. Use a new key. |
+| `rate_limit_error` | 429 | Slow down; `Retry-After` says by how much. The SDK retries these for you. |
+| `api_error` | 5xx | Something went wrong on our side. Safe to retry with the same idempotency key. |
+
+## In the SDK
+
+Every `4xx` throws `ElapseInvalidRequestError` or `ElapseAuthenticationError` or `ElapseRateLimitError`, every `5xx` throws `ElapseAPIError`, and all of them expose `status`, `type`, `message`, `param` and `code` from the envelope.
+
+<CodeGroup>
+```ts TypeScript
+import { ElapseInvalidRequestError } from "@elapse/sdk";
+
+try {
+  await elapse.products.create({ name: "GPU", rateUsdPerSecond: "0.004" });
+} catch (err) {
+  if (err instanceof ElapseInvalidRequestError && err.param === "rate_usd_per_second") {
+    // show the field
+  }
+  throw err;
+}
+```
+```bash cURL
+curl -i "$ELAPSE_API_URL/v1/products" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"GPU","rate_usd_per_second":0.004}'
+# 400 invalid_request_error, param rate_usd_per_second: rates are strings, not numbers.
+```
+</CodeGroup>
+
+## Idempotency
+
+Send an `Idempotency-Key` header on any `POST` and a repeat with the same key and body within 24 hours returns the stored response instead of acting twice. The SDK sets it from `{ idempotencyKey }`.

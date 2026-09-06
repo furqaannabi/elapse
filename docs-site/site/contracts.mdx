@@ -1,0 +1,43 @@
+---
+title: "Contracts"
+description: "Addresses, events, and settle semantics for anyone who wants to check the chain."
+---
+
+import Contracts from '/snippets/contracts.mdx';
+
+Merchants and subscribers never need this page. It exists so that anyone, including a judge, can verify that a per-second meter is what it claims to be.
+
+Elapse runs on Monad. Every Subscription is one `AccrualStream` contract, created by a `StreamFactory`, holding that subscription's funds in escrow and accruing at a fixed rate per second from the moment it starts. Settlement pulls accrued funds to the merchant in batches; cancel settles the last stretch and refunds what was not used.
+
+## Addresses
+
+Read from the deployment record in the repository at build time.
+
+<Contracts />
+
+The mainnet factory is published here when it is deployed; the test network is what the Quickstart and the dashboard's test mode use.
+
+## Events
+
+`AccrualStream` emits, per stream:
+
+| Event | When |
+| --- | --- |
+| `Deposited(from, amount, totalDeposited)` | Funds arrived in escrow. |
+| `StreamStarted(merchant, subscriber, ratePerSecond, startedAt)` | The meter began. `startedAt` is the block time the platform uses for `started_at`. |
+| `StreamPaused(at, reason)` / `StreamResumed(at)` | Paused seconds do not accrue. |
+| `Settled(seconds, amount, fee)` | One settlement pull: whole seconds since the last one, the amount moved, and the platform fee taken from it. |
+| `StreamCanceled(at, secondsElapsed, amountSettled, amountRefunded)` | The end. Cumulative seconds and amount, and the refund to the subscriber. |
+
+`StreamFactory` emits `StreamCreated` for each new stream. An indexer follows these events and turns them into the Events your webhook endpoint receives; `subscription.canceled` is a `StreamCanceled` with the same numbers in decimal dollars.
+
+## Settle semantics
+
+- **Accrual is continuous, settlement is discrete.** `accrued = rate × (now − startedAt − pausedSeconds)`. A settlement moves `accrued − alreadySettled`; nothing is ever charged twice, and nothing accrues while paused.
+- **Whole seconds.** Fractions are dropped, never rounded up.
+- **Cancel settles first, then refunds.** The final `Settled` and the `StreamCanceled` land in the same transaction. The refund is escrow minus everything settled.
+- **A cap ends the stream.** When elapsed seconds reach the cap the subscriber accepted at checkout, the keeper settles and cancels it; the platform reports that as `subscription.canceled` with `ended_reason: cap_reached`, preceded by `invoice.payment_failed`.
+- **Who can cancel.** The subscriber, the merchant, and the platform's keeper. Subscribers sign a message and the platform submits it, so they never pay gas or hold the network's token.
+- **Fee.** A percentage of each settlement, taken inside `settle`, goes to the platform treasury. The dashboard shows gross, fee and net on every Invoice.
+
+Source: [`contracts/src`](https://github.com/furqaannabi/elapse/tree/master/contracts/src), with the Foundry test suite and invariants beside it.

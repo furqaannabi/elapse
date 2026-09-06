@@ -3,5 +3,5 @@ packages:
   - "cli"
   - "api"
   - "web"
-  - "docs"
+  - "docs-site"
   - "examples/saas"

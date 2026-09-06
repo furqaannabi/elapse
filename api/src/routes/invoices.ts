@@ -37,6 +37,7 @@ invoices.openapi(
     method: "get",
     path: "/invoices",
     operationId: "invoices.list",
+    summary: "List invoices",
     ...PUBLIC,
     tags: ["Invoices"],
     request: { query: ListQuery.extend({ subscription: z.string().optional(), customer: z.string().optional() }) },

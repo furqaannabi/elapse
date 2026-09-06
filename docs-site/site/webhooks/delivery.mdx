@@ -1,0 +1,40 @@
+---
+title: "Delivery"
+description: "Retries, timeouts, idempotency, and what the dashboard shows for every attempt."
+---
+
+import RetrySchedule from '/snippets/retry-schedule.mdx';
+
+A Delivery is one event sent to one endpoint. Elapse POSTs the signed body, waits up to **10 seconds**, and counts any **2xx** as success. Anything else, including a timeout, is a failed attempt and the schedule below applies.
+
+## Schedule
+
+<RetrySchedule />
+
+The schedule is read from the worker's own configuration at build time, so this table is what runs.
+
+## Respond fast, work later
+
+Answer 200 as soon as the signature verifies, then do your work. A handler that provisions a GPU before responding will time out under load and be retried, and the retry will provision it again.
+
+## Idempotency
+
+A retry delivers the **same event id**. Keep the ids you have handled and treat a repeat as a no-op:
+
+<CodeGroup>
+```ts TypeScript
+if (seen.has(event.id)) return res.sendStatus(200);
+seen.add(event.id);
+```
+```bash cURL
+# Same evt_ id on every attempt: dedupe on it.
+```
+</CodeGroup>
+
+## Failing endpoints
+
+An endpoint that fails continuously for three days is disabled and you are emailed. Re-enable it from the dashboard once it is fixed; nothing is lost, every Delivery is still there with its attempts.
+
+## The dashboard
+
+**Developers → Webhooks** shows each endpoint, its success rate, and every Delivery with its attempts: status code, duration, the request headers that were sent. **Resend** on a Delivery queues one more attempt with the same body and a fresh signature. The same view exists for the CLI endpoint that `elapse listen` creates, so you can see what your laptop answered.

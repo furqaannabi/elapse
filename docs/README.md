@@ -22,14 +22,14 @@ Elapse is Stripe Billing for things that should charge by the second. A merchant
 | Piece | Path | Spec | State (2026-09-03) |
 | --- | --- | --- | --- |
 | Contracts | `contracts/` | `specs/contracts-frd.md` | Early draft; no funding path, no settle, no tests. **Week-1 kill gate not met.** |
-| Platform API | `api/` | `specs/api-frd.md` | Empty |
-| Indexer | `indexer/` | `specs/indexer-frd.md` | Empty |
-| Webhook worker | `worker/` | `specs/worker-frd.md` | Empty |
-| SDK (TS) | `sdk/ts/` | `specs/sdk-frd.md` | `constructEvent` only; no build, no tests |
-| CLI | `cli/` | `specs/cli-frd.md` | Empty |
+| Platform API | `api/` | `specs/api-frd.md` | Built and proven live on testnet; `openapi.json` committed for the docs |
+| Indexer | `indexer/` | `specs/indexer-frd.md` | Built; runs locally with `envio dev`, hosted deploy pending |
+| Webhook worker | `api/src/worker/` | `specs/worker-frd.md` | Built (deliveries, keeper, CLI sweep) |
+| SDK (TS) | `sdk/ts/` | `specs/sdk-frd.md` | Published as `@elapse/sdk@0.1.0`; 0.1.1 (new default host) awaiting publish |
+| CLI | `cli/` | `specs/cli-frd.md` | Built (`listen --forward`, `events resend`); npm publish in Week 6 |
 | Web (landing, checkout, dashboard) | `web/` | `specs/landing-frd.md`, `specs/checkout-frd.md`, `specs/dashboard-frd.md` | Landing built and reviewed; hosted checkout built against the mock API (all states, judge mode); dashboard next |
-| Docs site | (separate deploy) | `specs/docs-site-frd.md` | Not started |
-| Example merchant | `examples/saas/` | `specs/examples-frd.md` | Empty |
+| Docs site | `docs-site/` (Mintlify, site in `docs-site/site/`) | `specs/docs-site-frd.md` | Built: nine pages, generated reference, synced snippets, CI; hosting connect pending |
+| Example merchant | `examples/saas/` | `specs/examples-frd.md` | Built and proven; source of the Quickstart snippets |
 
 ## Decisions log
 

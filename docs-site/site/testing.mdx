@@ -1,0 +1,53 @@
+---
+title: "Testing"
+description: "Test mode, a demo rate that shows dollars in seconds, webhooks on your laptop, and test deliveries."
+---
+
+import CliListen from '/snippets/cli-listen.mdx';
+
+## Test mode
+
+Use a `sk_test_` key and everything you create lives in test mode: real meters on the test network, funded with a test dollar the platform hands out at checkout, delivered to your endpoints with real signatures. Nothing you or your subscribers own moves. The dashboard has a switch between the two modes; each has its own keys, products, endpoints and events.
+
+Test and live are separate worlds, not a flag on an object. A test id under a live key is a `404`.
+
+## A demo rate
+
+At `$0.004` a second, a fifteen-second try shows six cents. For a demo, or a screenshot, create a test Product with a rate that makes the counter move visibly:
+
+<CodeGroup>
+```ts TypeScript
+await elapse.products.create({ name: "Demo · fast meter", rateUsdPerSecond: "0.25" });
+// 15 seconds → $3.75 on the subscriber's screen; the arithmetic is identical.
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/products" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Demo · fast meter","rate_usd_per_second":"0.25"}'
+```
+</CodeGroup>
+
+Keep the cap short too: `max_duration_seconds: 120` on the checkout session means the subscriber is asked to fund thirty test dollars, not the default hour.
+
+## Forward webhooks to your laptop
+
+Elapse cannot reach `localhost`. The CLI opens a stream to the platform and forwards every delivery to your local server, byte for byte, with the platform's own signature, then reports your server's status code back so the dashboard shows it.
+
+```bash
+npx @elapse/cli listen --forward localhost:3000/webhooks
+```
+
+<CliListen />
+
+The secret it prints is stable for your account and mode, so set `ELAPSE_WEBHOOK_SECRET` once. Deliveries only go to the CLI while it is running; there is no queue of missed events to drain when you come back. `elapse events resend evt_…` replays one.
+
+`ELAPSE_SECRET_KEY` in the environment skips `elapse login`. A live key needs `--live`, on purpose.
+
+## Send a test delivery
+
+Every endpoint in **Developers → Webhooks** has a **Send test delivery** button that fires any of the six event types at it with a sample body and a real signature, and shows the attempt like any other. It is the fastest way to exercise a handler before a subscriber ever presses Start.
+
+## No test clocks
+
+There is no test-clock API. A meter cannot be fast-forwarded, because accrual is time on a chain, not a counter in a database. The demo rate above is how you see dollars in seconds; a real fifteen-second cancel is how the demo video was made.

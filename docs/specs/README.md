@@ -46,8 +46,8 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `worker-frd.md` | **Signed** · Week 2 delivery loop first; keeper/heartbeat Week 3, notices/CLI Week 4 | William, 2026-09-05 |
 | `sdk-frd.md` | **Signed** · TS client + `constructEvent` next; Python Week 5 | William, 2026-09-05 |
 | `cli-frd.md` | **Signed** · built 2026-09-06 (API FR-API-130–134 + `cli/`), proven on the local API; npm publish pending the `@elapse` scope check | William, 2026-09-06 |
-| `docs-site-frd.md` | **Signed** · Mintlify, committed `api/openapi.json`, local-API Quickstart CI, "Testing" page, explicit `baseUrl` · not yet built; `examples-frd.md` must be signed first | William, 2026-09-06 |
-| `examples-frd.md` | **Signed** · built 2026-09-06 and proven on the local platform; FR-EXM-031 CI job lands with the docs-site PR | William, 2026-09-06 |
+| `docs-site-frd.md` | **Signed** · built 2026-09-06 (`docs-site/`, snippet sync, surface check, CI workflow); Mintlify hosting connect and hosted API URL pending | William, 2026-09-06 |
+| `examples-frd.md` | **Signed** · built and proven 2026-09-06, including the FR-EXM-031 CI job | William, 2026-09-06 |
 
 ## Process
 

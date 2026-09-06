@@ -1,9 +1,11 @@
+import { readFileSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { forward } from "../src/forward";
 import { listen, type ListenOptions } from "../src/commands/listen";
 import { startMockPlatform, startReceiver, type MockPlatform } from "./mock-platform";
 
-const RAW = '{"id":"evt_2b","object":"event","type":"subscription.canceled","created":1756800146,"livemode":false,"pending_webhooks":1,"data":{"object":{"id":"sub_1","seconds_elapsed":83,"amount_settled":"0.332","note":"unicode ✓ \\u00e9  spaces\\n"}}}';
+// A real-shaped body with an escaped unicode sequence and a double space, so byte-for-byte forwarding is proven (BR-CLI-001).
+const RAW = '{"id":"evt_2b","object":"event","type":"subscription.canceled","created":1756800146,"livemode":false,"pending_webhooks":1,"data":{"object":{"id":"sub_4QeABC","object":"subscription","status":"canceled","customer":"cus_7HaXYZ","product":"prod_9f2K","rate_usd_per_second":"0.004","seconds_elapsed":83,"amount_settled":"0.332","ended_reason":"canceled","description":"GPU \u00b7 4090  (2 spaces)"}}}';
 
 describe("FR-CLI-013/014 forward", () => {
   test("posts the exact bytes and the X-Elapse-* headers; reports status and duration", async () => {
@@ -93,6 +95,16 @@ describe("FR-CLI-010..017 elapse listen --forward", () => {
     const summary = await done;
     expect(summary).toEqual({ received: 1, forwarded: 1, failed: 0, skipped: 0 });
     await rx.close();
+    // The docs' "what you will see" block (docs FR-DOC-024) is this output with the volatile parts fixed.
+    const normalized = out
+      .join("\n")
+      .replace(/^\d\d:\d\d:\d\d /gm, "14:02:26 ")
+      .replace(`localhost:${port}`, "localhost:3000")
+      .replace(/\(\d+ ms\)/g, "(8 ms)")
+      .replace(/t=\d+,v1=[0-9a-f]+/g, "t=1700000000,v1=5f1c…e9a2");
+    const fixture = new URL("./fixtures/listen-output.txt", import.meta.url);
+    if (process.env.UPDATE_FIXTURES) writeFileSync(fixture, `${normalized}\n`);
+    expect(`${normalized}\n`).toBe(readFileSync(fixture, "utf8"));
   });
 
   test("a 500 and a refused connection are printed and acked as failures; listening continues", async () => {

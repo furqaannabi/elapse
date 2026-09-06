@@ -1,0 +1,64 @@
+---
+title: "Checkout"
+description: "The hosted page you send a subscriber to, and how they come back."
+---
+
+Elapse hosts one page in your flow: the checkout. You create a session on your server, send the subscriber to its URL, and they return to you when the meter stops. You never hold a card, a wallet, or a balance.
+
+## Creating a session
+
+<CodeGroup>
+```ts TypeScript
+const session = await elapse.checkout.sessions.create({
+  product: "prod_…",
+  successUrl: "https://yourapp.example/ok",
+  cancelUrl: "https://yourapp.example/cancel",
+  maxDurationSeconds: 3600, // optional cap; default one hour
+});
+redirect(session.url);
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/checkout/sessions" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"product":"prod_…","success_url":"https://yourapp.example/ok","cancel_url":"https://yourapp.example/cancel","max_duration_seconds":3600}'
+```
+</CodeGroup>
+
+`max_duration_seconds` caps how long one subscription can run and therefore how much the subscriber is asked to fund: `rate × cap`, shown to them as a dollar amount before they start. When the cap is reached the meter stops on its own.
+
+## What the subscriber sees
+
+The page is built for a phone and says nothing about chains. In order:
+
+1. **Your product and its rate.** Your name and logo from the dashboard, the product, `$0.004 / second` and what that is per hour.
+2. **Sign in.** Face ID or a passkey. No password, no seed phrase, no app to install.
+3. **Funds.** The amount that covers the cap, in dollars. Unused funds return the moment they cancel.
+4. **Start.** A live meter: seconds elapsed and dollars accrued, ticking, no jitter.
+5. **Cancel.** A receipt: "You paid 83 seconds · $0.33". Then the redirect to your `success_url`.
+
+If they leave before pressing Start, or the session's hour passes, they land on `cancel_url` and nothing was charged.
+
+## Coming back
+
+Elapse appends the session id to your success URL:
+
+```text
+https://yourapp.example/ok?session_id=cs_7Ha…
+```
+
+Do not grant access from that redirect alone; a URL can be typed. Grant access when `subscription.created` arrives at your webhook endpoint, and revoke it on `subscription.canceled`. The [Quickstart](/quickstart) handler does exactly that with an in-memory map keyed by subscription id.
+
+## Session states
+
+| `status` | Meaning |
+| --- | --- |
+| `open` | Created, not yet started. Expires after one hour. |
+| `complete` | The subscriber pressed Start. A Subscription exists and `checkout.session.completed` has fired. |
+| `expired` | Nobody started it within the hour. Create a new one. |
+
+A session is single-use. Create one per visit, not one per product.
+
+## The promise
+
+Whatever happens on the chain underneath, the subscriber only ever sees seconds and dollars. There is one exception, a judge mode on the receipt that shows the settlement transaction for people who want to verify it. Your integration never has to mention it.

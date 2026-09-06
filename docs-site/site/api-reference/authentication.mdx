@@ -1,0 +1,48 @@
+---
+title: "Authentication"
+description: "Secret keys, test and live mode, and the base URL to call."
+---
+
+Every request carries your secret key as a bearer token:
+
+```text
+Authorization: Bearer sk_test_…
+```
+
+Keys come from the dashboard under **Developers → API keys**. A key is shown once at creation. Name them, roll them with a grace period, revoke them the moment one leaks.
+
+## Test and live
+
+| Prefix | Mode | Money |
+| --- | --- | --- |
+| `sk_test_` | Test | Real meters on the test network, funded with a test dollar the platform hands out at checkout. Nothing you or your subscribers own moves. |
+| `sk_live_` | Live | Real dollars. |
+
+The key decides the mode of everything it touches. A Product created with a test key does not exist to a live key; asking for it answers `404`, never `403`, so a mode mix-up looks like a missing object rather than a hint that it exists elsewhere.
+
+## Base URL
+
+Set the API's base URL explicitly when you construct a client, and put it in the environment next to your key:
+
+<CodeGroup>
+```ts TypeScript
+const elapse = new Elapse({
+  secretKey: process.env.ELAPSE_SECRET_KEY,
+  baseUrl: process.env.ELAPSE_API_URL,
+});
+```
+```bash cURL
+curl "$ELAPSE_API_URL/v1/products" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+The SDK ships with a default that will point at `api.elapse.finance`; until that host resolves for the version you installed, an explicit `baseUrl` is the one line that keeps your integration honest. The value to use is on your dashboard's Developers page.
+
+## Keep keys on the server
+
+Secret keys authorise everything on your account. Read them from the server environment only. The SDK refuses to construct in a browser, and the API refuses a live key sent from one. The reference on the following pages has a **Try it** panel that works with a test key from this site; that is the only place a key ever belongs in a browser.
+
+## Publishable keys
+
+`pk_test_` and `pk_live_` exist for the hosted checkout and authorise nothing else. You do not need them for a server integration.

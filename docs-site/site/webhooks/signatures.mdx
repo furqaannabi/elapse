@@ -1,0 +1,76 @@
+---
+title: "Signatures"
+description: "How every delivery is signed, how the SDK verifies it, and a vector to check by hand."
+---
+
+import SignatureVector from '/snippets/signature-vector.mdx';
+
+Every delivery carries an `X-Elapse-Signature` header:
+
+```text
+X-Elapse-Signature: t=1757160000,v1=5f59b985…
+```
+
+- `t` is the Unix time the delivery was signed.
+- `v1` is `HMAC-SHA256(secret, "{t}.{raw_body}")`, hex encoded. There may be more than one `v1` during a secret roll; any one matching is enough.
+- The secret is the endpoint's `whsec_…`, shown once when you create the endpoint in the dashboard, or printed by `elapse listen`.
+
+Verification rejects a header older than **300 seconds**, and compares in constant time. Sign the **raw body bytes**: a body re-serialised by a JSON middleware will not match.
+
+## With the SDK
+
+<CodeGroup>
+```ts TypeScript
+import { constructEvent } from "@elapse/sdk";
+
+const event = constructEvent(rawBody, req.headers["x-elapse-signature"], process.env.ELAPSE_WEBHOOK_SECRET);
+// Throws ElapseSignatureVerificationError on a missing, malformed, expired or mismatched signature.
+```
+```bash cURL
+# Recompute v1 from the same inputs and compare with the header (see the vector below).
+printf '%s.%s' "$T" "$RAW_BODY" | openssl dgst -sha256 -hmac "$ELAPSE_WEBHOOK_SECRET"
+```
+</CodeGroup>
+
+`constructEvent` accepts a string or a byte buffer, one secret or an array of them for a roll, and returns the parsed event only after the signature passes. Two frameworks that eat the raw body by default:
+
+<CodeGroup>
+```ts Express
+app.post("/webhooks", express.raw({ type: "*/*" }), (req, res) => {
+  const event = constructEvent(req.body, req.headers["x-elapse-signature"], secret);
+  res.sendStatus(200);
+});
+```
+```ts Hono
+app.post("/webhooks", async (c) => {
+  const event = constructEvent(await c.req.text(), c.req.header("x-elapse-signature"), secret);
+  return c.json({ received: true });
+});
+```
+```bash cURL
+# Frameworks differ; the rule is the same everywhere: hand constructEvent the bytes you received.
+```
+</CodeGroup>
+
+## Verify by hand
+
+This vector is checked by the SDK's own test suite, so it cannot go stale.
+
+<SignatureVector />
+
+<CodeGroup>
+```ts Node
+import { createHmac } from "node:crypto";
+const v1 = createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
+```
+```bash openssl
+printf '%s.%s' "1757160000" "$RAW_BODY" \
+  | openssl dgst -sha256 -hmac "whsec_docs_vector_0000000000000000"
+```
+</CodeGroup>
+
+Both print the `v1` above.
+
+## Rolling a secret
+
+Roll from the dashboard with a grace period of 0, 1 or 24 hours. During the grace period deliveries carry two `v1` values, one per secret, so pass both secrets to `constructEvent` and swap the old one out when the window closes.
