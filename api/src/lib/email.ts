@@ -21,6 +21,11 @@ export function setMailer(m: Mailer | null): void {
   mailer = m;
 }
 
+/** True when mail only goes to stdout: local development with no provider and no test mailer. */
+export function mailIsDevOnly(): boolean {
+  return !mailer && !process.env.RESEND_API_KEY && process.env.NODE_ENV !== "production";
+}
+
 export async function sendEmail(mail: Mail): Promise<void> {
   if (mailer) return mailer(mail);
   const key = process.env.RESEND_API_KEY;

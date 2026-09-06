@@ -7,7 +7,7 @@ import { createMerchant, findMerchantByEmail, type Merchant } from "../db/mercha
 import { createSession, deleteSession, SESSION_IDLE_DAYS } from "../db/sessions";
 import { sql } from "../db/client";
 import { ApiError, unauthorized } from "../lib/errors";
-import { sendEmail } from "../lib/email";
+import { mailIsDevOnly, sendEmail } from "../lib/email";
 import { router } from "../lib/openapi";
 import { clientIp, SESSION_COOKIE } from "../middleware/auth";
 
@@ -35,7 +35,7 @@ dashboardAuth.openapi(
     tags: ["Dashboard"],
     hide: true,
     request: { body: { content: { "application/json": { schema: z.strictObject({ email: z.email().max(254) }) } }, required: true } },
-    responses: { 200: { description: "Always sent:true (no account enumeration).", content: { "application/json": { schema: z.object({ sent: z.literal(true) }) } } } },
+    responses: { 200: { description: "Always sent:true (no account enumeration). `dev_token` appears only when mail is stdout-only in development.", content: { "application/json": { schema: z.object({ sent: z.literal(true), dev_token: z.string().optional() }) } } } },
   }),
   async (c) => {
     const email = c.req.valid("json").email.toLowerCase();
@@ -56,7 +56,8 @@ dashboardAuth.openapi(
       text: `Sign in to your Elapse dashboard:\n\n${link}\n\nThis link works once and expires in 15 minutes. If you did not request it, ignore this email.`,
       html: `<p>Sign in to your Elapse dashboard:</p><p><a href="${link}">${link}</a></p><p>This link works once and expires in 15 minutes. If you did not request it, ignore this email.</p>`,
     });
-    return c.json({ sent: true as const }, 200);
+    // Local development has no inbox: hand the token to the login page so sign-in completes in the browser.
+    return c.json({ sent: true as const, ...(mailIsDevOnly() ? { dev_token: token } : {}) }, 200);
   },
 );
 

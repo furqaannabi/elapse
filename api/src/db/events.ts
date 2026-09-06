@@ -25,6 +25,8 @@ export interface EventRow {
   created: Date;
   request: EventObject["request"] | null;
   pending: number;
+  /** Rolled up from the event's deliveries (dashboard FR-DSH-023): none/any pending → pending; all finished and any exhausted → failed; else delivered. */
+  delivery_state: "pending" | "delivered" | "failed";
 }
 
 /** A transaction handle or the pool itself; both are `SQL`. */
@@ -81,7 +83,12 @@ export async function createEvent(input: {
 }
 
 const COLS = sql`e.id, e.merchant_id, e.livemode, e.type, e.data, e.raw_body, e.created, e.request,
-  (SELECT count(*)::int FROM deliveries d WHERE d.event_id = e.id AND d.status NOT IN ('succeeded', 'exhausted')) AS pending`;
+  (SELECT count(*)::int FROM deliveries d WHERE d.event_id = e.id AND d.status NOT IN ('succeeded', 'exhausted', 'skipped')) AS pending,
+  (SELECT CASE
+     WHEN count(*) FILTER (WHERE d.status IN ('queued', 'retrying')) > 0 THEN 'pending'
+     WHEN count(*) FILTER (WHERE d.status = 'exhausted') > 0 THEN 'failed'
+     ELSE 'delivered' END
+   FROM deliveries d WHERE d.event_id = e.id) AS delivery_state`;
 
 export function serializeEvent(r: EventRow): EventObject {
   return {
@@ -96,6 +103,18 @@ export function serializeEvent(r: EventRow): EventObject {
   };
 }
 
+/**
+ * The event as the API returns it on reads: the §5.3 object plus two dashboard conveniences.
+ * Never used for webhook bodies, which are the stored `raw_body` bytes (FR-WRK-021).
+ */
+export function serializeEventForRead(r: EventRow) {
+  return {
+    ...serializeEvent(r),
+    object_id: typeof r.data.object.id === "string" ? (r.data.object.id as string) : null,
+    delivery_state: r.delivery_state,
+  };
+}
+
 export async function findEvent(merchantId: string, livemode: boolean, id: string): Promise<EventRow | null> {
   const [row] = await sql`SELECT ${COLS} FROM events e WHERE e.id = ${id} AND e.merchant_id = ${merchantId} AND e.livemode = ${livemode}`;
   return (row as EventRow | undefined) ?? null;
@@ -106,9 +125,11 @@ export class CursorNotFound extends Error {}
 export async function listEvents(
   merchantId: string,
   livemode: boolean,
-  opts: { limit: number; startingAfter?: string | undefined; type?: EventType | undefined },
+  opts: { limit: number; startingAfter?: string | undefined; type?: EventType | undefined; since?: number | undefined; until?: number | undefined },
 ): Promise<EventRow[]> {
-  const scope = sql`e.merchant_id = ${merchantId} AND e.livemode = ${livemode} AND (${opts.type ?? null}::text IS NULL OR e.type = ${opts.type ?? null})`;
+  const scope = sql`e.merchant_id = ${merchantId} AND e.livemode = ${livemode} AND (${opts.type ?? null}::text IS NULL OR e.type = ${opts.type ?? null})
+    AND (${opts.since ?? null}::bigint IS NULL OR e.created >= to_timestamp(${opts.since ?? null}))
+    AND (${opts.until ?? null}::bigint IS NULL OR e.created <= to_timestamp(${opts.until ?? null}))`;
   if (opts.startingAfter) {
     const [cursor] = await sql`SELECT seq FROM events e WHERE e.id = ${opts.startingAfter} AND ${scope}`;
     if (!cursor) throw new CursorNotFound(`No such event: '${opts.startingAfter}'`);

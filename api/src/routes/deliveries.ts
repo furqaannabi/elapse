@@ -1,3 +1,4 @@
+import { MAX_ATTEMPTS } from "../worker/schedule";
 import { createRoute, z } from "@hono/zod-openapi";
 import { CursorNotFound, findDelivery, listAttempts, listDeliveriesForEndpoint, requestResend, type AttemptRow, type DeliveryRow } from "../db/deliveries";
 import { findWebhookEndpoint } from "../db/webhook-endpoints";
@@ -53,6 +54,10 @@ function base(d: DeliveryRow) {
     livemode: d.livemode,
     created: unix(d.created_at),
     resend_requested: d.manual_requested_at !== null,
+    max_attempts: MAX_ATTEMPTS,
+    event_type: d.event_type,
+    event_created: unix(d.event_created),
+    endpoint_url: d.endpoint_url,
   };
 }
 
@@ -68,7 +73,7 @@ deliveries.openapi(
     path: "/webhook_endpoints/{id}/deliveries",
     operationId: "webhookEndpoints.deliveries",
     tags: ["Webhooks"],
-    request: { params: z.object({ id: z.string() }), query: ListQuery.extend({ event: z.string().optional() }) },
+    request: { params: z.object({ id: z.string() }), query: ListQuery.extend({ event: z.string().optional(), status: z.enum(["queued", "retrying", "succeeded", "exhausted", "skipped"]).optional() }) },
     responses: { 200: { description: "Deliveries to this endpoint, newest first.", content: { "application/json": { schema: ListOf(DeliverySummarySchema, "DeliveryList") } } } },
   }),
   async (c) => {
@@ -77,7 +82,7 @@ deliveries.openapi(
     const auth = c.get("auth");
     if (!(await findWebhookEndpoint(auth.merchantId, auth.livemode, id))) throw notFound("webhook endpoint", id);
     try {
-      const rows = await listDeliveriesForEndpoint(auth.merchantId, auth.livemode, id, { limit: q.limit, startingAfter: q.starting_after, eventId: q.event });
+      const rows = await listDeliveriesForEndpoint(auth.merchantId, auth.livemode, id, { limit: q.limit, startingAfter: q.starting_after, eventId: q.event, status: q.status });
       return c.json(page(rows.map(serializeDeliverySummary), q.limit, `/v1/webhook_endpoints/${id}/deliveries`), 200);
     } catch (e) {
       if (e instanceof CursorNotFound) throw invalid(e.message, "starting_after");

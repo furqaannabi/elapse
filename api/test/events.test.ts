@@ -52,7 +52,7 @@ describe("FR-API-063 event object", () => {
     await createEvent({ merchantId: f.merchantId, livemode: true, type: "invoice.settled", object: { id: "in_2", object: "invoice" } });
     const one = await api("GET", `/v1/events/${a.id}`, { key: f.skTest });
     expect(one.status).toBe(200);
-    expect(one.body).toEqual(a);
+    expect(one.body).toEqual({ ...a, object_id: canceled.id, delivery_state: "delivered", deliveries: [] }); // reads add dashboard fields; the signed body (raw_body) does not
     expect((await api("GET", `/v1/events/${a.id}`, { key: f.skLive })).status).toBe(404);
     expect((await api("GET", `/v1/events/${a.id}`, { key: f.pkTest })).status).toBe(401);
     const all = await api("GET", "/v1/events", { key: f.skTest });

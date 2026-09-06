@@ -1,6 +1,7 @@
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { checkoutOrigin } from "./middleware/auth";
+import { config } from "./config";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
 import { apiKeys } from "./routes/api-keys";
@@ -8,6 +9,7 @@ import { checkoutSessions } from "./routes/checkout-sessions";
 import { customers } from "./routes/customers";
 import { invoices } from "./routes/invoices";
 import { dashboardAuth } from "./routes/dashboard-auth";
+import { dashboardMe } from "./routes/dashboard-me";
 import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { internal } from "./routes/internal";
@@ -23,11 +25,23 @@ import { webhookEndpoints } from "./routes/webhook-endpoints";
  */
 export const app = router();
 
-// The hosted checkout page is the one browser client of the API today (decided 2026-09-05, option a).
-// Only its origin may call the session routes and the public status; merchants call from servers.
+// Two browser clients: the hosted checkout (session id as the pass, decided 2026-09-05) and the
+// dashboard (HttpOnly cookie, so credentials must be allowed). Each origin is allowed only what it uses.
 const checkoutCors = cors({ origin: (o) => (o === checkoutOrigin() ? o : null), allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["content-type", "authorization"], maxAge: 600 });
-app.use("/v1/checkout/sessions/*", checkoutCors);
-app.use("/v1/status", checkoutCors);
+const dashboardCors = cors({
+  origin: (o) => (o === config.dashboardOrigin ? o : null),
+  credentials: true,
+  allowMethods: ["GET", "POST", "DELETE", "OPTIONS"],
+  allowHeaders: ["content-type", "x-elapse-mode", "idempotency-key"],
+  maxAge: 600,
+});
+app.use("/v1/*", async (c, next) => {
+  const origin = c.req.header("origin");
+  if (origin && origin === config.dashboardOrigin && origin !== checkoutOrigin()) return dashboardCors(c, next);
+  if (c.req.path.startsWith("/v1/checkout/sessions") || c.req.path === "/v1/status") return checkoutCors(c, next);
+  if (origin && origin === config.dashboardOrigin) return dashboardCors(c, next);
+  return next();
+});
 
 app.route("/v1", products);
 app.route("/v1", checkoutSessions);
@@ -39,6 +53,7 @@ app.route("/v1", webhookEndpoints);
 app.route("/v1", events);
 app.route("/v1", deliveries);
 app.route("/v1", dashboardAuth);
+app.route("/v1", dashboardMe);
 app.route("/v1", apiKeys);
 
 // /internal/* takes only the platform ingest token (FR-API-070); a cookie or merchant key is refused.

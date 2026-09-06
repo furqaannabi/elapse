@@ -48,6 +48,7 @@ export const WebhookEndpointSchema = z
     livemode: z.boolean(),
     created: z.number().int(),
     previous_secret_expires_at: z.number().int().nullable().openapi({ description: "While set, the previous secret also signs (roll grace)." }),
+    success_rate_7d: z.number().openapi({ description: "Succeeded ÷ finished deliveries over the last 7 days; 1 when none." }),
     secret: z.string().optional().openapi({ description: "Only on create and roll_secret. Store it; it is never shown again." }),
   })
   .openapi("WebhookEndpoint");
@@ -74,6 +75,7 @@ export function serializeEndpoint(e: WebhookEndpointRow, secret?: string) {
     livemode: e.livemode,
     created: Math.floor(e.created_at.getTime() / 1000),
     previous_secret_expires_at: e.previous_secret_expires_at ? Math.floor(e.previous_secret_expires_at.getTime() / 1000) : null,
+    success_rate_7d: Number(e.success_rate_7d ?? 1),
     ...(secret ? { secret } : {}),
   };
 }

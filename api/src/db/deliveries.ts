@@ -12,6 +12,9 @@ export interface DeliveryRow {
   created_at: Date;
   manual_requested_at: Date | null;
   last_attempt: AttemptRow | null;
+  event_type: string;
+  event_created: Date;
+  endpoint_url: string;
 }
 
 export interface AttemptRow {
@@ -28,8 +31,8 @@ export interface AttemptRow {
 
 const ATTEMPT_JSON = sql`(SELECT to_jsonb(a) - 'id' - 'delivery_id' FROM delivery_attempts a WHERE a.delivery_id = d.id ORDER BY a.sent_at DESC LIMIT 1)`;
 const COLS = sql`d.id, d.event_id, d.endpoint_id, e.merchant_id, e.livemode, d.status, d.attempt, d.next_attempt_at, d.created_at, d.manual_requested_at,
-  ${ATTEMPT_JSON} AS last_attempt`;
-const FROM = sql`deliveries d JOIN events e ON e.id = d.event_id`;
+  ${ATTEMPT_JSON} AS last_attempt, e.type AS event_type, e.created AS event_created, w.url AS endpoint_url`;
+const FROM = sql`deliveries d JOIN events e ON e.id = d.event_id JOIN webhook_endpoints w ON w.id = d.endpoint_id`;
 
 /** Scoped through the event's merchant and mode, so foreign ids are 404s (FR-API-082). */
 export async function findDelivery(merchantId: string, livemode: boolean, id: string): Promise<DeliveryRow | null> {
@@ -48,10 +51,11 @@ export async function listDeliveriesForEndpoint(
   merchantId: string,
   livemode: boolean,
   endpointId: string,
-  opts: { limit: number; startingAfter?: string | undefined; eventId?: string | undefined },
+  opts: { limit: number; startingAfter?: string | undefined; eventId?: string | undefined; status?: DeliveryRow["status"] | undefined },
 ): Promise<DeliveryRow[]> {
   const scope = sql`d.endpoint_id = ${endpointId} AND e.merchant_id = ${merchantId} AND e.livemode = ${livemode}
-    AND (${opts.eventId ?? null}::text IS NULL OR d.event_id = ${opts.eventId ?? null})`;
+    AND (${opts.eventId ?? null}::text IS NULL OR d.event_id = ${opts.eventId ?? null})
+    AND (${opts.status ?? null}::text IS NULL OR d.status = ${opts.status ?? null})`;
   if (opts.startingAfter) {
     const [cursor] = await sql`SELECT d.seq FROM ${FROM} WHERE d.id = ${opts.startingAfter} AND ${scope}`;
     if (!cursor) throw new CursorNotFound(`No such delivery: '${opts.startingAfter}'`);
@@ -97,4 +101,9 @@ export async function judgeDeliveryLog(subscriptionId: string): Promise<JudgeDel
     ORDER BY e.seq DESC, d.id
     LIMIT 50`;
   return rows.map((r: any) => ({ id: r.id, type: r.type, status: r.status ?? null, attempt: r.attempt, at: Number(r.at) }));
+}
+
+/** Every delivery of one event, one per endpoint (event detail page). */
+export async function listDeliveriesForEvent(eventId: string): Promise<DeliveryRow[]> {
+  return (await sql`SELECT ${COLS} FROM ${FROM} WHERE d.event_id = ${eventId} ORDER BY d.id`) as DeliveryRow[];
 }

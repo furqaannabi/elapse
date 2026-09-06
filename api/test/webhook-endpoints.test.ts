@@ -24,6 +24,7 @@ describe("FR-API-060 create", () => {
       livemode: false,
       created: expect.any(Number),
       previous_secret_expires_at: null,
+      success_rate_7d: 1,
       secret: expect.stringMatching(/^whsec_[0-9A-Za-z]{32}$/),
     });
     const [row] = await sql`SELECT secret_enc, previous_secret_enc FROM webhook_endpoints WHERE id = ${r.body.id}`;

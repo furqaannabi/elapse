@@ -1,5 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { CursorNotFound, findEvent, listEvents, serializeEvent } from "../db/events";
+import { CursorNotFound, findEvent, listEvents, serializeEventForRead } from "../db/events";
+import { listDeliveriesForEvent } from "../db/deliveries";
+import { serializeDeliverySummary } from "./deliveries";
 import { invalid, notFound } from "../lib/errors";
 import { EVENT_TYPES } from "../lib/event-types";
 import { router } from "../lib/openapi";
@@ -18,6 +20,8 @@ export const EventSchema = z
     data: z.object({ object: z.record(z.string(), z.unknown()) }),
     pending_webhooks: z.number().int(),
     request: z.object({ id: z.string().nullable(), idempotency_key: z.string().nullable() }).optional(),
+    object_id: z.string().nullable().openapi({ description: "`data.object.id`, for tables." }),
+    delivery_state: z.enum(["pending", "delivered", "failed"]).openapi({ description: "Rolled up from this event's deliveries." }),
   })
   .openapi("Event");
 
@@ -31,15 +35,15 @@ events.openapi(
     path: "/events",
     operationId: "events.list",
     tags: ["Events"],
-    request: { query: ListQuery.extend({ type: z.enum(EVENT_TYPES).optional() }) },
+    request: { query: ListQuery.extend({ type: z.enum(EVENT_TYPES).optional(), since: z.coerce.number().int().optional(), until: z.coerce.number().int().optional() }) },
     responses: { 200: { description: "Events, newest first.", content: { "application/json": { schema: ListOf(EventSchema, "EventList") } } } },
   }),
   async (c) => {
     const q = c.req.valid("query");
     const auth = c.get("auth");
     try {
-      const rows = await listEvents(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after, type: q.type });
-      return c.json(page(rows.map(serializeEvent), q.limit, "/v1/events"), 200);
+      const rows = await listEvents(auth.merchantId, auth.livemode, { limit: q.limit, startingAfter: q.starting_after, type: q.type, since: q.since, until: q.until });
+      return c.json(page(rows.map(serializeEventForRead), q.limit, "/v1/events"), 200);
     } catch (e) {
       if (e instanceof CursorNotFound) throw invalid(e.message, "starting_after");
       throw e;
@@ -54,13 +58,14 @@ events.openapi(
     operationId: "events.retrieve",
     tags: ["Events"],
     request: { params: z.object({ id: z.string() }) },
-    responses: { 200: { description: "The event.", content: { "application/json": { schema: EventSchema } } } },
+    responses: { 200: { description: "The event, with its deliveries (one per endpoint).", content: { "application/json": { schema: EventSchema.extend({ deliveries: z.array(z.record(z.string(), z.unknown())) }) } } } },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
     const auth = c.get("auth");
     const row = await findEvent(auth.merchantId, auth.livemode, id);
     if (!row) throw notFound("event", id);
-    return c.json(serializeEvent(row), 200);
+    const deliveries = (await listDeliveriesForEvent(row.id)).map(serializeDeliverySummary);
+    return c.json({ ...serializeEventForRead(row), deliveries }, 200);
   },
 );
