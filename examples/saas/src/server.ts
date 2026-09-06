@@ -42,26 +42,37 @@ class SessionCache {
   }
 }
 
-const PAGE = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+/** The merchant's three pages and their one stylesheet (FR-EXM-010/011): plain files under public/, filled with {{vars}}. */
+const asset = (name: string) => readFileSync(new URL(`../public/${name}`, import.meta.url), "utf8");
+const PAGE = asset("index.html");
+const OK_PAGE = asset("ok.html");
+const CANCEL_PAGE = asset("cancel.html");
+const STYLE = asset("acme.css");
+const MERCHANT = "Acme GPU";
 const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k: string) => escape(vars[k] ?? ""));
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2); // display only; money math stays on the platform (BR-EXM-006)
 
 async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, sessions: SessionCache): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
+  const vars = { merchant: MERCHANT, product: deps.product.name, price: `$${deps.product.rateUsdPerSecond} / second · ~$${hourly(deps.product.rateUsdPerSecond)} / hour` };
   if (req.method === "GET" && url.pathname === "/") {
     const s = await sessions.current();
-    return send(res, 200, "text/html; charset=utf-8", fill(PAGE, { merchant: "Acme GPU", product: deps.product.name, price: `$${deps.product.rateUsdPerSecond} / second · ~$${hourly(deps.product.rateUsdPerSecond)} / hour`, checkout_url: s.url }));
+    return send(res, 200, "text/html; charset=utf-8", fill(PAGE, { ...vars, checkout_url: s.url }));
+  }
+  if (req.method === "GET" && url.pathname === "/acme.css") {
+    return send(res, 200, "text/css; charset=utf-8", STYLE);
   }
   if (req.method === "GET" && url.pathname === "/ok") {
     const id = url.searchParams.get("session_id") ?? "";
     await sessions.consume(id);
     const e = deps.entitlements.forSession(id);
     const state = e ? `${e.subscription}: ${e.entitled ? "entitled" : `not entitled (${e.reason})`}` : "pending webhook";
-    return send(res, 200, "text/html; charset=utf-8", page(`Access granted for session ${escape(id)}`, `Entitlement: ${escape(state)}`));
+    const running = !e || e.entitled; // pending webhook counts as running: the subscriber just started it
+    return send(res, 200, "text/html; charset=utf-8", fill(OK_PAGE, { ...vars, session: id, state, led: running ? "on post" : "", status: running ? "Meter running" : "Meter stopped", note: running ? "Your meter is running. Cancel from the checkout page whenever you like; you pay the seconds that elapsed." : "Your meter has stopped. You paid only the seconds that elapsed." }));
   }
   if (req.method === "GET" && url.pathname === "/cancel") {
-    return send(res, 200, "text/html; charset=utf-8", page("Checkout canceled. Nothing was charged.", ""));
+    return send(res, 200, "text/html; charset=utf-8", fill(CANCEL_PAGE, vars));
   }
   const access = url.pathname.match(/^\/access\/([\w-]+)$/);
   if (req.method === "GET" && access) {
@@ -88,7 +99,6 @@ function readRaw(req: IncomingMessage): Promise<string> {
   });
 }
 
-const page = (h1: string, p: string) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acme GPU</title><body style="font-family:system-ui;margin:2rem;max-width:36rem"><h1>${h1}</h1><p>${p}</p><p><a href="/">Back</a></p>`;
 
 function send(res: ServerResponse, status: number, type: string, body: string) {
   res.writeHead(status, { "content-type": type, "content-length": Buffer.byteLength(body) });

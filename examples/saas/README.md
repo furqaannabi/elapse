@@ -64,4 +64,4 @@ Six types, six actions: provision on `checkout.session.completed`, entitle on `s
 | `src/webhooks.ts` | Verify, respond, act |
 | `src/entitlements.ts` | In-memory dedupe set and entitlement map; replace with your database |
 | `src/demo-check.ts` | `npm run demo:check` |
-| `public/index.html` | The fake product page with the Start button |
+| `public/index.html` | The product page with the Start button; `ok.html` and `cancel.html` are where Checkout returns to; `acme.css` is Acme GPU's own look, not Elapse's |

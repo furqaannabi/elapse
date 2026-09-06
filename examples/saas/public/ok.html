@@ -4,18 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#383d42">
-<title>{{product}} · {{merchant}}</title>
+<title>Access granted · {{merchant}}</title>
 <link rel="stylesheet" href="/acme.css">
 </head>
 <body>
-<!--
-THESIS: A merchant's product page that looks like the cage the GPU lives in, not a SaaS pricing card. Refuses the dark "cloud GPU" hero with a per-hour table.
-OWN-WORLD: brushed aluminium ground; anodized rail with U numbers down the left; black engraved laminate plates with corner screws; one safety-yellow rating label; red embossed tape; a steel push plate with a green status LED. Barlow Semi Condensed caps for engraving, Martian Mono for labels.
-STORY: "This is a real machine in a real rack. It costs this much per second. Press Start and the meter runs; stop whenever." Then Elapse Checkout takes over.
-FIRST VIEWPORT (390px): identity plate; the product plate (GPU · 4090); the yellow rating label; the red tape; the Start push plate with its LED, all above the fold.
-FORM: colocation cage signage, candidate 7 of 7, seed f3c9de12.
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
--->
 <div class="cage">
   <aside class="rail" aria-hidden="true"><ol><li>U42</li><li>U41</li><li class="here">U40</li><li>U39</li><li>U38</li><li>U37</li><li>U36</li><li>U35</li><li>U34</li><li>U33</li><li>U32</li><li>U31</li><li>U30</li><li>U29</li><li>U28</li><li>U27</li><li>U26</li><li>U25</li><li>U24</li><li>U23</li><li>U22</li><li>U21</li><li>U20</li><li>U19</li><li>U18</li><li>U17</li><li>U16</li><li>U15</li><li>U14</li><li>U13</li><li>U12</li><li>U11</li><li>U10</li><li>U09</li><li>U08</li><li>U07</li><li>U06</li><li>U05</li><li>U04</li><li>U03</li><li>U02</li><li>U01</li></ol></aside>
   <main class="bay settle">
@@ -24,21 +16,23 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <span class="loc">Cage 4 · Rack 12<br>Cold aisle</span>
     </header>
 
-    <section class="plate" aria-labelledby="product">
-      <h1 id="product">{{product}}</h1>
-      <p class="sub">Dedicated · 24 GB · Ready now</p>
+    <section class="plate" aria-labelledby="granted">
+      <h1 id="granted" class="long">Access granted for session {{session}}</h1>
+      <p class="sub">{{product}}</p>
     </section>
 
     <div class="label">
-      <span class="k">Rate</span>
-      <span class="v">{{price}}</span>
+      <span class="k">Entitlement</span>
+      <span class="v">{{state}}</span>
     </div>
 
     <p class="tape">Pay only what elapsed</p>
 
-    <a class="push" href="{{checkout_url}}">Start<span class="hint">Secure<br>checkout</span><span class="led post" aria-hidden="true"></span></a>
+    <p class="status"><span class="led {{led}}" aria-hidden="true"></span>{{status}}</p>
 
-    <p class="etched">Billed per second. Cancel whenever. You only pay what elapsed. Nothing is charged until you start.</p>
+    <p class="etched">{{note}} This page updates when the webhook lands, so reload to see the entitlement change.</p>
+
+    <a class="back" href="/">Back</a>
 
     <footer class="tag">{{merchant}} · demo merchant</footer>
   </main>

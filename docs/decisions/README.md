@@ -36,3 +36,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-06 | [CLI `listen --forward` receives Deliveries over SSE from one persistent CLI endpoint per mode](./2026-09-06-cli-transport-and-session.md) | William |
 | 2026-09-06 | [Docs site on Mintlify; reference from a committed filtered OpenAPI file; Quickstart CI against a local API](./2026-09-06-docs-site-mintlify-and-quickstart-ci.md) | William |
 | 2026-09-06 | ["Send test delivery" works on the CLI endpoint while `elapse listen` is connected](./2026-09-06-test-delivery-on-cli-endpoint.md) | William |
+| 2026-09-06 | [The example merchant has its own brand, not Elapse's design system](./2026-09-06-example-merchant-own-brand.md) | William |

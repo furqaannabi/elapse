@@ -29,7 +29,7 @@ The doc sets the judging bar as "Judges can clone `examples/saas` and receive a 
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-EXM-010 | `GET /` serves a one-file HTML product page: merchant name "Acme GPU", product "GPU · 4090", price "$0.004 / second · ~$14.40 / hour", and a **Start** button linking to the current `session.url`. Each page load creates a fresh Checkout session if the cached one is not `open`. | Playwright: page renders; link matches `/\/c\/cs_/`. |
+| FR-EXM-010 | `GET /` serves the merchant's HTML product page (Acme GPU's own look, [ADR 2026-09-06](../decisions/2026-09-06-example-merchant-own-brand.md); one HTML file per page plus a shared `/acme.css`, no framework): merchant name "Acme GPU", product "GPU · 4090", price "$0.004 / second · ~$14.40 / hour", and a **Start** button linking to the current `session.url`. Each page load creates a fresh Checkout session if the cached one is not `open`. | Playwright: page renders; link matches `/\/c\/cs_/`. |
 | FR-EXM-011 | `GET /ok?session_id=cs_…` shows "Access granted for session cs_…" and the entitlement state for that session's Subscription (looked up from FR-EXM-023's map, or "pending webhook"). `GET /cancel` shows "Checkout canceled. Nothing was charged." | Route tests with both states. |
 | FR-EXM-012 | `GET /access/:sub_id` returns `{ entitled: boolean, reason }` as JSON — the merchant's "is this customer allowed in" check. | Unit test before/after a canceled Event. |
 
@@ -74,7 +74,7 @@ examples/saas/
   src/index.ts       boot: product, session, http server, routes / , /ok, /cancel, /access/:id, /webhooks
   src/webhooks.ts    // region:verify … // region:handle  (≤ 80 lines)
   src/entitlements.ts in-memory map + dedupe set
-  public/index.html  fake product page
+  public/index.html  product page; ok.html, cancel.html; acme.css (Acme GPU's own look, examples/saas/DESIGN.md)
 Log format:  HH:MM:SS  evt_1S2…  subscription.canceled  → revoke access · 83s · $0.33
 ```
 
@@ -116,3 +116,4 @@ Listening on :3000
 | 2026-09-06 | William | Signed. Builds now, before the docs site. |
 | 2026-09-06 | Claude (for William) | Built FR-EXM-001–004, 010–012, 020–025, 030 (29 tests, `pnpm --filter elapse-example-saas test`; typecheck clean). Proven on the local platform from a copy outside the workspace with `npm install` from npm: Product created, Checkout URL printed, two Events forwarded by `elapse listen` verified and logged, Event-level resend logged as duplicate, `/access` denied, `demo:check` green. Two details beyond the text: a listen failure (port in use) rejects with a readable message instead of an unhandled error; the session printed at start is the one the product page hands out first, so start creates one session, not two. FR-EXM-031 (CI job) lands with the docs-site PR that creates the first workflow. |
 | 2026-09-06 | Claude (for William) | FR-EXM-031 built: `docs-site/ci/quickstart.sh` in the `quickstart` job of `.github/workflows/ci.yml`; proven locally in under a minute (copy outside the workspace, SDK from npm, Product, Checkout URL, worker-delivered signed event → "revoke access", `demo:check`). Regions in `boot.ts`/`webhooks.ts` now read standalone (`secretKey`, `secret`, `log`) because they are the docs' snippets. |
+| 2026-09-06 | Claude (for William) | Acme GPU's own look ([ADR 2026-09-06](../decisions/2026-09-06-example-merchant-own-brand.md)): `public/{index,ok,cancel}.html` + `public/acme.css`, served by the example; FR-EXM-010 wording amended. The success page's meter status follows the entitlement ("Meter running" / "Meter stopped"). Tests 31; pinned copy unchanged. |

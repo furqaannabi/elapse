@@ -83,6 +83,27 @@ describe("FR-EXM-010/011 pages", () => {
     entitlements.apply(JSON.parse(canceled().replace("subscription.canceled", "subscription.created").replace("evt_1S2bXYZ", "evt_2")));
     html = await (await fetch(`${base}/ok?session_id=cs_9`)).text();
     expect(html).toContain("entitled");
+    expect(html).toContain("Meter running");
+    entitlements.apply(JSON.parse(canceled().replace("evt_1S2bXYZ", "evt_3")));
+    html = await (await fetch(`${base}/ok?session_id=cs_9`)).text();
+    expect(html).toContain("not entitled (canceled)");
+    expect(html).toContain("Meter stopped");
+    expect(html).not.toContain("Meter running");
     expect(await (await fetch(`${base}/cancel`)).text()).toContain("Checkout canceled. Nothing was charged.");
+  });
+});
+
+describe("FR-EXM-010/011 the merchant's own look", () => {
+  it("serves /acme.css and every page links it, so the three pages share one brand", async () => {
+    const { base } = await start();
+    const css = await fetch(`${base}/acme.css`);
+    expect(css.status).toBe(200);
+    expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8");
+    expect(await css.text()).toContain(".push");
+    for (const path of ["/", "/ok?session_id=cs_1", "/cancel"]) {
+      const html = await (await fetch(`${base}${path}`)).text();
+      expect(html).toContain('href="/acme.css"');
+      expect(html).toContain("Acme GPU");
+    }
   });
 });
