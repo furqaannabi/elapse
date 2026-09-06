@@ -34,3 +34,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-05 | [Indexer: Envio Hosted Service plus local `envio dev`; no rollback on reorg; one ingest POST per log](./2026-09-05-indexer-hosting-reorg-transport.md) | William |
 | 2026-09-05 | [The factory's keeper may cancel a stream, so `subscriptions.cancel` works from a merchant's server](./2026-09-05-keeper-may-cancel.md) | William |
 | 2026-09-06 | [CLI `listen --forward` receives Deliveries over SSE from one persistent CLI endpoint per mode](./2026-09-06-cli-transport-and-session.md) | William |
+| 2026-09-06 | [Docs site on Mintlify; reference from a committed filtered OpenAPI file; Quickstart CI against a local API](./2026-09-06-docs-site-mintlify-and-quickstart-ci.md) | William |

@@ -1,6 +1,6 @@
 # `examples/saas` (the merchant in the demo video) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`.
+Status: **Signed 2026-09-06 (William)** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md) (example-first build order, explicit `baseUrl`, local-API CI).
 
 ## Problem
 
@@ -20,8 +20,8 @@ The doc sets the judging bar as "Judges can clone `examples/saas` and receive a 
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-EXM-001 | `examples/saas` is a standalone Node 20+ project (own `package.json`, TypeScript run via `tsx`) depending on the **published** `@elapse/sdk`, not a workspace link, so `git clone` outside the monorepo works. | CI job copies the folder to a temp dir, `npm install && npm start` succeeds. |
-| FR-EXM-002 | `.env.example` lists exactly `ELAPSE_SECRET_KEY`, `ELAPSE_WEBHOOK_SECRET`, `PORT=3000`, `BASE_URL=http://localhost:3000` with one comment each saying where to get it (dashboard; CLI startup line). Missing `ELAPSE_SECRET_KEY` exits 1 with that sentence. | Unit test on config loader; exit code asserted. |
+| FR-EXM-001 | `examples/saas` is a standalone Node 20+ project (own `package.json`, TypeScript run via `tsx`) depending on the **published** `@elapse/sdk` pinned `^0.1.0`, not a workspace link, so `git clone` outside the monorepo works. An SDK change the example needs is published first (William 2026-09-06, Q2 a). | CI job copies the folder to a temp dir outside the workspace, `npm install && npm start` succeeds. |
+| FR-EXM-002 | `.env.example` lists exactly `ELAPSE_SECRET_KEY`, `ELAPSE_WEBHOOK_SECRET`, `ELAPSE_API_URL`, `PORT=3000`, `BASE_URL=http://localhost:3000` with one comment each saying where to get it (dashboard; CLI startup line; the docs Authentication page). The client is constructed with `baseUrl: ELAPSE_API_URL` (docs BR-DOC-008); missing `ELAPSE_SECRET_KEY` or `ELAPSE_API_URL` exits 1 with a sentence naming the variable. | Unit test on config loader; exit code asserted for each. |
 | FR-EXM-003 | `npm start` (a) creates or reuses a Product `"GPU · 4090"` at `"0.004"` USD/s (reuse by name via `products.list`), (b) creates a Checkout session with `successUrl = {BASE_URL}/ok` and `cancelUrl = {BASE_URL}/cancel`, (c) prints `Checkout: {session.url}` and `Webhooks: POST {BASE_URL}/webhooks`, (d) listens on `PORT`. Total under 3 s after install. | Mock API run asserts the two requests match §4.2 bodies; stdout snapshot. |
 | FR-EXM-004 | The README has sections in this order: What this is · Prerequisites · Run it (four commands: clone, cp env, npm install, npm start; plus `npx @elapse/cli listen --forward localhost:3000/webhooks` in a second terminal) · What you will see · How the handler works · Files. It is written against the Quickstart and links to it. | README lint: headings snapshot; every command in it is executed by the CI job. |
 
@@ -49,7 +49,7 @@ The doc sets the judging bar as "Judges can clone `examples/saas` and receive a 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-EXM-030 | `npm run demo:check` sends a locally signed `subscription.canceled` (using `ELAPSE_WEBHOOK_SECRET`) to `POST /webhooks` and exits 0 only if the server logs `revoke access`. Used before recording and in CI. | Script exit code test. |
-| FR-EXM-031 | The full judge path is a CI job: start server against testnet, run the platform's test-delivery (or `demo:check`), assert 200 and the revoke line, under 2 minutes. | GitHub Actions job green nightly. |
+| FR-EXM-031 | The full judge path is the docs Quickstart CI job (docs FR-DOC-012): a local API and worker in GitHub Actions, the example started with `ELAPSE_API_URL` pointing at it, an HTTP Webhook endpoint registered for `POST {BASE_URL}/webhooks`, that endpoint's test call (API FR-API-063), and an assertion on the example's log line, under 2 minutes. No testnet, no chain. | GitHub Actions job green on relevant PRs and nightly. |
 
 ## Business rules
 
@@ -83,7 +83,7 @@ Example terminal (demo steps 3–4, §10):
 ```
 $ npm start
 Product:  prod_9f2…  GPU · 4090  $0.004/s
-Checkout: https://pay.elapse.dev/c/cs_7Ha…
+Checkout: https://elapse.finance/c/cs_7Ha…
 Webhooks: POST http://localhost:3000/webhooks
 Listening on :3000
 
@@ -95,15 +95,15 @@ Listening on :3000
 
 ## Undecided (human)
 
-1. **HTTP layer.** Options: (a) **`node:http`** — zero deps, raw body is the default, ~40 lines; (b) Hono — matches the API stack (§9), `c.req.text()` gives raw body, one dep; (c) Express — most familiar to Stripe users but JSON middleware is the classic raw-body footgun. **Recommend (a)** for the example (nothing to explain), with a Hono snippet in the docs Webhooks page.
-2. **`invoice.payment_failed` log line.** §5.1 says "Pause product access"; §10 step 4 says the server logs "revoke access". **Recommend "revoke access (payment failed)"** to match the video script; the map field is boolean either way.
-3. **Product reuse across restarts.** Create a new Product each `npm start` (simple, litters the dashboard) vs reuse by name via `products.list`. **Recommend reuse by name.**
-4. **Triggering `payment_failed` for the demo.** Real empty escrow on testnet vs a platform "send test event" button (dashboard FR-DSH-060s). **Recommend both exist; the video uses the real one.**
-5. **Language.** TypeScript via `tsx` (matches SDK types) vs plain JS (`node index.js`, no build). **Recommend TypeScript**; the docs snippets are TS.
+1. ~~**HTTP layer.**~~ **Decided 2026-09-06 (William): (a) `node:http`.** Zero dependencies, raw body by default; the docs Webhooks page carries Hono and Express snippets for the raw-body detail.
+2. ~~**`invoice.payment_failed` log line.**~~ **Decided 2026-09-06: "revoke access (payment failed)"**, matching the video script (FR-EXM-023).
+3. ~~**Product reuse across restarts.**~~ **Decided 2026-09-06: reuse by name** via `products.list` (FR-EXM-003).
+4. ~~**Triggering `payment_failed` for the demo.**~~ **Decided 2026-09-06: the real cap end** (proven live 2026-09-05, API FR-API-051) for the video; the dashboard test-delivery button exists for rehearsal.
+5. ~~**Language.**~~ **Decided 2026-09-06: TypeScript via `tsx`**; the docs snippets are TS.
 
 ## Open
 
-- Whether the platform offers a "send test Delivery" endpoint the CI job (FR-EXM-031) can call, or CI relies on `demo:check` only.
+- ~~Whether the platform offers a "send test Delivery" endpoint~~ **Yes**: `POST /v1/webhook_endpoints/:id/test` (FR-API-063), used by FR-EXM-031; `demo:check` stays for pre-recording.
 - Merchant display name/logo in the checkout for this example ("Acme GPU") — needs dashboard branding (FR-DSH-080s).
 - Publish the example as a GitHub template repo in addition to the monorepo folder.
 
@@ -112,3 +112,6 @@ Listening on :3000
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-06 | Claude (for William) | Grill applied ([ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md)): `node:http`; published SDK pinned `^0.1.0`; `ELAPSE_API_URL` and explicit `baseUrl` (FR-EXM-002); CI is the docs Quickstart job against a local API (FR-EXM-031); Undecided 1–5 closed; test-delivery open item closed. Awaiting signature. |
+| 2026-09-06 | William | Signed. Builds now, before the docs site. |
+| 2026-09-06 | Claude (for William) | Built FR-EXM-001–004, 010–012, 020–025, 030 (29 tests, `pnpm --filter elapse-example-saas test`; typecheck clean). Proven on the local platform from a copy outside the workspace with `npm install` from npm: Product created, Checkout URL printed, two Events forwarded by `elapse listen` verified and logged, Event-level resend logged as duplicate, `/access` denied, `demo:check` green. Two details beyond the text: a listen failure (port in use) rejects with a readable message instead of an unhandled error; the session printed at start is the one the product page hands out first, so start creates one session, not two. FR-EXM-031 (CI job) lands with the docs-site PR that creates the first workflow. |
