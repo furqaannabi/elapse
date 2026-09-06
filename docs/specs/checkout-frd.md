@@ -98,6 +98,12 @@ Subscription    { id: sub_…, status, started_at, paused_at, canceled_at, funde
 
 ## Open
 
+Parked 2026-09-06 (William: note and move to Week 4; none gates the demo):
+
+- **Subscriber pause on real sessions.** The contract's `pause()`/`resume()` are party-only with no relayed variant, so a subscriber would need MON for gas. A `pauseFor(deadline, signature)` in the shape of `cancelFor` would fix it but costs a redeploy. The demo product ships with `allow_pause` off; the page hides Pause on real sessions.
+- **Email receipt** (FR-CHK-008) and **Start again** (FR-CHK-007) need API routes (FR-API-123 second half; a session-creating route for the page). Hidden on real sessions until then.
+- **Hosted Envio deploy** (indexer FR-IDX-051): William connects the repo on Envio Cloud; `envio dev` covers every local run meanwhile.
+
 - Privy app id and bounty requirements (Week 3).
 - `/account` is built after the dashboard and is the first cut if the deadline bites (dashboard decision 16).
 

@@ -66,11 +66,12 @@ export async function runKeeperOnce(o: { now?: number; batch?: number; cadenceS?
   return { settled, failed };
 }
 
-/** Tick every `KEEPER_TICK_MS`; a failing RPC never stops the loop. */
-export async function keeperForever(signal?: AbortSignal, log?: KeeperLogger): Promise<void> {
+/** Tick every `KEEPER_TICK_MS`; a failing RPC never stops the loop. `onTick` feeds the heartbeat. */
+export async function keeperForever(signal?: AbortSignal, log?: KeeperLogger, onTick?: () => void): Promise<void> {
   while (!signal?.aborted) {
     try {
       await runKeeperOnce({ log });
+      onTick?.();
     } catch (e) {
       console.error("keeper tick crashed", { message: (e as Error).message });
     }

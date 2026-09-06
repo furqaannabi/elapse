@@ -1,5 +1,7 @@
 import { runForever } from "./run";
 import { keeperForever, KEEPER_CADENCE_S, KEEPER_TICK_MS } from "./keeper";
+import { heartbeatForever } from "./heartbeat";
+import { newId } from "../lib/ids";
 
 /**
  * Webhook worker entrypoint: `bun run worker` (ADR 2026-09-05: second process
@@ -15,10 +17,13 @@ const controller = new AbortController();
 for (const sig of ["SIGINT", "SIGTERM"] as const) process.on(sig, () => controller.abort());
 
 const log = (entry: Record<string, unknown>) => console.log(JSON.stringify({ at: new Date().toISOString(), ...entry }));
+const workerId = process.env.WORKER_ID ?? newId("wrk");
+let keeperTick: Date | null = null;
 const keeperOn = process.env.KEEPER !== "0";
 console.log(`elapse worker started (concurrency ${concurrency}, batch ${batch}, keeper ${keeperOn ? `every ${KEEPER_TICK_MS / 1000}s, cadence ${KEEPER_CADENCE_S}s` : "off"})`);
 await Promise.all([
   runForever({ batch, concurrency, timeoutMs: 10_000, log }, controller.signal),
-  keeperOn ? keeperForever(controller.signal, log) : Promise.resolve(),
+  keeperOn ? keeperForever(controller.signal, log, () => { keeperTick = new Date(); }) : Promise.resolve(),
+  heartbeatForever(workerId, () => keeperTick, controller.signal),
 ]);
 console.log("elapse worker stopped");

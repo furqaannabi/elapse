@@ -89,7 +89,7 @@ Status: **Signed 2026-09-05 (William)** · Surface: Platform (Merchant webhook d
 | Week | Ships | FRs |
 | --- | --- | --- |
 | 2 | Delivery loop: poll with `FOR UPDATE SKIP LOCKED`, decrypt and sign (both secrets in a grace window), POST with 10 s timeout and no redirects, 2xx rule, schedule capped at 8, attempt rows, `exhausted`/`skipped`, time-based auto-disable with its notification and audit rows, deliveries read routes and Resend | FR-WRK-010–016, 020–023, 030–032, 040–041, 050, 062 |
-| 3 | ~~Keeper loop~~ **built 2026-09-05 (FR-WRK-070/071)** · worker heartbeat for `GET /v1/status` (needs the status route and indexer lag) | keeper (contracts FR-CON-030s), FR-WRK-060–061 |
+| 3 | ~~Keeper loop~~ **built 2026-09-05 (FR-WRK-070/071)** · ~~worker heartbeat~~ **built 2026-09-06 (FR-WRK-060)** | keeper (contracts FR-CON-030s), FR-WRK-060–061 |
 | 4 | Expiry notices and emails (needs dashboard notifications) · success-rate view for the endpoints list · CLI `listen --forward` transport (Undecided 5) | FR-WRK-042, 051, CLI FRD |
 
 Nothing is stubbed: a Week 3 or 4 item is absent until it is built.
@@ -149,3 +149,4 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 | 2026-09-05 | William | Signed. Week 2 delivery loop build begins. |
 | 2026-09-05 | Claude (for William) | Root `worker/` folder removed; the worker is only `api/src/worker/`. |
 | 2026-09-05 | Claude (for William) | FR-WRK-070/071 keeper added and built in `api/src/worker/keeper.ts`, running inside the worker process (migration 0010 `last_settle_requested_at`). Post-signature addition derived from the signed contracts FRD (FR-CON-033/034/041, cadence 5 min); William to confirm. Cap end proven live. |
+| 2026-09-06 | Claude (for William) | FR-WRK-060 built: `worker_heartbeat` row (migration 0011) written every 5 s with `attempts_last_minute`, `success_rate_1h`, `keeper_last_tick_at`; `GET /v1/status.worker` gains `alive` (seen within 15 s), `last_seen_at` and those counters. |
