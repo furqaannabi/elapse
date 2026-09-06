@@ -1,0 +1,27 @@
+{
+  "name": "elapse-example-saas",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Acme GPU: the smallest correct Elapse merchant. Creates a Product, prints a Checkout URL, revokes access on subscription.canceled.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "demo:check": "tsx src/demo-check.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elapse/sdk": "^0.1.0",
+    "dotenv": "^17.2.0",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

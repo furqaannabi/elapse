@@ -1,0 +1,96 @@
+import { readFileSync } from "node:fs";
+import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Entitlements } from "./entitlements";
+import { handleWebhook } from "./webhooks";
+
+/**
+ * FR-EXM-010–012, FR-EXM-020: the merchant's HTTP server on Node's built-in
+ * module (examples FRD Undecided 1). Five routes: the fake product page, the
+ * success and cancel pages Checkout returns to, the access check, and the
+ * webhook receiver. No framework, so the raw body is the default.
+ */
+
+export interface ServerDeps {
+  entitlements: Entitlements;
+  webhookSecret: string;
+  log: (line: string) => void;
+  logJson?: boolean;
+  /** `checkout.sessions.create` behind a function so tests need no API. */
+  createSession: () => Promise<{ id: string; url: string }>;
+  product: { name: string; rateUsdPerSecond: string };
+}
+
+export function createServer(deps: ServerDeps) {
+  const sessions = new SessionCache(deps.createSession);
+  return createHttpServer((req, res) => {
+    route(req, res, deps, sessions).catch((err: Error) => {
+      deps.log(`✗ ${req.method} ${req.url}: ${err.message}`);
+      if (!res.headersSent) send(res, 500, "text/plain", "Something went wrong.");
+    });
+  });
+}
+
+/** FR-EXM-010: one open session is reused across page loads; a used one is replaced on the next load. */
+class SessionCache {
+  #current: Promise<{ id: string; url: string }> | undefined;
+  constructor(private readonly create: () => Promise<{ id: string; url: string }>) {}
+  current() {
+    return (this.#current ??= this.create());
+  }
+  async consume(id: string) {
+    if (this.#current && (await this.#current).id === id) this.#current = undefined;
+  }
+}
+
+const PAGE = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k: string) => escape(vars[k] ?? ""));
+const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2); // display only; money math stays on the platform (BR-EXM-006)
+
+async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, sessions: SessionCache): Promise<void> {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  if (req.method === "GET" && url.pathname === "/") {
+    const s = await sessions.current();
+    return send(res, 200, "text/html; charset=utf-8", fill(PAGE, { merchant: "Acme GPU", product: deps.product.name, price: `$${deps.product.rateUsdPerSecond} / second · ~$${hourly(deps.product.rateUsdPerSecond)} / hour`, checkout_url: s.url }));
+  }
+  if (req.method === "GET" && url.pathname === "/ok") {
+    const id = url.searchParams.get("session_id") ?? "";
+    await sessions.consume(id);
+    const e = deps.entitlements.forSession(id);
+    const state = e ? `${e.subscription}: ${e.entitled ? "entitled" : `not entitled (${e.reason})`}` : "pending webhook";
+    return send(res, 200, "text/html; charset=utf-8", page(`Access granted for session ${escape(id)}`, `Entitlement: ${escape(state)}`));
+  }
+  if (req.method === "GET" && url.pathname === "/cancel") {
+    return send(res, 200, "text/html; charset=utf-8", page("Checkout canceled. Nothing was charged.", ""));
+  }
+  const access = url.pathname.match(/^\/access\/([\w-]+)$/);
+  if (req.method === "GET" && access) {
+    return send(res, 200, "application/json", JSON.stringify(deps.entitlements.get(access[1] as string)));
+  }
+  if (req.method === "POST" && url.pathname === "/webhooks") {
+    const raw = await readRaw(req);
+    const header = req.headers["x-elapse-signature"];
+    const out = handleWebhook(raw, Array.isArray(header) ? header[0] : header, { secret: deps.webhookSecret, entitlements: deps.entitlements, log: deps.log, ...(deps.logJson === undefined ? {} : { logJson: deps.logJson }) });
+    send(res, out.status, "application/json", out.body);
+    if (out.work) setImmediate(out.work);
+    return;
+  }
+  send(res, 404, "text/plain", "Not found");
+}
+
+/** The exact bytes the platform signed; never JSON-parse before verifying (BR-SDK-003). */
+function readRaw(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+const page = (h1: string, p: string) => `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acme GPU</title><body style="font-family:system-ui;margin:2rem;max-width:36rem"><h1>${h1}</h1><p>${p}</p><p><a href="/">Back</a></p>`;
+
+function send(res: ServerResponse, status: number, type: string, body: string) {
+  res.writeHead(status, { "content-type": type, "content-length": Buffer.byteLength(body) });
+  res.end(body);
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{merchant}}</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem 1.25rem; max-width: 36rem; color: #111; }
+  h1 { font-size: 1.25rem; margin: 0 0 2rem; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 1.5rem; }
+  .name { font-size: 1.5rem; font-weight: 600; margin: 0 0 .5rem; }
+  .price { font-variant-numeric: tabular-nums; color: #444; margin: 0 0 1.5rem; }
+  a.start { display: inline-block; min-height: 44px; line-height: 44px; padding: 0 1.5rem; background: #111; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  p.note { color: #666; font-size: .875rem; }
+</style>
+</head>
+<body>
+  <h1>{{merchant}}</h1>
+  <div class="card">
+    <p class="name">{{product}}</p>
+    <p class="price">{{price}}</p>
+    <a class="start" href="{{checkout_url}}">Start</a>
+    <p class="note">Billed per second. Cancel whenever. You only pay what elapsed.</p>
+  </div>
+</body>
+</html>
