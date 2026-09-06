@@ -1,8 +1,8 @@
 /**
  * `StripeShaped` — the five things a merchant expects from a billing
- * platform, each stated as what Elapse ships. Set on the plate: the
- * closing section inverts to ink ground and paper text so the close is
- * felt, not read.
+ * platform, each stated as what Elapse ships. Set on the plate (`--plate`,
+ * `--plate-ink`): on light paper the close inverts to an ink ground; in the
+ * dark it is a raised near-black panel, never a white band (2026-09-06).
  */
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export function StripeShaped() {
             <h2 className="display-wide text-balance text-3xl font-semibold leading-tight tracking-[-0.03em] md:text-[2.5rem]">
               Stripe&rsquo;s shape. A stopwatch&rsquo;s granularity.
             </h2>
-            <p className="max-w-[44ch] text-pretty text-lg text-paper/70">
+            <p className="max-w-[44ch] text-pretty text-lg text-plate-ink/70">
               Merchants learn nothing new. The only novelty is that the meter is
               honest.
             </p>
@@ -35,7 +35,7 @@ export function StripeShaped() {
                 href={links.docs}
                 className={cn(
                   buttonVariants({ size: "lg" }),
-                  "h-11 border-transparent bg-paper px-5 text-[15px] text-ink hover:bg-paper/90",
+                  "h-11 border-transparent bg-plate-ink px-5 text-[15px] text-plate hover:bg-plate-ink/90",
                 )}
               >
                 Read the quickstart
@@ -45,20 +45,20 @@ export function StripeShaped() {
                 href={links.github}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
-                  "h-11 border-paper/30 bg-transparent px-5 text-[15px] text-paper hover:bg-paper/10 hover:text-paper",
+                  "h-11 border-plate-ink/30 bg-transparent px-5 text-[15px] text-plate-ink hover:bg-plate-ink/10 hover:text-plate-ink",
                 )}
               >
                 View on GitHub
               </a>
             </div>
           </div>
-          <dl className="divide-y divide-paper/15 border-y border-paper/15">
+          <dl className="divide-y divide-plate-ink/15 border-y border-plate-ink/15">
             {items.map(([term, def]) => (
               <div key={term} className="grid gap-1 py-5 md:grid-cols-[12rem_minmax(0,1fr)] md:gap-6">
                 <dt className="text-lg font-semibold leading-tight tracking-[-0.01em]">
                   {term}
                 </dt>
-                <dd className="max-w-[56ch] text-pretty text-paper/70">{def}</dd>
+                <dd className="max-w-[56ch] text-pretty text-plate-ink/70">{def}</dd>
               </div>
             ))}
           </dl>

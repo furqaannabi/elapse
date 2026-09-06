@@ -50,3 +50,4 @@ A merchant engineer, or a judge, arrives with no context and must understand per
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-03 | Claude | Retro-documented from the built landing. |
+| 2026-09-06 | Claude (for William) | Closing plate stays near-black in dark mode (William: a white band defeats dark mode). Tokens `--plate`/`--plate-ink` in `globals.css`; light mode keeps the ink inversion. Test `stripe-shaped.test.tsx`. |

@@ -34,6 +34,8 @@
   --color-live: var(--live);
   --color-live-soft: var(--live-soft);
   --color-live-deep: var(--live-deep);
+  --color-plate: var(--plate);
+  --color-plate-ink: var(--plate-ink);
   --color-caution: var(--caution);
   --color-caution-soft: var(--caution-soft);
 
@@ -93,6 +95,10 @@
   --caution: #b45309;
   --caution-soft: rgba(180, 83, 9, 0.14);
 
+  /* The closing plate: inverted on light paper, a raised near-black panel in the dark */
+  --plate: var(--ink);
+  --plate-ink: var(--paper);
+
   --background: var(--paper);
   --foreground: var(--ink);
   --card: #ffffff;
@@ -143,6 +149,9 @@
   --live-deep: #ededed;
   --caution: #f5b74a;
   --caution-soft: rgba(245, 183, 74, 0.16);
+
+  --plate: #111111;
+  --plate-ink: var(--ink);
 
   --background: var(--paper);
   --foreground: var(--ink);
@@ -228,13 +237,17 @@
   }
   /* Plate: the closing section inverts — ink ground, paper text. */
   .plate {
-    background-color: var(--ink);
-    color: var(--paper);
-    --border: color-mix(in srgb, var(--paper) 15%, transparent);
-    --ring: color-mix(in srgb, var(--paper) 50%, transparent);
+    background-color: var(--plate);
+    color: var(--plate-ink);
+    --border: color-mix(in srgb, var(--plate-ink) 15%, transparent);
+    --ring: color-mix(in srgb, var(--plate-ink) 50%, transparent);
+  }
+  .dark .plate {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
   }
   .plate ::selection {
-    background: color-mix(in srgb, var(--paper) 25%, transparent);
+    background: color-mix(in srgb, var(--plate-ink) 25%, transparent);
   }
   /* Instrument numerals: tabular, slashed zero off, no ligatures. */
   .numerals {
