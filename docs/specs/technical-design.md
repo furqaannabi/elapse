@@ -46,12 +46,12 @@ Invariants (enforced in service code and tested):
 
 ## 3. API
 
-Base `https://api.elapse.dev/v1`. JSON, `snake_case` on the wire (FR-API-083). Stripe conventions: `object` field on every resource, `id` prefixes, `created` unix seconds, list responses `{ object: "list", data: [], has_more }`, errors `{ error: { type, code, message, param? } }`.
+Base `https://api.elapse.finance/v1`. JSON, `snake_case` on the wire (FR-API-083). Stripe conventions: `object` field on every resource, `id` prefixes, `created` unix seconds, list responses `{ object: "list", data: [], has_more }`, errors `{ error: { type, code, message, param? } }`.
 
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | POST/GET | `/products`, `/products/:id` | `sk_` | `rate_usd_per_second` decimal string, must fit the token's 6 decimals exactly (BR-API-004); rate immutable after create |
-| POST | `/checkout/sessions` | `sk_` | returns `url` = `https://pay.elapse.dev/c/:id` |
+| POST | `/checkout/sessions` | `sk_` | returns `url` = `https://pay.elapse.finance/c/:id` |
 | GET | `/checkout/sessions/:id` | `pk_` or session token | what the hosted checkout reads; never leaks merchant secrets |
 | POST | `/checkout/sessions/:id/prepare`, `/start` | `pk_` + Privy identity | prepare returns the EIP-2612 permit payload; start submits `createWithPermit` through the relayer (FR-API-032) |
 | GET/POST | `/account/subscriptions`, `/account/invoices`, `/account/subscriptions/:id/cancel` | Privy access token | subscriber account page, cross-merchant (FR-API-120–123) |
@@ -99,7 +99,7 @@ The signing must round-trip with `sdk/ts/src/index.ts` `constructEvent` unchange
 | `RESEND_API_KEY` | api, worker | magic links, notifications, receipts (Undecided 10) |
 | `NEXT_PUBLIC_CHECKOUT_URL` | api | base of the `session.url` the API returns |
 | `NEXT_PUBLIC_PRIVY_APP_ID` | web | subscriber sign-in |
-| `NEXT_PUBLIC_API_URL` | web | `https://api.elapse.dev` |
+| `NEXT_PUBLIC_API_URL` | web | `https://api.elapse.finance` |
 | `ELAPSE_SECRET_KEY`, `ELAPSE_WEBHOOK_SECRET` | examples, cli | a merchant's credentials |
 
 Environments: `local` (`api/docker-compose.yml` Postgres on :55434, Monad testnet), `testnet` (shared, used by the docs quickstart CI), `mainnet` (Week 5+). Hosting decided 2026-09-05 (William): Railway for the API and worker as two processes from this repo, Neon for Postgres, Vercel for `web/`, Envio hosted for the indexer.

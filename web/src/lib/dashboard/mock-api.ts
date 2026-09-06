@@ -9,7 +9,7 @@
  * remembered in localStorage as a stand-in for the HttpOnly cookie. Tokens
  * are single-use and expire after 15 minutes (FR-DSH-011).
  *
- * Seeds (FR-DSH-110): `demo@elapse.dev` is "Nimbus", fully set up;
+ * Seeds (FR-DSH-110): `demo@elapse.finance` is "Nimbus", fully set up;
  * any other email is a brand-new merchant that needs first-run capture.
  *
  * State: the demo merchant is re-seeded on every load (so its meters stay
@@ -202,7 +202,7 @@ function seed(now: number): Store {
   const merchants = new Map<string, Merchant>();
   const demo: Merchant = {
     id: "mrc_demo",
-    email: "demo@elapse.dev",
+    email: "demo@elapse.finance",
     name: "Nimbus",
     supportEmail: "help@nimbus.example",
     supportUrl: "https://nimbus.example/support",
@@ -788,7 +788,7 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         const { product } = findProduct(productId);
         if (product.status === "archived") throw new DashboardApiError("invalid_state", "Archived products cannot start new meters");
         const id = newId("cs") as `cs_${string}`;
-        const base = typeof window !== "undefined" ? window.location.origin : "https://elapse.dev";
+        const base = typeof window !== "undefined" ? window.location.origin : "https://elapse.finance";
         return wait({ id, url: `${base}/c/${id}` });
       });
     },

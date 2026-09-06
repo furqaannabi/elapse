@@ -15,7 +15,7 @@ export const config = {
   /** Where the dashboard is served; magic links point here and it is the only Origin allowed to mutate with a cookie (FR-API-101). */
   dashboardOrigin: (process.env.DASHBOARD_ORIGIN ?? "http://localhost:3000").replace(/\/+$/, ""),
   email: {
-    from: process.env.EMAIL_FROM ?? "Elapse <no-reply@elapse.dev>",
+    from: process.env.EMAIL_FROM ?? "Elapse <no-reply@elapse.finance>",
   },
   /** Shared secret the indexer presents on `POST /internal/ingest` (FR-API-070). Unset = route refuses everything. */
   ingestToken: process.env.INGEST_TOKEN ?? "",

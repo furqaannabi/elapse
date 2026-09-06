@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 async function signIn(api: MockDashboardApi): Promise<Merchant> {
-  const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+  const { devToken } = await api.requestMagicLink("demo@elapse.finance");
   return api.verifyMagicLink(devToken);
 }
 const mount = (api: MockDashboardApi, m: Merchant, ui: React.ReactNode) =>

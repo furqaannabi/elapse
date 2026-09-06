@@ -3,10 +3,9 @@
  * landing page. Demo values are synthetic and labelled as such in the UI.
  */
 export const links = {
-  docs: "https://docs.elapse.dev",
+  docs: "https://docs.elapse.finance",
   github: "https://github.com/furqaannabi/elapse",
   dashboard: "/dashboard",
-  status: "https://status.elapse.dev",
   x: "https://x.com/elapsedev",
 } as const;
 

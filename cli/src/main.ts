@@ -40,7 +40,7 @@ Usage
 
 Global options
   --api-key <sk_…>      secret key (after ELAPSE_SECRET_KEY, before the saved login)
-  --base-url <url>      API host (or ELAPSE_BASE_URL); default https://api.elapse.dev
+  --base-url <url>      API host (or ELAPSE_BASE_URL); default https://api.elapse.finance
   --json                machine-readable output on stdout, messages on stderr
   --help, --version
 

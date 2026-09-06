@@ -22,7 +22,7 @@ A merchant engineer who already uses Stripe must be able to `npm install @elapse
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-SDK-001 | `new Elapse({ secretKey, baseUrl? })` constructs a client; `baseUrl` defaults to `https://api.elapse.dev`; a missing or empty `secretKey` throws synchronously. | Unit: default `baseUrl` asserted; `new Elapse({} as any)` throws `ElapseInvalidRequestError`. |
+| FR-SDK-001 | `new Elapse({ secretKey, baseUrl? })` constructs a client; `baseUrl` defaults to `https://api.elapse.finance`; a missing or empty `secretKey` throws synchronously. | Unit: default `baseUrl` asserted; `new Elapse({} as any)` throws `ElapseInvalidRequestError`. |
 | FR-SDK-002 | `products.create({ name, rateUsdPerSecond })` returns a Product with `id` prefixed `prod_`, `name`, `rate_usd_per_second`, `currency: "ausd"`. `rateUsdPerSecond` is a decimal **string** (e.g. `"0.004"`); a number is rejected. | Mock server records `POST /v1/products`; numeric rate throws before any request. |
 | FR-SDK-003 | `products.retrieve(id)` and `products.list()` return one Product and a `{ object: "list", data: Product[] }` page respectively. | Mocked `GET /v1/products/:id`, `GET /v1/products`. |
 | FR-SDK-004 | `checkout.sessions.create({ product, successUrl, cancelUrl })` returns a Checkout session with `id` prefixed `cs_`, `url` (hosted checkout), `status: "open" \| "complete" \| "expired"`, `success_url`, `cancel_url`, `product`. | Mocked `POST /v1/checkout/sessions`; `session.url` matches `/\/c\/cs_/`. |
@@ -123,3 +123,4 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | 2026-09-05 | Claude (for William) | Grill round: casing (b) per API FRD; retries 2 with 500 ms × 2ⁿ ± 25 % and `Retry-After`; `Idempotency-Key` per FR-API-081; unknown event types verified and returned through a fallback union member; Vitest under Node + tsup; error shape and paths confirmed from the signed API FRD. Awaiting signature. |
 | 2026-09-05 | William | Signed. TS build begins with `constructEvent`. |
 | 2026-09-06 | William | Published `@elapse/sdk@0.1.0` to npm (public, `@elapse` scope now held). The default `baseUrl` `https://api.elapse.dev` is not live yet; the launch version bumps the default when the API is deployed (Week 5). |
+| 2026-09-06 | Claude (for William) | Domain `elapse.finance`: FR-SDK-001 default `baseUrl` is `https://api.elapse.finance`; `VERSION` and package bumped to 0.1.1 for William to publish. Until that host resolves and 0.1.1 is on npm, docs and the example pass `baseUrl` explicitly (docs BR-DOC-008). |

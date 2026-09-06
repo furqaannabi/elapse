@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
-async function signIn(api: MockDashboardApi, email = "demo@elapse.dev"): Promise<Merchant> {
+async function signIn(api: MockDashboardApi, email = "demo@elapse.finance"): Promise<Merchant> {
   const { devToken } = await api.requestMagicLink(email);
   const m = await api.verifyMagicLink(devToken);
   return m.name ? m : api.completeFirstRun({ name: "Acme" });

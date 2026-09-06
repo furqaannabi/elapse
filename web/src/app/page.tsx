@@ -1,5 +1,5 @@
 /**
- * Landing page (elapse.dev). Server Component; the hero is the only
+ * Landing page (elapse.finance). Server Component; the hero is the only
  * client island.
  *
  * Reading order: the meter you can cancel → install → three steps →

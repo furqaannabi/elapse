@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   description:
     "Per-second subscriptions for APIs, GPUs, streams and SaaS. Cancel at 83 seconds, pay 83 seconds. Your server finds out via webhook.",
-  metadataBase: new URL("https://elapse.dev"),
+  metadataBase: new URL("https://elapse.finance"),
 };
 
 export const viewport: Viewport = {

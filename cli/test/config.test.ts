@@ -38,8 +38,8 @@ describe("FR-CLI-002/003 profile file", () => {
   });
 
   test("base url: --base-url beats ELAPSE_BASE_URL beats the default; trailing slash trimmed", () => {
-    expect(resolveBaseUrl({ env: {}, flag: undefined })).toBe("https://api.elapse.dev");
+    expect(resolveBaseUrl({ env: {}, flag: undefined })).toBe("https://api.elapse.finance");
     expect(resolveBaseUrl({ env: { ELAPSE_BASE_URL: "http://localhost:4000/" }, flag: undefined })).toBe("http://localhost:4000");
-    expect(resolveBaseUrl({ env: { ELAPSE_BASE_URL: "http://localhost:4000" }, flag: "https://staging.elapse.dev" })).toBe("https://staging.elapse.dev");
+    expect(resolveBaseUrl({ env: { ELAPSE_BASE_URL: "http://localhost:4000" }, flag: "https://staging.elapse.finance" })).toBe("https://staging.elapse.finance");
   });
 });

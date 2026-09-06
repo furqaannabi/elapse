@@ -16,7 +16,7 @@ describe("mock dashboard api — keys", () => {
     localStorage.clear();
     resetMockDashboardApi();
     api = createMockDashboardApi({ now: () => now, latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
   });
 

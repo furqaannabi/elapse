@@ -39,7 +39,7 @@ describe("DashboardGate", () => {
 
   it("renders the shell and the page for a signed-in merchant", async () => {
     const api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     render(
       <DashboardGate api={api}>
@@ -71,7 +71,7 @@ describe("DashboardGate", () => {
   it("signs out to /login (FR-DSH-014)", async () => {
     const user = userEvent.setup();
     const api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     render(
       <DashboardGate api={api}>

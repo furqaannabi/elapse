@@ -19,7 +19,7 @@ beforeEach(() => {
 
 describe("FR-SDK-001 constructor", () => {
   it("defaults baseUrl and throws synchronously on a missing key", () => {
-    expect(new Elapse({ secretKey: KEY }).baseUrl).toBe("https://api.elapse.dev");
+    expect(new Elapse({ secretKey: KEY }).baseUrl).toBe("https://api.elapse.finance");
     expect(() => new Elapse({} as never)).toThrow(ElapseInvalidRequestError);
     expect(() => new Elapse({ secretKey: "" })).toThrow(ElapseInvalidRequestError);
   });

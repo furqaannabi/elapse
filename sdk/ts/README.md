@@ -73,6 +73,6 @@ Everything thrown extends `ElapseError`: `ElapseAuthenticationError` (401/403), 
 
 ## Keep the secret key server-side
 
-`sk_…` keys authorise everything on your account. Read them from the server environment only. The SDK refuses to construct in a browser. Webhooks documentation: <https://docs.elapse.dev/webhooks>.
+`sk_…` keys authorise everything on your account. Read them from the server environment only. The SDK refuses to construct in a browser. Webhooks documentation: <https://docs.elapse.finance/webhooks>.
 
 Node 20+. Zero runtime dependencies. MIT.

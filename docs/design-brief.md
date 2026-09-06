@@ -29,7 +29,7 @@ Audience: (1) developers/merchants who already know Stripe; (2) their end custom
 
 ---
 
-## Surface 1 — Landing page (elapse.dev)
+## Surface 1 — Landing page (elapse.finance)
 
 Single page, marketing, developer-facing.
 
@@ -44,7 +44,7 @@ Single page, marketing, developer-facing.
 
 ---
 
-## Surface 2 — Subscriber Checkout (pay.elapse.dev) — mobile-first, no accounts, no chain words
+## Surface 2 — Subscriber Checkout (pay.elapse.finance) — mobile-first, no accounts, no chain words
 
 **2.1 Checkout** `/c/:session_id`
 - Merchant logo + name, product name, **live rate in USD per second** plus per minute/hour ("$0.004 / second · ~$14.40 / hour")
@@ -72,7 +72,7 @@ Single page, marketing, developer-facing.
 
 ---
 
-## Surface 3 — Merchant Dashboard (app.elapse.dev) — Stripe-density, desktop-first but responsive
+## Surface 3 — Merchant Dashboard (app.elapse.finance) — Stripe-density, desktop-first but responsive
 
 **Shell:** sidebar (Home, Products, Customers, Subscriptions, Invoices, Developers ▸ API keys / Webhooks / Events, Settings), top bar with business switcher, **Test / Live toggle** (test mode = orange banner), search, docs, user menu.
 

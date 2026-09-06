@@ -1,7 +1,7 @@
 /**
  * Deterministic demo data for the mock dashboard API (FR-DSH-110).
  *
- * "Nimbus" (demo@elapse.dev) gets a full test-mode dataset and a smaller
+ * "Nimbus" (demo@elapse.finance) gets a full test-mode dataset and a smaller
  * live one: products, customers, ~30 subscriptions across every status,
  * invoices with gross/fee/net, and the events they produced. A brand-new
  * merchant gets nothing, so the checklist starts at 0 of 4.
@@ -110,7 +110,7 @@ export function makeAttempt(e: Event, at: number, outcome: { code: number | null
     manual,
     requestHeaders: {
       "Content-Type": "application/json",
-      "User-Agent": "Elapse/1.0 (+https://docs.elapse.dev/webhooks)",
+      "User-Agent": "Elapse/1.0 (+https://docs.elapse.finance/webhooks)",
       "X-Elapse-Event": e.id,
       "X-Elapse-Signature": `t=${t},v1=${fakeHmac(`${t}.${body}`)}`,
     },

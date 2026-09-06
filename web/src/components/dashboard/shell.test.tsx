@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 
 const merchant: Merchant = {
   id: "mrc_demo",
-  email: "demo@elapse.dev",
+  email: "demo@elapse.finance",
   name: "Nimbus",
   supportEmail: null,
   supportUrl: null,

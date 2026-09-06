@@ -25,10 +25,10 @@ describe("mock dashboard api — auth", () => {
   });
 
   it("signs in a seeded merchant from a requested link (FR-DSH-010/011)", async () => {
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     expect(devToken).toMatch(/^tok_/);
     const merchant = await api.verifyMagicLink(devToken);
-    expect(merchant.email).toBe("demo@elapse.dev");
+    expect(merchant.email).toBe("demo@elapse.finance");
     expect(merchant.name).toBe("Nimbus");
     await expect(api.me()).resolves.toMatchObject({ id: merchant.id });
   });
@@ -44,13 +44,13 @@ describe("mock dashboard api — auth", () => {
   });
 
   it("rejects an expired link (FR-DSH-011)", async () => {
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     now += 16 * 60_000;
     await expect(api.verifyMagicLink(devToken)).rejects.toMatchObject({ code: "link_expired" });
   });
 
   it("rejects a link that was already used (FR-DSH-011)", async () => {
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     await expect(api.verifyMagicLink(devToken)).rejects.toMatchObject({ code: "link_used" });
   });
@@ -60,10 +60,10 @@ describe("mock dashboard api — auth", () => {
   });
 
   it("keeps the session across a reload of the api (cookie stand-in)", async () => {
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     const again = createMockDashboardApi({ now: () => now, latencyMs: 0 });
-    await expect(again.me()).resolves.toMatchObject({ email: "demo@elapse.dev" });
+    await expect(again.me()).resolves.toMatchObject({ email: "demo@elapse.finance" });
   });
 
   it("keeps a merchant created through the link, and their data, across a reload (FR-DSH-012)", async () => {
@@ -80,7 +80,7 @@ describe("mock dashboard api — auth", () => {
   });
 
   it("signs out (FR-DSH-014)", async () => {
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     await api.signOut();
     await expect(api.me()).rejects.toMatchObject({ code: "unauthenticated" });

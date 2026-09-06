@@ -119,7 +119,7 @@ export function PayoutSection() {
         </div>
         <p className="text-[13px] text-ink-soft">
           Platform fee: {merchant.feeBps / 100} % of every settlement.{" "}
-          <a href="mailto:hello@elapse.dev?subject=Volume%20pricing" className="text-foreground underline-offset-4 hover:underline">
+          <a href="mailto:hello@elapse.finance?subject=Volume%20pricing" className="text-foreground underline-offset-4 hover:underline">
             Contact us for volume pricing
           </a>
           .
@@ -228,7 +228,7 @@ export function DangerSection() {
         </div>
         <p className="text-[13px] text-ink-soft">
           To close your account,{" "}
-          <a href="mailto:hello@elapse.dev?subject=Close%20my%20account" className="text-foreground underline-offset-4 hover:underline">
+          <a href="mailto:hello@elapse.finance?subject=Close%20my%20account" className="text-foreground underline-offset-4 hover:underline">
             email us
           </a>
           . We confirm within one business day.

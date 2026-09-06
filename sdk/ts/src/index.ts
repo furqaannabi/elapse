@@ -12,7 +12,7 @@ import { constructEvent, type ConstructEventOptions } from "./webhooks";
 export interface ElapseConfig {
   /** `sk_test_…` or `sk_live_…`, usually `process.env.ELAPSE_SECRET_KEY`. Server-side only. `undefined` throws at construction. */
   secretKey: string | undefined;
-  /** Defaults to `https://api.elapse.dev`. */
+  /** Defaults to `https://api.elapse.finance`. */
   baseUrl?: string;
   /** Transient-failure retries (network, 429, 5xx). Default 2. */
   maxRetries?: number;
@@ -45,7 +45,7 @@ export class Elapse {
     if (!config || typeof config.secretKey !== "string" || config.secretKey.length === 0) {
       throw new ElapseInvalidRequestError("Missing secretKey. Pass { secretKey: 'sk_test_…' } from your server environment.");
     }
-    this.baseUrl = (config.baseUrl ?? "https://api.elapse.dev").replace(/\/+$/, "");
+    this.baseUrl = (config.baseUrl ?? "https://api.elapse.finance").replace(/\/+$/, "");
     this.maxRetries = config.maxRetries ?? 2;
     this.timeoutMs = config.timeoutMs ?? 30_000;
     this.#transport = new Transport({ secretKey: config.secretKey, baseUrl: this.baseUrl, maxRetries: this.maxRetries, timeoutMs: this.timeoutMs });

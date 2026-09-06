@@ -56,7 +56,7 @@ export async function startMockPlatform(o: { livemode?: boolean; secret?: string
     }
     if (req.method === "GET" && path.startsWith("/v1/products")) return json(200, { object: "list", data: [], has_more: false });
     if (req.method === "POST" && path === "/v1/products") return json(200, { id: "prod_mock1", object: "product", ...body });
-    if (req.method === "POST" && path === "/v1/checkout/sessions") return json(200, { id: "cs_mock1", object: "checkout.session", url: "https://checkout.elapse.dev/c/cs_mock1", ...body });
+    if (req.method === "POST" && path === "/v1/checkout/sessions") return json(200, { id: "cs_mock1", object: "checkout.session", url: "https://checkout.elapse.finance/c/cs_mock1", ...body });
     if (req.method === "GET" && path.startsWith("/v1/events")) {
       return json(200, { object: "list", has_more: false, data: [
         { id: "evt_1", object: "event", type: "subscription.created", created: 1756800000, livemode: false, pending_webhooks: 0, data: { object: {} } },

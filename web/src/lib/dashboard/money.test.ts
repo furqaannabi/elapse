@@ -17,7 +17,7 @@ describe("mock dashboard api — customers, invoices, ledger", () => {
     localStorage.clear();
     resetMockDashboardApi();
     api = createMockDashboardApi({ now: () => now, latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
   });
 
@@ -72,7 +72,7 @@ describe("mock dashboard api — settings, notifications, activity", () => {
     localStorage.clear();
     resetMockDashboardApi();
     api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
   });
 
@@ -93,7 +93,7 @@ describe("mock dashboard api — settings, notifications, activity", () => {
     expect(m.payoutAddress).toBe(addr);
     const log = await api.listActivity({});
     expect(log[0]!.action).toBe("payout_address.changed");
-    expect(log[0]!.actor).toBe("demo@elapse.dev");
+    expect(log[0]!.actor).toBe("demo@elapse.finance");
     expect(JSON.stringify(log)).not.toMatch(/sk_test_[A-Za-z0-9]{8}/);
   });
 

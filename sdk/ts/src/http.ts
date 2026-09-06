@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ElapseAPIError, ElapseAuthenticationError, ElapseError, ElapseInvalidRequestError, ElapseRateLimitError } from "./errors";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.1.1";
 
 /** Per-request options accepted as the last argument of every method (FR-SDK-014). */
 export interface RequestOptions {

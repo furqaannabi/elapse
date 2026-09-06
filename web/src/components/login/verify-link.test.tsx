@@ -21,15 +21,15 @@ describe("VerifyLink (FR-DSH-011)", () => {
 
   it("opens the session and goes to the requested page", async () => {
     const api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     render(<VerifyLink api={api} token={devToken} next="/dashboard/products" />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard/products"));
-    await expect(api.me()).resolves.toMatchObject({ email: "demo@elapse.dev" });
+    await expect(api.me()).resolves.toMatchObject({ email: "demo@elapse.finance" });
   });
 
   it("only allows dashboard paths as next", async () => {
     const api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     render(<VerifyLink api={api} token={devToken} next="https://evil.example" />);
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
@@ -37,7 +37,7 @@ describe("VerifyLink (FR-DSH-011)", () => {
   it("names an expired link and offers the way back", async () => {
     let now = 1_756_800_000_000;
     const api = createMockDashboardApi({ now: () => now, latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     now += 16 * 60_000;
     render(<VerifyLink api={api} token={devToken} />);
     expect(await screen.findByText(/this link has expired/i)).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("VerifyLink (FR-DSH-011)", () => {
 
   it("names a used link", async () => {
     const api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
     await api.signOut();
     render(<VerifyLink api={api} token={devToken} />);

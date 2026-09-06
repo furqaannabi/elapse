@@ -27,9 +27,6 @@ export function SiteFooter() {
           <Link href={links.dashboard} className="text-ink-soft hover:text-foreground">
             Dashboard
           </Link>
-          <a href={links.status} className="text-ink-soft hover:text-foreground">
-            Status
-          </a>
           <a href={links.x} className="text-ink-soft hover:text-foreground">
             X
           </a>

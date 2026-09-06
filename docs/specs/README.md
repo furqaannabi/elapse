@@ -23,7 +23,7 @@ Spec-driven development for the whole project. **No code without a signed spec.*
 | `FR-WRK-nnn` | Webhook worker and keeper |
 | `FR-SDK-nnn` | `@elapse/sdk` TypeScript (and `elapse` Python stretch) |
 | `FR-CLI-nnn` | `@elapse/cli` (`listen --forward`, login, resend) |
-| `FR-DOC-nnn` | Docs site (docs.elapse.dev) |
+| `FR-DOC-nnn` | Docs site (docs.elapse.finance) |
 | `FR-EXM-nnn` | `examples/saas` reference merchant |
 | `BR-xxx-nnn` | Business rules the surface must enforce (money, security, copy) |
 

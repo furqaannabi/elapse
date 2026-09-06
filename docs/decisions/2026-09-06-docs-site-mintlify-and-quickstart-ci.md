@@ -6,7 +6,7 @@ Week 4 item "OpenAPI into the docs site" found no docs site at all: `docs/` hold
 OpenAPI document exists only at runtime on the API with 52 operations (dashboard, subscriber,
 CLI, key and endpoint management included), `examples/saas` is a README stub, and the repo has
 no CI. The docs FRD left five items undecided. Two facts shaped the answers: the published
-`@elapse/sdk@0.1.0` defaults to `https://api.elapse.dev`, which does not resolve, because
+`@elapse/sdk@0.1.0` defaults to `https://api.elapse.finance`, which does not resolve, because
 William owns only `elapse-monad.vercel.app` today; and Quickstart steps 2–6 (install, create a
 Product, create a Checkout session, receive one Delivery, verify it) never touch the chain, so
 they can run without testnet funds or a shared key. Weighed: Mintlify against Fumadocs/Nextra
@@ -26,7 +26,7 @@ HTTP endpoint at the example server, the endpoint's test call, worker delivers),
 **`examples/saas` first, docs second**, so no docs snippet is hand-typed; Mintlify cannot include
 source files, so a sync script writes committed snippet MDX with a freshness check. The nav entry
 **"Test clocks" becomes "Testing"** (test mode, demo-rate recipe, CLI forwarding, test delivery).
-Every snippet **passes `baseUrl` explicitly**; `api.elapse.dev` and `docs.elapse.dev` are never
+Every snippet **passes `baseUrl` explicitly**; `api.elapse.finance` and `docs.elapse.finance` are never
 written as live URLs until registered. The reference's **try-it panel is on** with bearer test
 keys; the API adds CORS for the docs origin and refuses live keys from a browser origin.
 
@@ -40,7 +40,7 @@ keys; the API adds CORS for the docs origin and refuses live keys from a browser
   snippets run, not that the hosted API is up, which is monitoring's job.
 - The examples FRD must be grilled and signed before PR 1; it gains `ELAPSE_API_URL`.
 - The nine-entry nav deviates from the detailed doc by one name; the page's purpose is kept.
-- Watch: the hosted API URL is unknown on this date and blocks going live; when `elapse.dev`
+- Watch: the hosted API URL is unknown on this date and blocks going live; when `elapse.finance`
   lands, a new SDK release restores the default and the explicit `baseUrl` leaves the snippets.
 - Supplements [ADR 2026-09-06 CLI](./2026-09-06-cli-transport-and-session.md), which took
   test clocks out and foresaw the "Testing" rename.

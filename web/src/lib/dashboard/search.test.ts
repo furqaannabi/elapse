@@ -8,7 +8,7 @@ describe("resolveSearch (FR-DSH-005)", () => {
     localStorage.clear();
     resetMockDashboardApi();
     api = createMockDashboardApi({ latencyMs: 0 });
-    const { devToken } = await api.requestMagicLink("demo@elapse.dev");
+    const { devToken } = await api.requestMagicLink("demo@elapse.finance");
     await api.verifyMagicLink(devToken);
   });
 

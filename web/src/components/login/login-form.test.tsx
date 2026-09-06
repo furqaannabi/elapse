@@ -24,10 +24,10 @@ describe("LoginForm (FR-DSH-010)", () => {
     const user = userEvent.setup();
     const api = createMockDashboardApi({ latencyMs: 0 });
     render(<LoginForm api={api} />);
-    await user.type(screen.getByLabelText(/email/i), "demo@elapse.dev");
+    await user.type(screen.getByLabelText(/email/i), "demo@elapse.finance");
     await user.click(screen.getByRole("button", { name: /send/i }));
     expect(await screen.findByText(/check your inbox/i)).toBeInTheDocument();
-    expect(screen.getByText("demo@elapse.dev")).toBeInTheDocument();
+    expect(screen.getByText("demo@elapse.finance")).toBeInTheDocument();
   });
 
   it("rejects an invalid email with a named problem", async () => {
@@ -44,7 +44,7 @@ describe("LoginForm (FR-DSH-010)", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const api = createMockDashboardApi({ latencyMs: 0 });
     render(<LoginForm api={api} />);
-    await user.type(screen.getByLabelText(/email/i), "demo@elapse.dev");
+    await user.type(screen.getByLabelText(/email/i), "demo@elapse.finance");
     await user.click(screen.getByRole("button", { name: /send/i }));
     const resend = await screen.findByRole("button", { name: /resend/i });
     expect(resend).toBeDisabled();

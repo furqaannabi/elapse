@@ -130,7 +130,7 @@ describe("FR-CLI-022 products and checkout", () => {
   test("checkout create sends product and urls and prints session.url", async () => {
     expect(await main(["checkout", "create", "--product", "prod_mock1", "--success-url", "https://acme.test/ok", "--cancel-url", "https://acme.test/no"], withKey())).toBe(0);
     expect(platform.requests.at(-1)!.body).toEqual({ product: "prod_mock1", success_url: "https://acme.test/ok", cancel_url: "https://acme.test/no" });
-    expect(out.join("\n")).toContain("https://checkout.elapse.dev/c/cs_mock1");
+    expect(out.join("\n")).toContain("https://checkout.elapse.finance/c/cs_mock1");
     out = [];
     expect(await main(["checkout", "create", "--product", "prod_mock1", "--success-url", "https://acme.test/ok", "--cancel-url", "https://acme.test/no", "--json"], withKey())).toBe(0);
     expect(JSON.parse(out.join("\n")).id).toBe("cs_mock1");

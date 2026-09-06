@@ -55,7 +55,7 @@ describe("Home", () => {
   });
 
   it("shows the overview once the checklist is complete (FR-DSH-021/022/023)", async () => {
-    const m = await signIn(api, "demo@elapse.dev");
+    const m = await signIn(api, "demo@elapse.finance");
     mount(api, m);
     expect(await screen.findByRole("heading", { name: /running now/i })).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: /first steps/i })).not.toBeInTheDocument();
@@ -70,7 +70,7 @@ describe("Home", () => {
   });
 
   it("scopes the overview by mode (FR-DSH-004)", async () => {
-    const m = await signIn(api, "demo@elapse.dev");
+    const m = await signIn(api, "demo@elapse.finance");
     setMode("live");
     mount(api, m);
     expect(await screen.findByRole("heading", { name: /running now/i })).toBeInTheDocument();

@@ -44,7 +44,7 @@ async function shot(page, name, full = false) {
 for (const [label, opts] of [["desktop", desktop], ["mobile", mobile]]) {
   const { ctx, page } = await open(opts, "/login");
   await shot(page, `login-${label}`);
-  await page.getByLabel("Email").fill("demo@elapse.dev");
+  await page.getByLabel("Email").fill("demo@elapse.finance");
   await page.getByRole("button", { name: /send sign-in link/i }).click();
   await page.getByText(/check your inbox/i).waitFor();
   await page.waitForTimeout(300);

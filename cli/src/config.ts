@@ -14,7 +14,7 @@ export interface Profile {
   livemode: boolean;
 }
 
-export const DEFAULT_BASE_URL = "https://api.elapse.dev";
+export const DEFAULT_BASE_URL = "https://api.elapse.finance";
 
 export function defaultConfigDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(env.XDG_CONFIG_HOME ?? join(homedir(), ".config"), "elapse");
