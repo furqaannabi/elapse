@@ -39,7 +39,9 @@ export function FaceIdSheet({
   const flow = useAuthFlow();
   // The flow object changes identity as Privy's hooks re-render; the scan must run once per step, not per render.
   const flowRef = useRef(flow);
-  flowRef.current = flow;
+  useEffect(() => {
+    flowRef.current = flow;
+  });
   const [step, setStep] = useState<"choose" | "scanning" | "email" | "code" | "offer">(resume ? "offer" : flow.passkeyFirst ? "choose" : "email");
   const [result, setResult] = useState<AuthResult | null>(resume ?? null);
   const [email, setEmail] = useState("");

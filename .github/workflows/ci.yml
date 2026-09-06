@@ -47,7 +47,7 @@ jobs:
       - name: Example merchant
         run: pnpm --filter elapse-example-saas typecheck && pnpm --filter elapse-example-saas test
       - name: Web
-        run: pnpm --filter web typecheck && pnpm --filter web test
+        run: pnpm --filter web lint && pnpm --filter web typecheck && pnpm --filter web test
       - name: API (includes the committed openapi.json freshness test)
         working-directory: api
         env:

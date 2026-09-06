@@ -21,7 +21,7 @@ import {
   usePrivy,
   useWallets,
 } from "@privy-io/react-auth";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AuthFlowProvider, type AuthFlow, type AuthResult } from "../auth-flow";
 import { setSubscriberWallet } from "../client";
 import { monad, monadTestnet } from "./chains";
@@ -54,12 +54,23 @@ const stripOAuthParams = () => {
     /* not in a browser */
   }
 };
+const FACE_ID_EVENT = "elapse:faceid";
+/** Subscribes `useSyncExternalStore` to the flag: this tab's writes and other tabs' storage events. */
+const subscribeFaceIdFlag = (onChange: () => void) => {
+  window.addEventListener(FACE_ID_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(FACE_ID_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+};
 const writeFaceIdFlag = () => {
   try {
     localStorage.setItem(FACE_ID_KEY, "1");
   } catch {
     /* private mode: the next visit simply starts with email again */
   }
+  window.dispatchEvent(new Event(FACE_ID_EVENT));
 };
 
 export function PrivyCheckout({ children }: { children: ReactNode }) {
@@ -88,12 +99,9 @@ function PrivyAuthFlow({ children }: { children: ReactNode }) {
   const { wallets } = useWallets();
   const { createWallet } = useCreateWallet();
   const pending = useRef<Pending | null>(null);
-  const [passkeyFirst, setPasskeyFirst] = useState(false);
+  // Read from the device flag, false on the server so hydration matches; writes notify through the store.
+  const passkeyFirst = useSyncExternalStore(subscribeFaceIdFlag, readFaceIdFlag, () => false);
   const [resumed, setResumed] = useState<AuthResult | null>(null);
-  const [walletReady, setWalletReady] = useState(false);
-  useEffect(() => {
-    setPasskeyFirst(readFaceIdFlag());
-  }, []);
 
   const fail = useCallback((e: unknown) => {
     pending.current?.reject(e instanceof Error ? e : new Error("Sign-in did not complete"));
@@ -133,7 +141,6 @@ function PrivyAuthFlow({ children }: { children: ReactNode }) {
   const { loginWithPasskey } = useLoginWithPasskey({
     onComplete: () => {
       writeFaceIdFlag();
-      setPasskeyFirst(true);
       void finish();
     },
     onError: (e) => fail(e),
@@ -142,7 +149,6 @@ function PrivyAuthFlow({ children }: { children: ReactNode }) {
   const { linkWithPasskey } = useLinkWithPasskey({
     onSuccess: () => {
       writeFaceIdFlag();
-      setPasskeyFirst(true);
       link.current?.resolve();
       link.current = null;
     },
@@ -167,17 +173,11 @@ function PrivyAuthFlow({ children }: { children: ReactNode }) {
 
   // A returning subscriber is already authenticated on load (Privy keeps its session): hand the
   // wallet over and let the page sign in silently. Also the safety net for the Google return.
+  const privyWallet = ready && authenticated ? wallets.find((x) => x.walletClientType === "privy") : undefined;
+  const walletReady = privyWallet !== undefined;
   useEffect(() => {
-    if (!ready || !authenticated) {
-      setWalletReady(false);
-      return;
-    }
-    const w = wallets.find((x) => x.walletClientType === "privy");
-    if (w) {
-      setSubscriberWallet(subscriberWalletFrom(w, CHAIN_ID));
-      setWalletReady(true);
-    }
-  }, [ready, authenticated, wallets]);
+    if (privyWallet) setSubscriberWallet(subscriberWalletFrom(privyWallet, CHAIN_ID));
+  }, [privyWallet]);
 
   const flow = useMemo<AuthFlow>(
     () => ({

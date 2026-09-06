@@ -11,7 +11,7 @@
 import { DashboardApiError as MockError, type DashboardApi, type WriteOpts } from "./mock-api";
 import { newIdempotencyKey } from "./idempotency";
 import type {
-  ApiKey, Attempt, AuditAction, AuditEntry, Balance, ChecklistState, Customer, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyList, KeyStatus, LedgerEntry, Merchant, Mode, Notification, NotificationKind, Overview, Product, Subscription, WebhookEndpoint,
+  ApiKey, Attempt, AuditAction, AuditEntry, Balance, ChecklistState, Customer, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyStatus, LedgerEntry, Merchant, Mode, Notification, NotificationKind, Overview, Product, Subscription, WebhookEndpoint,
 } from "./types";
 
 /**
@@ -414,7 +414,9 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
     async getDelivery(id) {
       const d = await call<WireDelivery>("GET", `/v1/deliveries/${id}`);
       const ev = await call<WireEvent>("GET", `/v1/events/${d.event}`);
-      const { deliveries: _omit, ...signed } = ev;
+      // The signed body is the event without the dashboard-only deliveries list.
+      const signed: Partial<WireEvent> = { ...ev };
+      delete signed.deliveries;
       const out = mapDelivery(d, JSON.stringify(signed));
       out.event.objectId = ev.object_id ?? "";
       return out;

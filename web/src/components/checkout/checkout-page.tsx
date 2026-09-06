@@ -122,9 +122,12 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
 
   // Back from a Google redirect: the sheet reopens on the Face ID offer, then signs in as usual.
   const resumed = flow.resumed ?? null;
-  useEffect(() => {
-    if (resumed) setAuthOpen(true);
-  }, [resumed]);
+  // Derived during render, the "adjust state when a prop changes" pattern: each new resume opens the sheet once.
+  const [openedFor, setOpenedFor] = useState<typeof resumed>(null);
+  if (resumed && resumed !== openedFor) {
+    setOpenedFor(resumed);
+    setAuthOpen(true);
+  }
 
   // Privy still holds a session on this device: sign the page in silently (no sheet, no Face ID).
   const signedInAlready = flow.signedInAlready ?? false;
@@ -133,7 +136,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
     if (!signedInAlready || resumed || silent.current) return;
     if (load.status !== "ready" || load.session.customer || load.session.signedIn) return;
     silent.current = true;
-    void run(() => api.signIn(sessionId, {}));
+    // Reacting to Privy's session is a real effect; the sign-in is kicked off asynchronously so no state is set inside the effect itself.
+    void Promise.resolve().then(() => run(() => api.signIn(sessionId, {})));
   }, [signedInAlready, resumed, load, api, sessionId, run]);
 
   if (load.status === "loading") {
