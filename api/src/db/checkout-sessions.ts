@@ -50,3 +50,10 @@ export async function findCheckoutSession(merchantId: string, livemode: boolean,
   if (r.status === "open" && r.expires_at.getTime() <= Date.now()) r.status = "expired";
   return r;
 }
+
+/** Unscoped lookup for the hosted page, whose only credential is the id (capability auth). */
+export async function findCheckoutSessionById(id: string): Promise<CheckoutSessionRow | null> {
+  const [row] = await sql`
+    SELECT ${COLS} FROM checkout_sessions WHERE id = ${id}`;
+  return (row as CheckoutSessionRow) ?? null;
+}

@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { config } from "../config";
-import { findCheckoutSession, insertCheckoutSession, type CheckoutSessionRow } from "../db/checkout-sessions";
+import { findCheckoutSession, findCheckoutSessionById, insertCheckoutSession, type CheckoutSessionRow } from "../db/checkout-sessions";
+import { judgeDeliveryLog } from "../db/deliveries";
 import { getMerchantBranding, type MerchantBranding } from "../db/merchants";
 import { findProduct, type ProductRow } from "../db/products";
 import { ApiError, invalid, notFound } from "../lib/errors";
@@ -11,7 +12,7 @@ import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancel
 import { PERMIT_TYPES } from "../chain/permit";
 import { baseUnitsToDecimal } from "../lib/money";
 import { router } from "../lib/openapi";
-import { merchantAuth, requireAuth, type AuthEnv } from "../middleware/auth";
+import { merchantAuth, requireAuth, type AnyAuth, type Auth, type CheckoutAuthEnv } from "../middleware/auth";
 import { ProductSchema, serializeProduct } from "./products";
 
 /**
@@ -192,7 +193,15 @@ export function serializePublicSession(
   };
 }
 
-export const checkoutSessions = router<AuthEnv>();
+export const checkoutSessions = router<CheckoutAuthEnv>();
+
+/** The hosted page holds only the id (capability auth); merchants and the dashboard are scoped by mode. */
+async function loadSession(auth: AnyAuth, id: string): Promise<CheckoutSessionRow> {
+  const row = auth.via === "checkout" ? await findCheckoutSessionById(id) : await findCheckoutSession(auth.merchantId, auth.livemode, id);
+  if (!row) throw notFound("checkout session", id);
+  return row;
+}
+const isPage = (auth: AnyAuth) => auth.via === "checkout" || (auth.via === "key" && auth.keyKind === "pk");
 
 checkoutSessions.openapi(
   createRoute({
@@ -208,7 +217,7 @@ checkoutSessions.openapi(
   }),
   async (c) => {
     const body = c.req.valid("json");
-    const auth = c.get("auth");
+    const auth = c.get("auth") as Auth;
     for (const param of ["success_url", "cancel_url"] as const) {
       const r = urlField(auth.livemode, param).safeParse(body[param]);
       if (!r.success) throw invalid(`Invalid ${param}: ${r.error.issues[0]!.message}`, param);
@@ -236,11 +245,11 @@ checkoutSessions.openapi(
     path: "/checkout/sessions/{id}",
     operationId: "checkout.sessions.retrieve",
     tags: ["Checkout"],
-    middleware: [requireAuth({ keys: ["sk", "pk"], session: true })] as const,
+    middleware: [requireAuth({ keys: ["sk", "pk"], session: true, checkout: true })] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: {
       200: {
-        description: "Full object with a secret key; public projection with a publishable key.",
+        description: "Full object with a secret key; public projection with a publishable key or from the hosted page.",
         content: { "application/json": { schema: z.union([CheckoutSessionSchema, PublicCheckoutSessionSchema]) } },
       },
     },
@@ -248,13 +257,12 @@ checkoutSessions.openapi(
   async (c) => {
     const { id } = c.req.valid("param");
     const auth = c.get("auth");
-    const row = await findCheckoutSession(auth.merchantId, auth.livemode, id);
-    if (!row) throw notFound("checkout session", id);
-    const product = (await findProduct(auth.merchantId, auth.livemode, row.product_id))!;
-    const merchant = (await getMerchantBranding(auth.merchantId))!;
-    if (auth.via === "key" && auth.keyKind === "pk") {
-      const sub = row.subscription_id ? await findSubscription(auth.merchantId, auth.livemode, row.subscription_id) : null;
-      const cus = row.customer_id ? await findCustomer(auth.merchantId, auth.livemode, row.customer_id) : null;
+    const row = await loadSession(auth, id);
+    const product = (await findProduct(row.merchant_id, row.livemode, row.product_id))!;
+    const merchant = (await getMerchantBranding(row.merchant_id))!;
+    if (isPage(auth)) {
+      const sub = row.subscription_id ? await findSubscription(row.merchant_id, row.livemode, row.subscription_id) : null;
+      const cus = row.customer_id ? await findCustomer(row.merchant_id, row.livemode, row.customer_id) : null;
       return c.json(serializePublicSession(row, product, merchant, sub, cus ? { id: cus.id, email: cus.email } : null), 200);
     }
     return c.json(serializeSession(row, product, merchant), 200);
@@ -302,7 +310,23 @@ function mapCheckoutError(e: unknown): never {
     throw new ApiError(status, "invalid_request_error", e.message, undefined, e.code);
   }
   if (e instanceof RelayerUnavailable) throw new ApiError(503, "api_error", "Starting sessions is temporarily unavailable.");
+  if (isRelayerOutOfGas(e)) {
+    console.error("relayer out of gas", { message: (e as Error).message.split("\n")[0] });
+    throw new ApiError(503, "api_error", "We can't start meters right now. Nothing has been charged; please try again in a few minutes.", undefined, "relayer_unfunded");
+  }
   throw e;
+}
+
+/** viem surfaces the node's "insufficient balance" for the sender inside the error chain. */
+function isRelayerOutOfGas(e: unknown): boolean {
+  let cur: unknown = e;
+  for (let i = 0; i < 6 && cur; i++) {
+    const msg = (cur as { message?: string; details?: string }).message ?? "";
+    const det = (cur as { details?: string }).details ?? "";
+    if (/insufficient (balance|funds)/i.test(msg) || /insufficient (balance|funds)/i.test(det)) return true;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 checkoutSessions.openapi(
@@ -312,16 +336,14 @@ checkoutSessions.openapi(
     operationId: "checkout.sessions.prepare",
     tags: ["Checkout"],
     hide: true,
-    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
     request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: PrepareBody } }, required: true } },
     responses: { 200: { description: "Customer, incomplete Subscription and the permit to sign.", content: { "application/json": { schema: PrepareResponse } } } },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
-    const auth = c.get("auth");
-    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
-    if (!session) throw notFound("checkout session", id);
+    const session = await loadSession(c.get("auth"), id);
     try {
       const out = await prepareSession({ session, walletAddress: body.wallet_address, email: body.email ?? null, maxDurationSeconds: body.max_duration_seconds });
       return c.json({ ...out, permit: { ...out.permit, types: PERMIT_TYPES as unknown as { Permit: { name: string; type: string }[] } } }, 200);
@@ -338,16 +360,14 @@ checkoutSessions.openapi(
     operationId: "checkout.sessions.start",
     tags: ["Checkout"],
     hide: true,
-    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
     request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: StartBody } }, required: true } },
     responses: { 202: { description: "Submitted; `active` arrives when the chain confirms.", content: { "application/json": { schema: StartResponse } } } },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
     const { signature } = c.req.valid("json");
-    const auth = c.get("auth");
-    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
-    if (!session) throw notFound("checkout session", id);
+    const session = await loadSession(c.get("auth"), id);
     try {
       return c.json(await startSession({ session, signature }), 202);
     } catch (e) {
@@ -377,15 +397,13 @@ checkoutSessions.openapi(
     operationId: "checkout.sessions.cancel.prepare",
     tags: ["Checkout"],
     hide: true,
-    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: "The message the subscriber's wallet signs to stop the meter.", content: { "application/json": { schema: CancelPrepareResponse } } } },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
-    const auth = c.get("auth");
-    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
-    if (!session) throw notFound("checkout session", id);
+    const session = await loadSession(c.get("auth"), id);
     try {
       return c.json(await prepareCancel({ session }), 200);
     } catch (e) {
@@ -401,20 +419,41 @@ checkoutSessions.openapi(
     operationId: "checkout.sessions.cancel",
     tags: ["Checkout"],
     hide: true,
-    middleware: [requireAuth({ keys: ["pk"], session: false })] as const,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
     request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: CancelBody } }, required: true } },
     responses: { 202: { description: "Submitted; `canceled` and the receipt arrive when the chain confirms.", content: { "application/json": { schema: StartResponse } } } },
   }),
   async (c) => {
     const { id } = c.req.valid("param");
     const { signature, deadline } = c.req.valid("json");
-    const auth = c.get("auth");
-    const session = await findCheckoutSession(auth.merchantId, auth.livemode, id);
-    if (!session) throw notFound("checkout session", id);
+    const session = await loadSession(c.get("auth"), id);
     try {
       return c.json(await cancelSubscription({ session, signature, deadline }), 202);
     } catch (e) {
       mapCheckoutError(e);
     }
+  },
+);
+
+// ─── Judge mode: this session's delivery log (checkout FR-CHK-011, worker FR-WRK-061) ─────
+
+const JudgeDeliverySchema = z.object({ id: z.string(), type: z.string(), status: z.number().int().nullable(), attempt: z.number().int(), at: z.number().int() });
+
+checkoutSessions.openapi(
+  createRoute({
+    method: "get",
+    path: "/checkout/sessions/{id}/deliveries",
+    operationId: "checkout.sessions.deliveries",
+    tags: ["Checkout"],
+    hide: true,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: { 200: { description: "Webhook deliveries for this session's subscription: type, last status, attempt, time. Never URLs or secrets.", content: { "application/json": { schema: z.object({ object: z.literal("list"), data: z.array(JudgeDeliverySchema) }) } } } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const session = await loadSession(c.get("auth"), id);
+    const data = session.subscription_id ? await judgeDeliveryLog(session.subscription_id) : [];
+    return c.json({ object: "list" as const, data }, 200);
   },
 );

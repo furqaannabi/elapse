@@ -14,12 +14,24 @@ export interface Auth {
   livemode: boolean;
   /** `api_key:<id>` or `dashboard`, for the audit log (FR-API-006, FR-API-102). */
   actor: string;
-  via: "key" | "session";
+  via: "key" | "session" | "checkout";
   /** Set when `via === "key"`. */
   keyKind?: KeyKind;
   /** Set when `via === "session"`. */
   sessionId?: string;
 }
+
+/**
+ * The hosted checkout page sends no key: the session id is the pass, accepted only from the
+ * checkout origin (decided 2026-09-05, William, option a; Stripe Checkout model). The handler
+ * loads the session by id and takes merchant and mode from the row.
+ */
+export interface CheckoutAuth {
+  via: "checkout";
+  origin: string;
+}
+export type AnyAuth = Auth | CheckoutAuth;
+export type CheckoutAuthEnv = { Variables: { auth: AnyAuth } };
 
 export type AuthEnv = { Variables: { auth: Auth } };
 
@@ -28,6 +40,8 @@ export interface AuthRule {
   keys: readonly KeyKind[];
   /** Whether the dashboard session cookie may pass (FR-API-102). */
   session: boolean;
+  /** Whether the hosted checkout page may pass with no key from the checkout origin. */
+  checkout?: boolean;
 }
 
 /**
@@ -37,9 +51,20 @@ export interface AuthRule {
  * method, requires `Origin` to be the dashboard's (CSRF) → 403 otherwise.
  * Every failure is one 401 message so the response does not say which.
  */
+export function checkoutOrigin(): string {
+  return new URL(config.checkoutBaseUrl).origin;
+}
+
 export function requireAuth(rule: AuthRule) {
-  return createMiddleware<AuthEnv>(async (c, next) => {
+  return createMiddleware<CheckoutAuthEnv>(async (c, next) => {
     const header = c.req.header("authorization");
+    if (header === undefined && rule.checkout) {
+      const origin = c.req.header("origin");
+      if (origin && origin === checkoutOrigin()) {
+        c.set("auth", { via: "checkout", origin });
+        return next();
+      }
+    }
     if (header !== undefined) {
       if (rule.keys.length === 0) throw unauthorized();
       const m = /^Bearer\s+(\S+)$/i.exec(header);

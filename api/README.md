@@ -69,8 +69,9 @@ signature recovers to that wallet, mints MockUSD in test mode when the wallet is
 `StreamFactory.createWithPermit` through the relayer and records `pending_tx`. `active` arrives
 from ingest. The relayer needs `RELAYER_PRIVATE_KEY` (MON for gas, never AUSD), `MONAD_RPC_URL`,
 `CHAIN_ID`; without them `start` answers 503. The merchant must have a payout address.
-Platform chore (Undecided 4): keep the relayer topped up from the testnet faucet, roughly 5 MON per
-12 hours for about 100 checkouts a day. `pnpm sync-deployments` refreshes `deployments/<chainId>.json`.
+Platform chore (Undecided 4): keep the relayer topped up from the testnet faucet. Measured 2026-09-06 at
+~100 gwei: a checkout (mint + `createWithPermit`) costs about 0.1 MON, so one 5 MON claim is ~50 checkouts.
+An empty relayer answers `503 relayer_unfunded`; the page says nothing was charged. `pnpm sync-deployments` refreshes `deployments/<chainId>.json`.
 
 ## Proven live (2026-09-05, Monad testnet)
 

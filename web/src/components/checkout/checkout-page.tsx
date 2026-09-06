@@ -15,11 +15,11 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
-import { getCheckoutApi } from "@/lib/checkout/client";
+import { getCheckoutApi, usesRealApi } from "@/lib/checkout/client";
 import {
   CheckoutApiError,
   buildReceipt,
@@ -38,7 +38,8 @@ import { MeterView } from "./meter-view";
 import { RatePanel } from "./rate-panel";
 import { Receipt } from "./receipt";
 import { CheckoutSkeleton, StateNotice } from "./state-notice";
-import { ScanFace } from "lucide-react";
+import { Mail, ScanFace } from "lucide-react";
+import { useAuthFlow } from "@/lib/checkout/auth-flow";
 
 type Load =
   | { status: "loading" }
@@ -46,7 +47,10 @@ type Load =
   | { status: "ready"; session: CheckoutSession };
 
 export function CheckoutPage({ sessionId }: { sessionId: string }) {
-  const api = getCheckoutApi();
+  const api = getCheckoutApi(sessionId);
+  const real = usesRealApi(sessionId);
+  const flow = useAuthFlow();
+  const passkeyFirst = flow.passkeyFirst;
   const params = useSearchParams();
   const router = useRouter();
   const [load, setLoad] = useState<Load>({ status: "loading" });
@@ -116,6 +120,22 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
     [api, sessionId, run],
   );
 
+  // Back from a Google redirect: the sheet reopens on the Face ID offer, then signs in as usual.
+  const resumed = flow.resumed ?? null;
+  useEffect(() => {
+    if (resumed) setAuthOpen(true);
+  }, [resumed]);
+
+  // Privy still holds a session on this device: sign the page in silently (no sheet, no Face ID).
+  const signedInAlready = flow.signedInAlready ?? false;
+  const silent = useRef(false);
+  useEffect(() => {
+    if (!signedInAlready || resumed || silent.current) return;
+    if (load.status !== "ready" || load.session.customer || load.session.signedIn) return;
+    silent.current = true;
+    void run(() => api.signIn(sessionId, {}));
+  }, [signedInAlready, resumed, load, api, sessionId, run]);
+
   if (load.status === "loading") {
     return (
       <CheckoutFrame merchant={{ name: " " }}>
@@ -178,8 +198,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
           <RatePanel product={session.product} />
           <div className="mt-auto flex flex-col gap-2 pt-2">
             <Button size="lg" onClick={() => setAuthOpen(true)} className="h-12 w-full text-base">
-              <ScanFace data-icon="inline-start" className="size-5" />
-              Continue with Face ID
+              {passkeyFirst ? <ScanFace data-icon="inline-start" className="size-5" /> : <Mail data-icon="inline-start" className="size-5" />}
+              {passkeyFirst ? "Continue with Face ID" : "Continue with email"}
             </Button>
             <a
               href={session.merchant.cancelUrl}
@@ -193,6 +213,7 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             onOpenChange={setAuthOpen}
             merchantName={session.merchant.name}
             onAuthenticated={onAuthenticated}
+            resume={resumed}
           />
         </div>
       )}
@@ -273,18 +294,22 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
           merchant={session.merchant}
           successHref={successHref}
           maxDurationSeconds={session.subscription?.maxDurationSeconds}
-          onStartAgain={startAgain}
+          onStartAgain={real ? undefined : startAgain}
           startBusy={busy}
           emailBusy={busy}
-          onEmail={async () => {
-            setBusy(true);
-            try {
-              await api.emailReceipt(sessionId, session.customer?.email ?? "");
-              toast.success("Receipt sent");
-            } finally {
-              setBusy(false);
-            }
-          }}
+          onEmail={
+            real
+              ? undefined
+              : async () => {
+                  setBusy(true);
+                  try {
+                    await api.emailReceipt(sessionId, session.customer?.email ?? "");
+                    toast.success("Receipt sent");
+                  } finally {
+                    setBusy(false);
+                  }
+                }
+          }
         />
       )}
 

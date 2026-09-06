@@ -129,3 +129,20 @@ describe("deriveView", () => {
     expect(deriveView(s, NOW)).toBe("canceled");
   });
 });
+
+describe("deriveView with the real API's session states", () => {
+  it("a complete session with a running meter is running, not used (FR-API-033)", async () => {
+    const { deriveView } = await import("./view");
+    const now = 1_757_000_000_000;
+    const session = {
+      id: "cs_x" as const, status: "complete" as const, expiresAt: now + 3_600_000,
+      merchant: { name: "N", successUrl: "https://n.example/ok", cancelUrl: "https://n.example/no" },
+      product: { id: "prod_1" as const, name: "GPU", rateUsdPerSecond: "0.004", allowPause: false, status: "active" as const },
+      customer: { id: "cus_1" as const },
+      subscription: { id: "sub_1" as const, status: "active" as const, startedAt: now - 10_000, pausedAt: null, canceledAt: null, maxDurationSeconds: 3600, fundedUsd: "14.4", rateUsdPerSecond: "0.004" },
+    };
+    expect(deriveView(session, now)).toBe("running");
+    expect(deriveView({ ...session, subscription: { ...session.subscription, status: "paused" as const, pausedAt: now - 1000 } }, now)).toBe("paused");
+    expect(deriveView({ ...session, subscription: null }, now)).toBe("used");
+  });
+});

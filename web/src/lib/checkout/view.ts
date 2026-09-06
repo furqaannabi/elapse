@@ -22,8 +22,12 @@ export function deriveView(session: CheckoutSession, now: number): CheckoutView 
 
   const sub = session.subscription;
   if (sub?.status === "canceled") return "canceled";
-  if (session.status === "complete") return "used";
-  if (!session.customer) return "signin";
+  // The API marks a session `complete` the moment its meter starts (FR-API-033); a running or
+  // paused meter is still this subscriber's, so "already used" is only a complete session
+  // whose meter is not live for them.
+  const live = sub?.status === "active" || sub?.status === "paused";
+  if (session.status === "complete" && !live) return "used";
+  if (!session.customer && !session.signedIn) return "signin";
 
   const funded = sub ? parseUsd(sub.fundedUsd) : 0n;
   if (!sub || funded <= 0n) return "cap";

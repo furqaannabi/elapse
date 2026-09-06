@@ -35,7 +35,8 @@ export function Receipt({
   maxDurationSeconds?: number;
   onStartAgain?: () => void;
   startBusy?: boolean;
-  onEmail: () => void;
+  /** Absent = the email receipt is not offered (the real API grows it in Week 4). */
+  onEmail?: () => void;
   emailBusy?: boolean;
 }) {
   const time = (ms: number) =>
@@ -90,16 +91,18 @@ export function Receipt({
           Back to {merchant.name}
           <ArrowRight data-icon="inline-end" className="size-4" />
         </a>
+        {onEmail && (
         <Button
-          variant="outline"
-          size="lg"
-          onClick={onEmail}
-          disabled={emailBusy}
-          className="h-12 w-full text-base"
-        >
-          <Mail data-icon="inline-start" className="size-4" />
-          {emailBusy ? "Sending…" : "Email receipt"}
-        </Button>
+            variant="outline"
+            size="lg"
+            onClick={onEmail}
+            disabled={emailBusy}
+            className="h-12 w-full text-base"
+          >
+            <Mail data-icon="inline-start" className="size-4" />
+            {emailBusy ? "Sending…" : "Email receipt"}
+          </Button>
+        )}
         <a
           href="/account"
           className="py-1 text-center text-xs !text-ink-soft underline-offset-3 hover:!text-foreground"

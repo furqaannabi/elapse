@@ -75,3 +75,26 @@ export async function requestResend(merchantId: string, livemode: boolean, id: s
   // Read after commit: the pool connection would not see the transaction's write.
   return flagged ? findDelivery(merchantId, livemode, id) : null;
 }
+
+/** Judge-mode delivery log for one subscription (checkout FR-CHK-011, worker FR-WRK-061): no URLs, no secrets. */
+export interface JudgeDelivery {
+  id: string;
+  type: string;
+  status: number | null;
+  attempt: number;
+  at: number;
+}
+
+export async function judgeDeliveryLog(subscriptionId: string): Promise<JudgeDelivery[]> {
+  const rows = await sql`
+    SELECT e.id, e.type, d.attempt,
+           (SELECT status_code FROM delivery_attempts a WHERE a.delivery_id = d.id ORDER BY a.sent_at DESC LIMIT 1) AS status,
+           extract(epoch FROM COALESCE((SELECT sent_at FROM delivery_attempts a WHERE a.delivery_id = d.id ORDER BY a.sent_at DESC LIMIT 1), e.created))::bigint AS at
+    FROM events e
+    JOIN chain_events ce ON ce.id = e.chain_event_id
+    JOIN deliveries d ON d.event_id = e.id
+    WHERE ce.subscription_id = ${subscriptionId}
+    ORDER BY e.seq DESC, d.id
+    LIMIT 50`;
+  return rows.map((r: any) => ({ id: r.id, type: r.type, status: r.status ?? null, attempt: r.attempt, at: Number(r.at) }));
+}

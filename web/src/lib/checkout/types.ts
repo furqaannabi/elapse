@@ -69,6 +69,11 @@ export type CheckoutSession = {
   subscription: Subscription | null;
   /** Epoch ms. */
   expiresAt: number;
+  /**
+   * The subscriber has signed in on this device but no Customer exists yet:
+   * the real API creates it at `prepare`, once a cap is chosen (FR-API-032).
+   */
+  signedIn?: boolean;
 };
 
 /** Everything the page can show. Derived, never stored. */

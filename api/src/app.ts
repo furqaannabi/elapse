@@ -1,4 +1,6 @@
+import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
+import { checkoutOrigin } from "./middleware/auth";
 import { ApiError } from "./lib/errors";
 import { router } from "./lib/openapi";
 import { apiKeys } from "./routes/api-keys";
@@ -20,6 +22,12 @@ import { webhookEndpoints } from "./routes/webhook-endpoints";
  * route schemas (FR-API-084).
  */
 export const app = router();
+
+// The hosted checkout page is the one browser client of the API today (decided 2026-09-05, option a).
+// Only its origin may call the session routes and the public status; merchants call from servers.
+const checkoutCors = cors({ origin: (o) => (o === checkoutOrigin() ? o : null), allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["content-type", "authorization"], maxAge: 600 });
+app.use("/v1/checkout/sessions/*", checkoutCors);
+app.use("/v1/status", checkoutCors);
 
 app.route("/v1", products);
 app.route("/v1", checkoutSessions);
