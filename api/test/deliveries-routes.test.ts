@@ -128,6 +128,39 @@ describe("FR-WRK-030/031 resend", () => {
     expect((await api("GET", `/v1/deliveries/${d!.id}`, { key: f.skTest })).body.status).toBe("succeeded");
   });
 
+  test("three resends number their attempts 2, 3, 4 and the summary counts every attempt made (found 2026-09-06)", async () => {
+    const e = await evt();
+    await run();
+    const [d] = await sql`SELECT id FROM deliveries WHERE event_id = ${e.id}`;
+    for (let i = 0; i < 3; i++) {
+      await api("POST", `/v1/deliveries/${d!.id}/resend`, { key: f.skTest });
+      await run();
+    }
+    const got = await api("GET", `/v1/deliveries/${d!.id}`, { key: f.skTest });
+    expect(got.body.attempts.map((a: any) => [a.n, a.manual])).toEqual([[1, false], [2, true], [3, true], [4, true]]);
+    expect(got.body.attempts_made).toBe(4);
+    // `attempt` still counts automatic attempts only; the schedule is untouched by resends.
+    expect(got.body.attempt).toBe(1);
+    const [{ endpoint_id }] = await sql`SELECT endpoint_id FROM deliveries WHERE id = ${d!.id}`;
+    const list = await api("GET", `/v1/webhook_endpoints/${endpoint_id}/deliveries`, { key: f.skTest });
+    expect(list.body.data.find((x: any) => x.id === d!.id)).toMatchObject({ attempts_made: 4, endpoint_disabled: false });
+  });
+
+  test("resend is refused on a disabled endpoint, and the event-level resend skips it (found 2026-09-06)", async () => {
+    const e = await evt();
+    await run();
+    const [d] = await sql`SELECT id, endpoint_id FROM deliveries WHERE event_id = ${e.id}`;
+    await api("POST", `/v1/webhook_endpoints/${d!.endpoint_id}`, { key: f.skTest, body: { disabled: true } });
+    const r = await api("POST", `/v1/deliveries/${d!.id}/resend`, { key: f.skTest });
+    expect(r.status).toBe(400);
+    expect(r.body.error.message).toContain("disabled");
+    const ev = await api("POST", `/v1/events/${e.id}/resend`, { key: f.skTest });
+    expect(ev.status).toBe(202);
+    expect(ev.body.data).toEqual([]);
+    expect((await api("GET", `/v1/deliveries/${d!.id}`, { key: f.skTest })).body).toMatchObject({ resend_requested: false, endpoint_disabled: true });
+    expect(await run()).toMatchObject({ claimed: 0 });
+  });
+
   test("a failed manual attempt does not touch the endpoint's failure streak", async () => {
     const e = await evt();
     await run();

@@ -125,10 +125,28 @@ describe("EndpointDetail", () => {
     expect(drawer).toHaveTextContent(/t=\d+,v1=/);
     expect(drawer).toHaveTextContent(/"type"/);
     expect(within(drawer).getAllByRole("listitem").length).toBeGreaterThanOrEqual(8);
+    expect(drawer).toHaveTextContent(`${exhausted.attempts.length} attempts`);
     await user.click(within(drawer).getByRole("button", { name: /^resend$/i }));
     await waitFor(() => expect(within(screen.getByRole("dialog")).getByText(/manual/i)).toBeInTheDocument());
     const after = await api.getDelivery(exhausted.id);
     expect(after.attempts.length).toBe(exhausted.attempts.length + 1);
+    // The header counts every attempt made, manual ones included (found 2026-09-06).
+    expect(screen.getByRole("dialog")).toHaveTextContent(`${exhausted.attempts.length + 1} attempts`);
+  });
+
+  it("a disabled endpoint's deliveries cannot be resent: the button is off and says why (found 2026-09-06)", async () => {
+    const user = userEvent.setup();
+    const m = await signIn(api);
+    const ep = await enabledEndpoint();
+    await api.updateEndpoint(ep.id, { disabled: true });
+    mount(api, m, <EndpointDetail endpointId={ep.id} />);
+    const log = await screen.findByRole("list", { name: /deliveries/i });
+    const first = (await api.listDeliveries(ep.id))[0]!;
+    await user.click(await within(log).findByText(first.event.id));
+    const drawer = await screen.findByRole("dialog");
+    expect(within(drawer).getByRole("button", { name: /^resend$/i })).toBeDisabled();
+    expect(drawer).toHaveTextContent(/endpoint is disabled/i);
+    await expect(api.resendDelivery(first.id)).rejects.toThrow(/disabled/);
   });
 
   it("sends a test event of a chosen type (FR-DSH-082)", async () => {

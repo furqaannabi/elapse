@@ -15,6 +15,9 @@ export interface DeliveryRow {
   event_type: string;
   event_created: Date;
   endpoint_url: string;
+  endpoint_disabled: boolean;
+  /** Every attempt row, automatic and manual; `attempt` counts automatic ones only (the schedule). */
+  attempts_made: number;
 }
 
 export interface AttemptRow {
@@ -29,9 +32,12 @@ export interface AttemptRow {
   response_excerpt: string | null;
 }
 
+export class EndpointDisabled extends Error {}
+
 const ATTEMPT_JSON = sql`(SELECT to_jsonb(a) - 'id' - 'delivery_id' FROM delivery_attempts a WHERE a.delivery_id = d.id ORDER BY a.sent_at DESC LIMIT 1)`;
 const COLS = sql`d.id, d.event_id, d.endpoint_id, e.merchant_id, e.livemode, d.status, d.attempt, d.next_attempt_at, d.created_at, d.manual_requested_at,
-  ${ATTEMPT_JSON} AS last_attempt, e.type AS event_type, e.created AS event_created, w.url AS endpoint_url`;
+  ${ATTEMPT_JSON} AS last_attempt, e.type AS event_type, e.created AS event_created, w.url AS endpoint_url, w.disabled AS endpoint_disabled,
+  (SELECT count(*)::int FROM delivery_attempts a WHERE a.delivery_id = d.id) AS attempts_made`;
 const FROM = sql`deliveries d JOIN events e ON e.id = d.event_id JOIN webhook_endpoints w ON w.id = d.endpoint_id`;
 
 /** Scoped through the event's merchant and mode, so foreign ids are 404s (FR-API-082). */
@@ -68,6 +74,11 @@ export async function listDeliveriesForEndpoint(
 /** FR-WRK-030: flag the delivery for one manual attempt; the worker picks it up on its next poll. Audit row (FR-WRK-031). */
 export async function requestResend(merchantId: string, livemode: boolean, id: string, actor: string): Promise<DeliveryRow | null> {
   const flagged = await sql.begin(async (tx) => {
+    // Disabled means nothing is sent, a Resend included (found 2026-09-06).
+    const [ep] = await tx`SELECT w.disabled FROM deliveries d JOIN events e ON e.id = d.event_id JOIN webhook_endpoints w ON w.id = d.endpoint_id
+      WHERE d.id = ${id} AND e.merchant_id = ${merchantId} AND e.livemode = ${livemode}`;
+    if (!ep) return false;
+    if (ep.disabled) throw new EndpointDisabled("This endpoint is disabled. Enable it to resend.");
     const [row] = await tx`
       UPDATE deliveries d SET manual_requested_at = now(), manual_requested_by = ${actor}, updated_at = now()
       FROM events e WHERE e.id = d.event_id AND d.id = ${id} AND e.merchant_id = ${merchantId} AND e.livemode = ${livemode}
@@ -120,7 +131,7 @@ export async function requestEventResend(merchantId: string, livemode: boolean, 
     const rows = await tx`
       UPDATE deliveries d SET manual_requested_at = now(), manual_requested_by = ${actor}, updated_at = now()
       FROM webhook_endpoints w
-      WHERE w.id = d.endpoint_id AND d.event_id = ${eventId}
+      WHERE w.id = d.endpoint_id AND d.event_id = ${eventId} AND w.disabled = false
         AND (w.kind = 'http' OR w.cli_connected_until > now())
       RETURNING d.id`;
     await tx`INSERT INTO audit_log (merchant_id, actor, action, target) VALUES (${merchantId}, ${actor}, 'event.resent', ${eventId})`;

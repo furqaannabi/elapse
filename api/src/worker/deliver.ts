@@ -129,9 +129,12 @@ async function send(job: Job, o: AttemptOptions, sentAt: Date) {
  */
 async function manualAttempt(job: Job, o: AttemptOptions, actor: string): Promise<AttemptResult> {
   const sentAt = o.now();
-  const n = job.attempt + 1;
   const { headers, statusCode, error, excerpt, durationMs, ok } = await send(job, o, sentAt);
+  let n = 0;
   await sql.begin(async (tx) => {
+    // Numbered after every attempt so far, automatic or manual, so three resends read 2, 3, 4 (found 2026-09-06).
+    const [{ next }] = await tx`SELECT COALESCE(MAX(n), 0) + 1 AS next FROM delivery_attempts WHERE delivery_id = ${job.id}`;
+    n = Number(next);
     await tx`INSERT INTO delivery_attempts (id, delivery_id, n, manual, actor, sent_at, duration_ms, status_code, error, request_headers, response_excerpt)
              VALUES (${newId("att")}, ${job.id}, ${n}, true, ${actor}, ${sentAt}, ${durationMs}, ${statusCode}, ${error}, ${headers}, ${excerpt})`;
     await tx`UPDATE deliveries SET locked_until = NULL, updated_at = now() WHERE id = ${job.id}`;

@@ -45,13 +45,24 @@ export function DeliveryDrawer({
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusChip tone={DELIVERY_TONE[d.status]}>{deliveryWord(d)}</StatusChip>
                 <span className="numerals text-[12px] text-ink-soft">
-                  attempt {d.attempt} / {d.maxAttempts}
+                  {d.attemptsMade} {d.attemptsMade === 1 ? "attempt" : "attempts"}
+                  {(d.status === "pending" || d.status === "failed") && ` · automatic ${d.attempt} / ${d.maxAttempts}`}
                 </span>
-                <Button variant="outline" size="sm" onClick={onResend} disabled={busy} className="ml-auto h-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onResend}
+                  disabled={busy || d.endpointDisabled}
+                  title={d.endpointDisabled ? "This endpoint is disabled. Enable it to resend." : undefined}
+                  className="ml-auto h-8"
+                >
                   <RotateCcw data-icon="inline-start" className="size-3.5" />
                   {busy ? "Sending…" : "Resend"}
                 </Button>
               </div>
+              {d.endpointDisabled && (
+                <p className="mt-2 text-[12px] text-ink-soft">This endpoint is disabled. Enable it to resend.</p>
+              )}
             </SheetHeader>
 
             <div className="flex flex-col gap-6 px-5 py-5">

@@ -410,6 +410,14 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
     rollUp(data, event.id);
   };
 
+  /** What the API serialises: every attempt counted, and whether the endpoint currently receives anything. */
+  const present = (data: MerchantData, d: Delivery): Delivery => ({
+    ...d,
+    attempts: [...d.attempts],
+    attemptsMade: d.attempts.length,
+    endpointDisabled: data.endpoints.find((e) => e.id === d.endpoint.id)?.disabled ?? false,
+  });
+
   const findEndpoint = (id: string): { data: MerchantData; endpoint: WebhookEndpoint } => {
     const m = current();
     for (const mode of ["test", "live"] as const) {
@@ -701,13 +709,13 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         data.deliveries
           .filter((d) => d.endpoint.id === endpointId && (!filter.status || d.status === filter.status))
           .sort((a, b) => b.event.createdAt - a.event.createdAt)
-          .map((d) => ({ ...d, attempts: [...d.attempts] })),
+          .map((d) => present(data, d)),
       );
     },
 
     async getDelivery(id) {
-      const { delivery } = findDelivery(id);
-      return wait({ ...delivery, attempts: [...delivery.attempts] });
+      const { data, delivery } = findDelivery(id);
+      return wait(present(data, delivery));
     },
 
     async resendDelivery(id, opts = {}) {
@@ -716,18 +724,19 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         const event = data.events.find((e) => e.id === delivery.event.id);
         const endpoint = data.endpoints.find((e) => e.id === delivery.endpoint.id);
         if (!event || !endpoint) throw new DashboardApiError("not_found", "The event for this delivery no longer exists");
-        const ok = !endpoint.disabled;
-        const attempt = makeAttempt(event, now(), ok ? { code: 200, body: '{"received":true}' } : { code: null, error: "endpoint disabled" }, true);
+        // Disabled means nothing is sent, a Resend included (API FR-API-064 as of 2026-09-06).
+        if (endpoint.disabled) throw new DashboardApiError("invalid_input", "This endpoint is disabled. Enable it to resend.");
+        const attempt = makeAttempt(event, now(), { code: 200, body: '{"received":true}' }, true);
         delivery.attempts.push(attempt);
         delivery.lastResponseCode = attempt.responseCode;
-        if (ok && delivery.status !== "succeeded") {
+        if (delivery.status !== "succeeded") {
           delivery.status = "succeeded";
           delivery.nextAttemptAt = null;
         }
         rollUp(data, event.id);
         refreshRates(data);
         log("delivery.resent", delivery.id);
-        return wait({ ...delivery, attempts: [...delivery.attempts] });
+        return wait(present(data, delivery));
       });
     },
 

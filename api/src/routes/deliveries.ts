@@ -1,6 +1,6 @@
 import { MAX_ATTEMPTS } from "../worker/schedule";
 import { createRoute, z } from "@hono/zod-openapi";
-import { CursorNotFound, findDelivery, listAttempts, listDeliveriesForEndpoint, requestResend, type AttemptRow, type DeliveryRow } from "../db/deliveries";
+import { CursorNotFound, EndpointDisabled, findDelivery, listAttempts, listDeliveriesForEndpoint, requestResend, type AttemptRow, type DeliveryRow } from "../db/deliveries";
 import { findWebhookEndpoint } from "../db/webhook-endpoints";
 import { invalid, notFound } from "../lib/errors";
 import { router } from "../lib/openapi";
@@ -34,6 +34,8 @@ const DeliveryBase = z.object({
   livemode: z.boolean(),
   created: z.number().int(),
   resend_requested: z.boolean(),
+  endpoint_disabled: z.boolean().openapi({ description: "A disabled endpoint receives nothing, Resend included." }),
+  attempts_made: z.number().int().openapi({ description: "Every attempt, automatic and manual. `attempt` counts automatic ones only." }),
 });
 export const DeliverySummarySchema = DeliveryBase.extend({ last_attempt: AttemptSchema.nullable() }).openapi("DeliverySummary");
 export const DeliverySchema = DeliveryBase.extend({ attempts: z.array(AttemptSchema) }).openapi("Delivery");
@@ -58,6 +60,8 @@ function base(d: DeliveryRow) {
     event_type: d.event_type,
     event_created: unix(d.event_created),
     endpoint_url: d.endpoint_url,
+    endpoint_disabled: d.endpoint_disabled,
+    attempts_made: d.attempts_made,
   };
 }
 
@@ -121,7 +125,13 @@ deliveries.openapi(
   async (c) => {
     const { id } = c.req.valid("param");
     const auth = c.get("auth");
-    const d = await requestResend(auth.merchantId, auth.livemode, id, auth.actor);
+    let d: DeliveryRow | null;
+    try {
+      d = await requestResend(auth.merchantId, auth.livemode, id, auth.actor);
+    } catch (e) {
+      if (e instanceof EndpointDisabled) throw invalid(e.message, "id");
+      throw e;
+    }
     if (!d) throw notFound("delivery", id);
     return c.json(serializeDeliverySummary(d), 202);
   },

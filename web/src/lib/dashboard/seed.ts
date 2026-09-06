@@ -137,6 +137,8 @@ export function deliverEvent(
     status: "pending",
     attempt: 0,
     maxAttempts: 8,
+    attemptsMade: 0,
+    endpointDisabled: ep.disabled,
     lastResponseCode: null,
     nextAttemptAt: e.createdAt,
     attempts: [],

@@ -108,12 +108,13 @@ export async function ackDelivery(
     if (!d) return "not_found";
     if (!input.manual && d.status !== "queued") return "already_acked";
     const ok = input.printed_only === true || (input.status_code !== undefined && input.status_code >= 200 && input.status_code < 300);
-    const n = (d.attempt as number) + 1;
+    const [{ next }] = await tx`SELECT COALESCE(MAX(n), 0) + 1 AS next FROM delivery_attempts WHERE delivery_id = ${d.id}`;
+    const n = input.manual ? Number(next) : (d.attempt as number) + 1;
     await tx`INSERT INTO delivery_attempts (id, delivery_id, n, manual, actor, sent_at, duration_ms, status_code, error, request_headers, response_excerpt)
              VALUES (${newId("att")}, ${d.id}, ${n}, ${input.manual === true}, 'cli', ${now}, ${input.duration_ms},
                      ${input.printed_only ? 200 : (input.status_code ?? null)}, ${input.error ?? null}, ${input.headers ?? {}}, ${input.printed_only ? "printed only (--no-forward)" : null})`;
     if (input.manual) {
-      await tx`UPDATE deliveries SET attempt = ${n}, updated_at = now() WHERE id = ${d.id}`;
+      await tx`UPDATE deliveries SET updated_at = now() WHERE id = ${d.id}`;
     } else {
       await tx`UPDATE deliveries SET status = ${ok ? "succeeded" : "exhausted"}, attempt = ${n}, updated_at = now() WHERE id = ${d.id}`;
     }

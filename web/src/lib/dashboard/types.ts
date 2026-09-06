@@ -188,8 +188,13 @@ export type Delivery = {
   event: Pick<Event, "id" | "type" | "objectId" | "createdAt">;
   endpoint: Pick<WebhookEndpoint, "id" | "url">;
   status: DeliveryStatus;
+  /** Automatic attempts, the ones the retry schedule counts. */
   attempt: number;
   maxAttempts: 8;
+  /** Every attempt, manual resends included. */
+  attemptsMade: number;
+  /** A disabled endpoint receives nothing, Resend included. */
+  endpointDisabled: boolean;
   lastResponseCode: number | null;
   nextAttemptAt: number | null;
   attempts: Attempt[];
