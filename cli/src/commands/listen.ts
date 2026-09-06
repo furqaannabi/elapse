@@ -115,19 +115,21 @@ export async function listen(o: ListenOptions): Promise<ListenSummary> {
         continue;
       }
       const r = await forwardTo(forwardUrl, frame.raw_body, frame.headers, { ...(o.forwardTimeoutMs ? { timeoutMs: o.forwardTimeoutMs } : {}), ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}) });
+      // Print everything about the delivery first, then ack: the terminal is complete by the time the platform records the attempt.
       if (r.ok) {
         const okish = r.status >= 200 && r.status < 300;
         if (okish) summary.forwarded++;
         else summary.failed++;
         const tag = `→ ${r.status} ${r.statusText} (${r.durationMs} ms)`;
         o.stdout(`${head} ${okish ? p.green(tag) : p.red(tag)}`);
+        printBody(o, frame);
         await safeAck(platform, session, frame.id, { status_code: r.status, duration_ms: r.durationMs, headers: frame.headers, ...manual }, o.stderr);
       } else {
         summary.failed++;
         o.stdout(`${head} ${p.red(`→ failed: ${r.error}`)}`);
+        printBody(o, frame);
         await safeAck(platform, session, frame.id, { error: r.error, duration_ms: r.durationMs, headers: frame.headers, ...manual }, o.stderr);
       }
-      printBody(o, frame);
     }
   } catch (e) {
     if (e instanceof SSEConnectError) throw new ListenError(e.message, e.status === 401 ? 2 : 1);
