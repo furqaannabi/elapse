@@ -11,7 +11,7 @@ import { RelayerUnavailable } from "../chain/relayer";
 import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancelSubscription, PERMIT_TTL_SECONDS, CANCEL_TTL_SECONDS } from "../services/checkout";
 import { PERMIT_TYPES } from "../chain/permit";
 import { baseUnitsToDecimal } from "../lib/money";
-import { router } from "../lib/openapi";
+import { PUBLIC, router } from "../lib/openapi";
 import { merchantAuth, requireAuth, type AnyAuth, type Auth, type CheckoutAuthEnv } from "../middleware/auth";
 import { ProductSchema, serializeProduct } from "./products";
 
@@ -210,6 +210,7 @@ checkoutSessions.openapi(
     method: "post",
     path: "/checkout/sessions",
     operationId: "checkout.sessions.create",
+    ...PUBLIC,
     tags: ["Checkout"],
     middleware: [merchantAuth()] as const,
     request: { body: { content: { "application/json": { schema: CreateBody } }, required: true } },

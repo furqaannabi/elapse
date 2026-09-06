@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { findInvoice, listInvoices, serializeInvoice } from "../db/invoices";
 import { invalid, notFound } from "../lib/errors";
 import { CursorNotFound } from "../lib/keyset";
-import { router } from "../lib/openapi";
+import { PUBLIC, router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
@@ -37,6 +37,7 @@ invoices.openapi(
     method: "get",
     path: "/invoices",
     operationId: "invoices.list",
+    ...PUBLIC,
     tags: ["Invoices"],
     request: { query: ListQuery.extend({ subscription: z.string().optional(), customer: z.string().optional() }) },
     responses: { 200: { description: "Invoices, newest first.", content: { "application/json": { schema: ListOf(InvoiceSchema, "InvoiceList") } } } },

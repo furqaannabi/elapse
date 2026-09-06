@@ -3,6 +3,7 @@ import { CursorNotFound, findEvent, listEvents, serializeEventForRead } from "..
 import { listDeliveriesForEvent, requestEventResend } from "../db/deliveries";
 import { serializeDeliverySummary } from "./deliveries";
 import { invalid, notFound } from "../lib/errors";
+import { WebhookEventSchema } from "../lib/event-schema";
 import { EVENT_TYPES } from "../lib/event-types";
 import { router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
@@ -10,16 +11,7 @@ import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 /** Events (FR-API-063): read-only for merchants. Creation happens at ingest and from test actions. */
 
-export const EventSchema = z
-  .object({
-    id: z.string().openapi({ example: "evt_5Rt8Kq2Mn9Lp3Wx" }),
-    object: z.literal("event"),
-    type: z.enum(EVENT_TYPES),
-    created: z.number().int(),
-    livemode: z.boolean(),
-    data: z.object({ object: z.record(z.string(), z.unknown()) }),
-    pending_webhooks: z.number().int(),
-    request: z.object({ id: z.string().nullable(), idempotency_key: z.string().nullable() }).optional(),
+export const EventSchema = WebhookEventSchema.extend({
     object_id: z.string().nullable().openapi({ description: "`data.object.id`, for tables." }),
     delivery_state: z.enum(["pending", "delivered", "failed"]).openapi({ description: "Rolled up from this event's deliveries." }),
   })

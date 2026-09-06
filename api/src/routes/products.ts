@@ -3,7 +3,7 @@ import { config } from "../config";
 import { CursorNotFound, findProduct, insertProduct, listProducts, updateProduct, type ProductRow } from "../db/products";
 import { invalid, notFound } from "../lib/errors";
 import { decimalToBaseUnits } from "../lib/money";
-import { router } from "../lib/openapi";
+import { PUBLIC, router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
@@ -85,6 +85,7 @@ products.openapi(
     method: "post",
     path: "/products",
     operationId: "products.create",
+    ...PUBLIC,
     tags: ["Products"],
     request: { body: { content: { "application/json": { schema: CreateProductBody } }, required: true } },
     responses: {
@@ -120,6 +121,7 @@ products.openapi(
     method: "get",
     path: "/products/{id}",
     operationId: "products.retrieve",
+    ...PUBLIC,
     tags: ["Products"],
     request: { params: z.object({ id: z.string() }) },
     responses: {
@@ -140,6 +142,7 @@ products.openapi(
     method: "get",
     path: "/products",
     operationId: "products.list",
+    ...PUBLIC,
     tags: ["Products"],
     request: { query: ListQuery },
     responses: {

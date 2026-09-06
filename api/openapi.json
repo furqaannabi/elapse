@@ -1,0 +1,1434 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Elapse API",
+    "version": "2026-09-06",
+    "description": "Per-second billing. Authenticate with your secret key as a bearer token. Every amount is a decimal string in USD."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Products",
+      "description": "Something billed at a rate per second."
+    },
+    {
+      "name": "Checkout",
+      "description": "Hosted pages a subscriber is sent to."
+    },
+    {
+      "name": "Subscriptions",
+      "description": "A running meter for one customer on one product."
+    },
+    {
+      "name": "Customers",
+      "description": "Subscribers, created by Checkout."
+    },
+    {
+      "name": "Invoices",
+      "description": "One settlement of accrued dollars for a period."
+    }
+  ],
+  "paths": {
+    "/v1/products": {
+      "post": {
+        "operationId": "products.create",
+        "tags": [
+          "Products"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProduct"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The created product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "products.list",
+        "tags": [
+          "Products"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Id of the last object on the previous page."
+            },
+            "required": false,
+            "description": "Id of the last object on the previous page.",
+            "name": "starting_after",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/products/{id}": {
+      "get": {
+        "operationId": "products.retrieve",
+        "tags": [
+          "Products"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/checkout/sessions": {
+      "post": {
+        "operationId": "checkout.sessions.create",
+        "tags": [
+          "Checkout"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCheckoutSession"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The session; send the subscriber to `url`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/subscriptions": {
+      "get": {
+        "operationId": "subscriptions.list",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Id of the last object on the previous page."
+            },
+            "required": false,
+            "description": "Id of the last object on the previous page.",
+            "name": "starting_after",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "incomplete",
+                "active",
+                "paused",
+                "canceled"
+              ]
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "customer",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "product",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscriptions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/subscriptions/{id}": {
+      "get": {
+        "operationId": "subscriptions.retrieve",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The subscription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/subscriptions/{id}/cancel": {
+      "post": {
+        "operationId": "subscriptions.cancel",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cancel submitted on chain. The object is unchanged until `subscription.canceled` arrives; `pending_tx` is the relayer's transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pending_tx": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pending_tx"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/customers/{id}": {
+      "get": {
+        "operationId": "customers.retrieve",
+        "tags": [
+          "Customers"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The customer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/invoices": {
+      "get": {
+        "operationId": "invoices.list",
+        "tags": [
+          "Invoices"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10,
+              "example": 10
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Id of the last object on the previous page."
+            },
+            "required": false,
+            "description": "Id of the last object on the previous page.",
+            "name": "starting_after",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "subscription",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "customer",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invoices, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Your secret key: `sk_test_…` for test mode, `sk_live_…` for live. Server-side only."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "type",
+              "message"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "api_error",
+                  "authentication_error",
+                  "invalid_request_error",
+                  "rate_limit_error",
+                  "idempotency_error",
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string",
+                "description": "Machine-readable reason, when there is one."
+              },
+              "param": {
+                "type": "string",
+                "description": "The request field at fault, when there is one."
+              }
+            }
+          }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "evt_5Rt8Kq2Mn9Lp3Wx"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "event"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "checkout.session.completed",
+              "subscription.created",
+              "subscription.updated",
+              "subscription.canceled",
+              "invoice.settled",
+              "invoice.payment_failed"
+            ],
+            "description": "One of six lifecycle types. There are no per-second events."
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix seconds."
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "object": {
+                "type": "object",
+                "additionalProperties": {
+                  "nullable": true
+                },
+                "description": "The Subscription, Invoice, or completed Checkout session the event is about. Subscription totals are cumulative."
+              }
+            },
+            "required": [
+              "object"
+            ]
+          },
+          "pending_webhooks": {
+            "type": "integer",
+            "description": "Endpoints still waiting to acknowledge this event."
+          },
+          "request": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "nullable": true
+              },
+              "idempotency_key": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "id",
+              "idempotency_key"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "type",
+          "created",
+          "livemode",
+          "data",
+          "pending_webhooks"
+        ],
+        "description": "A signed webhook body. Verify it with `elapse.webhooks.constructEvent` before reading it."
+      },
+      "CheckoutSession": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "cs_3fT8kLm2Qp9RxV"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "checkout.session"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "complete",
+              "expired"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Send the subscriber here."
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "integer",
+            "description": "Unix seconds; 24 h after creation."
+          },
+          "success_url": {
+            "type": "string"
+          },
+          "cancel_url": {
+            "type": "string"
+          },
+          "product": {
+            "$ref": "#/components/schemas/Product"
+          },
+          "merchant": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "logo_url": {
+                "type": "string",
+                "nullable": true
+              },
+              "accent": {
+                "type": "string",
+                "nullable": true
+              },
+              "support_url": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "name",
+              "logo_url",
+              "accent",
+              "support_url"
+            ]
+          },
+          "customer": {
+            "type": "string",
+            "nullable": true,
+            "description": "cus_ id once the subscriber has signed in."
+          },
+          "subscription": {
+            "type": "string",
+            "nullable": true,
+            "description": "sub_ id once prepared; retrieve it for status."
+          },
+          "max_duration_seconds": {
+            "type": "integer",
+            "nullable": true
+          },
+          "max_escrow_usd": {
+            "type": "string",
+            "nullable": true,
+            "description": "rate × max_duration_seconds, exact decimal."
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "status",
+          "url",
+          "livemode",
+          "created",
+          "expires_at",
+          "success_url",
+          "cancel_url",
+          "product",
+          "merchant",
+          "customer",
+          "subscription",
+          "max_duration_seconds",
+          "max_escrow_usd"
+        ]
+      },
+      "CreateCheckoutSession": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "type": "string",
+            "example": "prod_9Xk2mQ1pL0vRsT"
+          },
+          "success_url": {
+            "type": "string",
+            "example": "https://acme.test/welcome"
+          },
+          "cancel_url": {
+            "type": "string",
+            "example": "https://acme.test/pricing"
+          },
+          "max_duration_seconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 2592000,
+            "description": "Fix the subscriber's cap. Omit to let them choose on the page (60 s – 30 days)."
+          }
+        },
+        "required": [
+          "product",
+          "success_url",
+          "cancel_url"
+        ],
+        "additionalProperties": false
+      },
+      "CreateProduct": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "rate_usd_per_second": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$",
+            "example": "0.004",
+            "description": "USD per second as a decimal string. Never a float."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "allow_pause": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "rate_usd_per_second"
+        ],
+        "additionalProperties": false
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "cus_4Kq9Lm2Np7RsTv"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "customer"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "wallet_address": {
+            "type": "string"
+          },
+          "default_payment": {
+            "type": "string",
+            "enum": [
+              "ausd"
+            ]
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "subscription_count": {
+            "type": "integer"
+          },
+          "total_settled_usd": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "email",
+          "wallet_address",
+          "default_payment",
+          "livemode",
+          "created",
+          "subscription_count",
+          "total_settled_usd"
+        ]
+      },
+      "Invoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "in_8Rt3Kq2Mn9Lp4Wx"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "invoice"
+            ]
+          },
+          "subscription": {
+            "type": "string"
+          },
+          "customer": {
+            "type": "string"
+          },
+          "period_start": {
+            "type": "integer"
+          },
+          "period_end": {
+            "type": "integer"
+          },
+          "seconds": {
+            "type": "integer"
+          },
+          "amount_settled": {
+            "type": "string",
+            "description": "Gross, decimal USD (the §5.3 field)."
+          },
+          "gross": {
+            "type": "string"
+          },
+          "fee": {
+            "type": "string"
+          },
+          "net": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ausd"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "failed"
+            ]
+          },
+          "tx_hash": {
+            "type": "string"
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "subscription",
+          "customer",
+          "period_start",
+          "period_end",
+          "seconds",
+          "amount_settled",
+          "gross",
+          "fee",
+          "net",
+          "currency",
+          "status",
+          "tx_hash",
+          "livemode",
+          "created"
+        ]
+      },
+      "InvoiceList": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invoice"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "object",
+          "data",
+          "has_more",
+          "url"
+        ]
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "prod_9Xk2mQ1pL0vRsT"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "product"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "rate_usd_per_second": {
+            "type": "string",
+            "pattern": "^\\d+(\\.\\d+)?$",
+            "example": "0.004",
+            "description": "USD per second as a decimal string. Never a float."
+          },
+          "rate_per_second_wei": {
+            "type": "string",
+            "example": "4000",
+            "description": "Rate in token base units (6 decimals for AUSD)."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ausd"
+            ]
+          },
+          "allow_pause": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "active_subscriptions": {
+            "type": "integer",
+            "description": "Running or paused meters on this product."
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer",
+            "description": "Unix seconds."
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "name",
+          "description",
+          "rate_usd_per_second",
+          "rate_per_second_wei",
+          "currency",
+          "allow_pause",
+          "active",
+          "active_subscriptions",
+          "livemode",
+          "created"
+        ]
+      },
+      "ProductList": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "object",
+          "data",
+          "has_more",
+          "url"
+        ]
+      },
+      "Subscription": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "sub_7Hq2mV9kLp3RxT"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "subscription"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "incomplete",
+              "active",
+              "paused",
+              "canceled"
+            ]
+          },
+          "product": {
+            "type": "string"
+          },
+          "customer": {
+            "type": "string"
+          },
+          "checkout_session": {
+            "type": "string",
+            "nullable": true
+          },
+          "rate_usd_per_second": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "integer",
+            "nullable": true
+          },
+          "paused_at": {
+            "type": "integer",
+            "nullable": true
+          },
+          "canceled_at": {
+            "type": "integer",
+            "nullable": true
+          },
+          "ended_reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "canceled",
+              "cap_reached",
+              null
+            ]
+          },
+          "max_duration_seconds": {
+            "type": "integer"
+          },
+          "max_escrow_usd": {
+            "type": "string"
+          },
+          "funded_usd": {
+            "type": "string"
+          },
+          "settled_usd": {
+            "type": "string"
+          },
+          "seconds_elapsed": {
+            "type": "integer"
+          },
+          "stream_address": {
+            "type": "string",
+            "nullable": true
+          },
+          "chain_id": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "ausd"
+            ]
+          },
+          "livemode": {
+            "type": "boolean"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "product_name": {
+            "type": "string"
+          },
+          "customer_email": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "object",
+          "status",
+          "product",
+          "customer",
+          "checkout_session",
+          "rate_usd_per_second",
+          "started_at",
+          "paused_at",
+          "canceled_at",
+          "ended_reason",
+          "max_duration_seconds",
+          "max_escrow_usd",
+          "funded_usd",
+          "settled_usd",
+          "seconds_elapsed",
+          "stream_address",
+          "chain_id",
+          "currency",
+          "livemode",
+          "created",
+          "product_name",
+          "customer_email"
+        ]
+      },
+      "SubscriptionList": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ]
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subscription"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "object",
+          "data",
+          "has_more",
+          "url"
+        ]
+      }
+    }
+  }
+}

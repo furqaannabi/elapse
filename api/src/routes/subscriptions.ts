@@ -5,7 +5,7 @@ import { ListOf, ListQuery, page } from "../lib/pagination";
 import { invalid } from "../lib/errors";
 import { RelayerUnavailable } from "../chain/relayer";
 import { ApiError, notFound } from "../lib/errors";
-import { router } from "../lib/openapi";
+import { PUBLIC, router } from "../lib/openapi";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
 import { CheckoutStateError, cancelAsKeeper } from "../services/checkout";
 import { SubscriptionSchema } from "./checkout-sessions";
@@ -24,6 +24,7 @@ subscriptions.openapi(
     method: "get",
     path: "/subscriptions",
     operationId: "subscriptions.list",
+    ...PUBLIC,
     tags: ["Subscriptions"],
     request: {
       query: ListQuery.extend({
@@ -52,6 +53,7 @@ subscriptions.openapi(
     method: "get",
     path: "/subscriptions/{id}",
     operationId: "subscriptions.retrieve",
+    ...PUBLIC,
     tags: ["Subscriptions"],
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: "The subscription.", content: { "application/json": { schema: SubscriptionSchema } } } },
@@ -70,6 +72,7 @@ subscriptions.openapi(
     method: "post",
     path: "/subscriptions/{id}/cancel",
     operationId: "subscriptions.cancel",
+    ...PUBLIC,
     tags: ["Subscriptions"],
     request: { params: z.object({ id: z.string() }) },
     responses: {

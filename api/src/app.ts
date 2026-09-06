@@ -38,10 +38,21 @@ const dashboardCors = cors({
   allowHeaders: ["content-type", "authorization", "x-elapse-mode", "idempotency-key"],
   maxAge: 600,
 });
+// The docs reference's try-it panel (FR-API-086): a test key from the browser is fine; a live key is not.
+const docsCors = cors({ origin: (o) => (config.docsOrigin && o === config.docsOrigin ? o : null), allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["content-type", "authorization", "idempotency-key"], maxAge: 600 });
 app.use("/v1/*", async (c, next) => {
   const origin = c.req.header("origin");
   // The dashboard policy is a superset, so a shared dev origin (both on localhost:3000) still works.
   if (origin && origin === config.dashboardOrigin) return dashboardCors(c, next);
+  if (origin && config.docsOrigin && origin === config.docsOrigin) {
+    // Inside the CORS middleware, so the refusal carries the headers the browser needs to show it.
+    return docsCors(c, async () => {
+      if (/^bearer\s+sk_live_/i.test(c.req.header("authorization") ?? "")) {
+        throw new ApiError(401, "authentication_error", "Live keys cannot be used from a browser.", undefined, "live_key_in_browser");
+      }
+      await next();
+    });
+  }
   if (c.req.path.startsWith("/v1/checkout/sessions") || c.req.path === "/v1/status") return checkoutCors(c, next);
   return next();
 });

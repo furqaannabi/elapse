@@ -6,6 +6,13 @@ import { ApiError } from "./errors";
  * failure becomes the FR-API-082 shape with `param` set to the offending
  * field (first issue wins, like Stripe).
  */
+/**
+ * FR-API-085: spread into a `createRoute` config to mark an operation as part of
+ * the public reference (the frozen SDK surface). Everything unmarked stays in
+ * the live `/openapi.json` but never reaches `api/openapi.json` or the docs.
+ */
+export const PUBLIC = { "x-public": true } as const;
+
 export function router<E extends { Variables: object } = { Variables: {} }>() {
   return new OpenAPIHono<E>({
     defaultHook: (result, c) => {

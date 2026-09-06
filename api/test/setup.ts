@@ -14,6 +14,8 @@ delete process.env.RELAYER_PRIVATE_KEY;
 // The CLI stream polls fast in tests so frames arrive within a few ms (FR-API-131).
 process.env.CLI_STREAM_POLL_MS = "20";
 process.env.CLI_STREAM_HEARTBEAT_MS = "100";
+// The docs reference's try-it panel origin (FR-API-086).
+process.env.DOCS_ORIGIN = "https://docs.test";
 
 const { migrate } = await import("../src/db/migrate");
 await migrate();

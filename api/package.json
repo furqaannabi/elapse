@@ -11,6 +11,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "worker": "bun src/worker/index.ts",
+    "openapi": "bun scripts/openapi.ts",
     "seed-merchant": "bun scripts/seed-merchant.ts",
     "sync-deployments": "sh scripts/sync-deployments.sh"
   },

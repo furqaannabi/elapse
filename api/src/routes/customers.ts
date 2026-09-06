@@ -2,7 +2,7 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { findCustomer, listCustomers, serializeCustomer } from "../db/customers";
 import { invalid, notFound } from "../lib/errors";
 import { CursorNotFound } from "../lib/keyset";
-import { router } from "../lib/openapi";
+import { PUBLIC, router } from "../lib/openapi";
 import { ListOf, ListQuery, page } from "../lib/pagination";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
@@ -52,6 +52,7 @@ customers.openapi(
     method: "get",
     path: "/customers/{id}",
     operationId: "customers.retrieve",
+    ...PUBLIC,
     tags: ["Customers"],
     request: { params: z.object({ id: z.string() }) },
     responses: { 200: { description: "The customer.", content: { "application/json": { schema: CustomerSchema } } } },

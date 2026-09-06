@@ -17,6 +17,10 @@ export const config = {
   email: {
     from: process.env.EMAIL_FROM ?? "Elapse <no-reply@elapse.finance>",
   },
+  publicApiUrl: (process.env.PUBLIC_API_URL ?? "http://localhost:4000").replace(/\/+$/, ""),
+  /** The docs site, whose API reference calls public routes from the browser with a test key (FR-API-086). Unset = no CORS. */
+  docsOrigin: (process.env.DOCS_ORIGIN ?? "").replace(/\/+$/, ""),
+  /** Where merchants reach this API; goes into the public OpenAPI file's `servers` (FR-API-085). */
   /** Shared secret the indexer presents on `POST /internal/ingest` (FR-API-070). Unset = route refuses everything. */
   ingestToken: process.env.INGEST_TOKEN ?? "",
 } as const;
