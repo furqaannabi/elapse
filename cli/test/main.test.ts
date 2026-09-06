@@ -77,6 +77,20 @@ describe("FR-CLI-002/003 login and logout", () => {
     expect(out.join("\n")).toContain("evt_2");
   });
 
+  test("login remembers --base-url, so later commands need neither the flag nor the env", async () => {
+    expect(await main(["login", "--base-url", platform.url], io({ env: {} }))).toBe(0);
+    expect(JSON.parse(readFileSync(join(configDir, "config.json"), "utf8"))).toMatchObject({ base_url: platform.url });
+    out = [];
+    expect(await main(["events", "list"], io({ env: {} }))).toBe(0);
+    expect(out.join("\n")).toContain("evt_2");
+  });
+
+  test("an unreachable host is named, with the way to change it", async () => {
+    expect(await main(["login", "--base-url", "http://127.0.0.1:9"], io({ env: {} }))).toBe(1);
+    expect(err.join("\n")).toContain("Could not reach Elapse at http://127.0.0.1:9");
+    expect(err.join("\n")).toContain("--base-url");
+  });
+
   test("an invalid key stores nothing and exits 2", async () => {
     expect(await main(["login"], io({ prompt: async () => "sk_test_bad" }))).toBe(2);
     expect(existsSync(join(configDir, "config.json"))).toBe(false);

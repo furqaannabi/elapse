@@ -1,7 +1,7 @@
 import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { ElapseAuthenticationError, ElapseError } from "@elapse/sdk";
-import { defaultConfigDir, deleteProfile, resolveBaseUrl, resolveSecretKey, saveProfile } from "./config";
+import { DEFAULT_BASE_URL, defaultConfigDir, deleteProfile, readProfile, resolveBaseUrl, resolveSecretKey, saveProfile } from "./config";
 import { CLI_VERSION } from "./forward";
 import { paint, redact, table, useColor } from "./format";
 import { Platform, PlatformError } from "./platform";
@@ -63,6 +63,7 @@ export async function main(argv: string[], io: MainIO): Promise<0 | 1 | 2> {
   const color = useColor(io.env, io.isTTY ?? false);
   const p = paint(color);
   const say = (l: string) => io.stderr(redact(l));
+  let hostTried = DEFAULT_BASE_URL;
   try {
     const { values, positionals } = parseArgs({
       args: argv,
@@ -89,7 +90,8 @@ export async function main(argv: string[], io: MainIO): Promise<0 | 1 | 2> {
       return 0;
     }
     const configDir = io.configDir ?? defaultConfigDir(io.env);
-    const baseUrl = resolveBaseUrl({ env: io.env, flag: g.baseUrl });
+    const baseUrl = resolveBaseUrl({ env: io.env, flag: g.baseUrl, saved: readProfile(configDir)?.base_url });
+    hostTried = baseUrl;
     const needKey = (): string => {
       const k = resolveSecretKey({ env: io.env, flag: g.apiKey, configDir });
       if (!k) throw new Auth("Set ELAPSE_SECRET_KEY or run: elapse login");
@@ -111,7 +113,7 @@ export async function main(argv: string[], io: MainIO): Promise<0 | 1 | 2> {
         const platform = new Platform(baseUrl, key, io.fetchImpl);
         await platform.validate();
         const session = await platform.openSession();
-        saveProfile(configDir, { secret_key: key, merchant_name: session.merchant_name, livemode: session.livemode });
+        saveProfile(configDir, { secret_key: key, merchant_name: session.merchant_name, livemode: session.livemode, base_url: baseUrl });
         liveBanner(session.livemode, say, p);
         out(`Logged in as ${p.bold(session.merchant_name)} · ${session.livemode ? "LIVE mode" : "test mode"} · saved to ${configDir}/config.json`, { merchant_name: session.merchant_name, livemode: session.livemode });
         return 0;
@@ -225,6 +227,11 @@ export async function main(argv: string[], io: MainIO): Promise<0 | 1 | 2> {
     if (e instanceof ElapseAuthenticationError || (e instanceof PlatformError && e.status === 401)) {
       say(p.red(e.message));
       return 2;
+    }
+    if (/^Network error/.test((e as Error).message) || (e as Error).message === "fetch failed") {
+      say(p.red(`Could not reach Elapse at ${hostTried}: ${(e as Error).message.replace(/^Network error: /, "")}`));
+      say("Pass --base-url <url> or set ELAPSE_BASE_URL to point at your platform.");
+      return 1;
     }
     if (e instanceof ElapseError || e instanceof PlatformError) {
       say(p.red(e.message));

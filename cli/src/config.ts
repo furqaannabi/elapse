@@ -12,6 +12,8 @@ export interface Profile {
   secret_key: string;
   merchant_name: string;
   livemode: boolean;
+  /** The host `login` was pointed at; later commands use it unless a flag or env says otherwise. */
+  base_url?: string;
 }
 
 export const DEFAULT_BASE_URL = "https://api.elapse.finance";
@@ -26,7 +28,12 @@ export function readProfile(configDir: string): Profile | null {
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<Profile>;
     if (typeof parsed.secret_key !== "string") return null;
-    return { secret_key: parsed.secret_key, merchant_name: String(parsed.merchant_name ?? ""), livemode: parsed.livemode === true };
+    return {
+      secret_key: parsed.secret_key,
+      merchant_name: String(parsed.merchant_name ?? ""),
+      livemode: parsed.livemode === true,
+      ...(typeof parsed.base_url === "string" && /^https?:\/\//.test(parsed.base_url) ? { base_url: parsed.base_url } : {}),
+    };
   } catch {
     return null;
   }
@@ -58,6 +65,7 @@ export function resolveSecretKey(o: { env: NodeJS.ProcessEnv; flag: string | und
   return p ? { key: p.secret_key, source: "profile" } : null;
 }
 
-export function resolveBaseUrl(o: { env: NodeJS.ProcessEnv; flag: string | undefined }): string {
-  return (o.flag ?? o.env.ELAPSE_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
+/** `--base-url`, then `ELAPSE_BASE_URL`, then the host saved by `login`, then the default. */
+export function resolveBaseUrl(o: { env: NodeJS.ProcessEnv; flag: string | undefined; saved?: string | undefined }): string {
+  return (o.flag ?? o.env.ELAPSE_BASE_URL ?? o.saved ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
