@@ -67,7 +67,8 @@ describe("FR-CLI-010..017 elapse listen --forward", () => {
     await platform.close();
   });
 
-  async function until(pred: () => boolean, ms = 2000) {
+  // Ten seconds is the ceiling, not the cost: a cold Node 20 CI runner took over two seconds to open its first stream.
+  async function until(pred: () => boolean, ms = 10_000) {
     const end = Date.now() + ms;
     while (!pred() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
     expect(pred()).toBe(true);
