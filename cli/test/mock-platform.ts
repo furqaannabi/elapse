@@ -97,6 +97,11 @@ export async function startReceiver(status = 200, delayMs = 0): Promise<{ url: s
     url: `http://127.0.0.1:${(server.address() as { port: number }).port}/webhooks`,
     received,
     setStatus: (s) => { current = s; },
-    close: () => new Promise<void>((r) => server.close(() => r())),
+    // Also drop keep-alive sockets, or a later fetch reuses one and waits instead of being refused (seen on Linux CI).
+    close: () =>
+      new Promise<void>((r) => {
+        server.close(() => r());
+        server.closeAllConnections();
+      }),
   };
 }
