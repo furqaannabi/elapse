@@ -45,7 +45,7 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `indexer-frd.md` | **Signed** · Undecided 1–5 closed; FR-IDX-024/062 deferred to Week 4 | William, 2026-09-05 |
 | `worker-frd.md` | **Signed** · Week 2 delivery loop first; keeper/heartbeat Week 3, notices/CLI Week 4 | William, 2026-09-05 |
 | `sdk-frd.md` | **Signed** · TS client + `constructEvent` next; Python Week 5 | William, 2026-09-05 |
-| `cli-frd.md` | Draft — awaiting human sign-off | — |
+| `cli-frd.md` | **Signed** · built 2026-09-06 (API FR-API-130–134 + `cli/`), proven on the local API; npm publish pending the `@elapse` scope check | William, 2026-09-06 |
 | `docs-site-frd.md` | Draft — awaiting human sign-off | — |
 | `examples-frd.md` | Draft — awaiting human sign-off | — |
 

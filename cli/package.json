@@ -1,0 +1,31 @@
+{
+  "name": "@elapse/cli",
+  "version": "0.1.0",
+  "description": "elapse listen --forward: receive your Elapse webhooks on localhost. You only pay what elapsed.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "elapse": "./dist/elapse.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup && chmod +x dist/elapse.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elapse/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

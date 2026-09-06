@@ -45,6 +45,7 @@ export const WebhookEndpointSchema = z
     url: z.string(),
     events: z.array(z.string()),
     disabled: z.boolean(),
+    kind: z.enum(["http", "cli"]).openapi({ description: "`cli` is the endpoint `elapse listen` receives on; managed by the CLI, not editable here." }),
     livemode: z.boolean(),
     created: z.number().int(),
     previous_secret_expires_at: z.number().int().nullable().openapi({ description: "While set, the previous secret also signs (roll grace)." }),
@@ -72,12 +73,21 @@ export function serializeEndpoint(e: WebhookEndpointRow, secret?: string) {
     url: e.url,
     events: e.events,
     disabled: e.disabled,
+    kind: e.kind,
     livemode: e.livemode,
     created: Math.floor(e.created_at.getTime() / 1000),
     previous_secret_expires_at: e.previous_secret_expires_at ? Math.floor(e.previous_secret_expires_at.getTime() / 1000) : null,
     success_rate_7d: Number(e.success_rate_7d ?? 1),
     ...(secret ? { secret } : {}),
   };
+}
+
+/** FR-API-130: a `kind: cli` endpoint is managed by `elapse listen`; update, delete, roll and test refuse it. */
+async function assertHttpKind(auth: { merchantId: string; livemode: boolean }, id: string) {
+  const ep = await findWebhookEndpoint(auth.merchantId, auth.livemode, id);
+  if (!ep) throw notFound("webhook endpoint", id);
+  if (ep.kind === "cli") throw invalid("This is the CLI endpoint; it is managed by `elapse listen` and cannot be changed here.", "id");
+  return ep;
 }
 
 async function assertUrl(url: string, livemode: boolean) {
@@ -162,6 +172,7 @@ webhookEndpoints.openapi(
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
     const auth = c.get("auth");
+    await assertHttpKind(auth, id);
     if (body.url !== undefined) await assertUrl(body.url, auth.livemode);
     const row = await updateWebhookEndpoint(auth.merchantId, auth.livemode, id, body, auth.actor);
     if (!row) throw notFound("webhook endpoint", id);
@@ -181,6 +192,7 @@ webhookEndpoints.openapi(
   async (c) => {
     const { id } = c.req.valid("param");
     const auth = c.get("auth");
+    await assertHttpKind(auth, id);
     const done = await deleteWebhookEndpoint(auth.merchantId, auth.livemode, id, auth.actor);
     if (!done) throw notFound("webhook endpoint", id);
     return c.json({ id, object: "webhook_endpoint" as const, deleted: true as const }, 200);
@@ -200,6 +212,7 @@ webhookEndpoints.openapi(
     const { id } = c.req.valid("param");
     const { grace } = c.req.valid("json");
     const auth = c.get("auth");
+    await assertHttpKind(auth, id);
     const result = await rollWebhookSecret(auth.merchantId, auth.livemode, id, grace, auth.actor);
     if (!result) throw notFound("webhook endpoint", id);
     return c.json(serializeEndpoint(result.row, result.secret), 200);
@@ -222,8 +235,7 @@ webhookEndpoints.openapi(
     const { id } = c.req.valid("param");
     const { type } = c.req.valid("json");
     const auth = c.get("auth");
-    const ep = await findWebhookEndpoint(auth.merchantId, auth.livemode, id);
-    if (!ep) throw notFound("webhook endpoint", id);
+    const ep = await assertHttpKind(auth, id);
     const event = await createEvent({
       merchantId: auth.merchantId,
       livemode: auth.livemode,

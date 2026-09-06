@@ -10,6 +10,8 @@ export interface WebhookEndpointRow {
   url: string;
   events: string[];
   disabled: boolean;
+  /** `http` (merchant URL) or `cli` (the merchant's `elapse listen` endpoint, FR-API-130). */
+  kind: "http" | "cli";
   previous_secret_expires_at: Date | null;
   created_at: Date;
   /** Succeeded ÷ finished deliveries in the last 7 days; 1 when none (dashboard FR-DSH-080). */
@@ -20,7 +22,7 @@ export interface WebhookEndpointRow {
 const textArray = (a: string[]) => sql.array(a, "TEXT");
 
 /** Never selects `secret_enc`; the worker has its own read (FR-WRK-023). */
-const COLS = sql`id, merchant_id, livemode, url, events, disabled, previous_secret_expires_at, created_at,
+const COLS = sql`id, merchant_id, livemode, url, events, disabled, kind, previous_secret_expires_at, created_at,
   (SELECT CASE WHEN count(*) = 0 THEN 1 ELSE (count(*) FILTER (WHERE d.status = 'succeeded'))::float / count(*) END
    FROM deliveries d WHERE d.endpoint_id = webhook_endpoints.id AND d.status IN ('succeeded', 'exhausted') AND d.created_at > now() - interval '7 days') AS success_rate_7d`;
 

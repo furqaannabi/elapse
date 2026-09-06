@@ -36,6 +36,8 @@ export async function claimDue(batch: number): Promise<Job[]> {
       FROM deliveries
       WHERE ((status IN ('queued', 'retrying') AND next_attempt_at <= now()) OR manual_requested_at IS NOT NULL)
         AND (locked_until IS NULL OR locked_until < now())
+        -- FR-API-134: kind = cli Deliveries are streamed by the API to elapse listen, never sent by this worker.
+        AND endpoint_id NOT IN (SELECT id FROM webhook_endpoints WHERE kind = 'cli')
       ORDER BY next_attempt_at
       LIMIT ${batch}
       FOR UPDATE SKIP LOCKED

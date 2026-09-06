@@ -11,6 +11,9 @@ process.env.INGEST_TOKEN = "ingest-test-token";
 // Test-only key-encryption key (32 zero-ish bytes, base64). Real environments use `openssl rand -base64 32`.
 process.env.WEBHOOK_SECRET_KEK = "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s=";
 delete process.env.RELAYER_PRIVATE_KEY;
+// The CLI stream polls fast in tests so frames arrive within a few ms (FR-API-131).
+process.env.CLI_STREAM_POLL_MS = "20";
+process.env.CLI_STREAM_HEARTBEAT_MS = "100";
 
 const { migrate } = await import("../src/db/migrate");
 await migrate();

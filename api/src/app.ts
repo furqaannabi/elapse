@@ -19,6 +19,7 @@ import { products } from "./routes/products";
 import { status } from "./routes/status";
 import { subscriptions } from "./routes/subscriptions";
 import { webhookEndpoints } from "./routes/webhook-endpoints";
+import { cliSessions } from "./routes/cli-sessions";
 
 /**
  * The platform API. One Hono app; routers mount under `/v1`. Errors of every
@@ -54,6 +55,7 @@ app.route("/v1", status);
 app.route("/v1", webhookEndpoints);
 app.route("/v1", events);
 app.route("/v1", deliveries);
+app.route("/v1", cliSessions);
 app.route("/v1", dashboardAuth);
 app.route("/v1", dashboardMe);
 app.route("/v1", dashboardOverview);

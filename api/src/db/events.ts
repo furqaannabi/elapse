@@ -57,7 +57,9 @@ export async function createEvent(input: {
       ? await tx`SELECT id FROM webhook_endpoints WHERE id = ${input.onlyEndpointId} AND merchant_id = ${input.merchantId} AND livemode = ${input.livemode}`
       : await tx`SELECT id FROM webhook_endpoints
            WHERE merchant_id = ${input.merchantId} AND livemode = ${input.livemode} AND disabled = false
-             AND (${input.type} = ANY(events) OR '*' = ANY(events))`;
+             AND (${input.type} = ANY(events) OR '*' = ANY(events))
+             -- FR-API-134: the CLI endpoint receives a Delivery only while elapse listen is connected.
+             AND (kind = 'http' OR cli_connected_until > now())`;
     const id = newId("evt");
     const created = Math.floor(Date.now() / 1000);
     const event: EventObject = {

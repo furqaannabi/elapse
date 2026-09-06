@@ -1,13 +1,15 @@
 import { runForever } from "./run";
 import { keeperForever, KEEPER_CADENCE_S, KEEPER_TICK_MS } from "./keeper";
 import { heartbeatForever } from "./heartbeat";
+import { cliExpiryForever } from "../services/cli-stream";
 import { newId } from "../lib/ids";
 
 /**
  * Webhook worker entrypoint: `bun run worker` (ADR 2026-09-05: second process
  * from the api/ package). Delivers Events to Merchant endpoints from the
  * Postgres queue, and runs the keeper that asks the chain to settle running streams every
- * KEEPER_CADENCE_S (5 min) and to end capped ones (FR-WRK-070/071). Env: DATABASE_URL,
+ * KEEPER_CADENCE_S (5 min) and to end capped ones (FR-WRK-070/071), and sweeps CLI Deliveries
+ * nobody acked in 10 min to `skipped` (FR-API-134). Env: DATABASE_URL,
  * WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY, WORKER_BATCH, KEEPER_CADENCE_S, KEEPER_TICK_MS,
  * plus RELAYER_PRIVATE_KEY / MONAD_RPC_URL / CHAIN_ID for the keeper (KEEPER=0 disables it).
  */
@@ -25,5 +27,6 @@ await Promise.all([
   runForever({ batch, concurrency, timeoutMs: 10_000, log }, controller.signal),
   keeperOn ? keeperForever(controller.signal, log, () => { keeperTick = new Date(); }) : Promise.resolve(),
   heartbeatForever(workerId, () => keeperTick, controller.signal),
+  cliExpiryForever(controller.signal, log),
 ]);
 console.log("elapse worker stopped");

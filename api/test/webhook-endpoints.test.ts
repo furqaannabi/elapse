@@ -21,6 +21,7 @@ describe("FR-API-060 create", () => {
       url: good.url,
       events: good.events,
       disabled: false,
+      kind: "http",
       livemode: false,
       created: expect.any(Number),
       previous_secret_expires_at: null,

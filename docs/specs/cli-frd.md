@@ -1,6 +1,6 @@
 # `@elapse/cli` (`elapse listen --forward`) — FRD
 
-Status: **Draft — awaiting human sign-off** · Surface: Merchant developer tooling (terminal, Node 20+) · Sources: detailed doc §5.2, §6 (Quickstart, Webhooks nav), §10 step 3, §12 Week 4, §13, §14; `cli/README.md`.
+Status: **Signed 2026-09-06 (William)** · Surface: Merchant developer tooling (terminal, Node 20+) · Sources: detailed doc §5.2, §6 (Quickstart, Webhooks nav), §10 step 3, §12 Week 4, §13, §14; `cli/README.md`.
 
 ## Problem
 
@@ -29,20 +29,21 @@ A merchant following the Quickstart runs a server on `localhost:3000`; the platf
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-CLI-010 | `elapse listen --forward <url>` opens a session with the platform and receives every Delivery for this merchant in real time until Ctrl-C. `<url>` without a scheme is `http://`. | Integration test with a mock platform: 3 emitted Events arrive within 1 s. |
+| FR-CLI-010 | `elapse listen --forward <url>` calls `POST /v1/cli/sessions` (API FR-API-130), which returns the merchant's persistent CLI endpoint for this mode (created on first use, `kind: cli`) with its signing secret and a stream URL, then reads that SSE stream (FR-API-131) until Ctrl-C. Every Event that matches the CLI endpoint while the stream is open arrives as one Delivery frame. `<url>` without a scheme is `http://`. | Integration test with a mock platform: 3 emitted Events arrive within 1 s. |
 | FR-CLI-011 | On start the CLI prints the signing secret the forwarded Deliveries are signed with (`whsec_…`) once, with `Ready. Forwarding to http://localhost:3000/webhooks`. | Snapshot of startup output. |
 | FR-CLI-012 | For each Delivery it prints: timestamp, `evt_` id, `type`, the full `X-Elapse-Signature` header, and the JSON body pretty-printed (`--compact` for one line). | Snapshot test on a §5.3 payload. |
 | FR-CLI-013 | The CLI POSTs the **exact raw body bytes** and all `X-Elapse-*` headers plus `Content-Type: application/json` to the forward URL; it never parses-and-reserialises the body and never re-signs. | Test: body with unusual whitespace/unicode arrives byte-identical; header equal. |
-| FR-CLI-014 | After forwarding it prints the local response code and duration (`→ 200 OK (12 ms)`); connection refused / timeout (10 s, matching §5.2) prints `→ failed: ECONNREFUSED` and continues listening. | One test per outcome. |
+| FR-CLI-014 | After forwarding it prints the local response code and duration (`→ 200 OK (12 ms)`); connection refused / timeout (10 s, matching §5.2) prints `→ failed: ECONNREFUSED` and continues listening. Either way it acks the Delivery (`POST …/deliveries/:id/ack {status_code \| error, duration_ms}`, FR-API-132) so the dashboard Delivery log shows what the local server returned; `--no-forward` acks with `status_code: 200` and `printed_only: true`. An ack that fails is retried once and then dropped (the Delivery expires per FR-CLI-018). | One test per outcome; ack body asserted. |
 | FR-CLI-015 | `--events subscription.canceled,invoice.payment_failed` filters what is forwarded (still printed as skipped). Default: all six MVP types (§5.1). | Filter test. |
 | FR-CLI-016 | The CLI reconnects with backoff (1 s → 30 s) when the platform connection drops and prints one line per attempt; Events emitted during the gap are delivered after reconnect. | Mock drops the connection; count of delivered Events equals emitted. |
 | FR-CLI-017 | `--print-secret` re-prints the signing secret; `--no-forward` prints only (works without a local server). | Output tests. |
+| FR-CLI-018 | Session lifetime (William 2026-09-06, Q6 option a): the CLI endpoint counts as enabled only while a stream is open. The stream carries a heartbeat every 15 s and the platform treats the endpoint as connected for 60 s after the last frame or heartbeat, so a reconnect (FR-CLI-016) drains what queued in the gap. An Event fired while no stream is connected creates **no** CLI Delivery. A CLI Delivery not acked within 10 minutes is marked `skipped` by the platform. The CLI endpoint is never auto-disabled for failures (worker FR-WRK-050 excludes `kind: cli`). | Mock: Event after Ctrl-C creates no Delivery; Event during a 5 s drop is delivered after reconnect; unacked row is `skipped` after 10 min (clock injected). |
 
 ### Replay and helpers (§5.2 "resend", §10 step 4)
 
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
-| FR-CLI-020 | `elapse events resend <evt_…>` asks the platform to redeliver the Event to the merchant's endpoints (and the active `listen` session) and prints the new Delivery id and result. | Mock API receives `POST /v1/events/:id/resend`; output asserted. |
+| FR-CLI-020 | `elapse events resend <evt_…>` calls `POST /v1/events/:id/resend` (API FR-API-133, Event-level, Stripe's `events resend`): the platform requests a manual attempt on every existing Delivery of that Event, including the CLI endpoint's when a stream is connected, and the command prints one line per Delivery (`dlv_… → endpoint url/CLI → queued`). | Mock API receives the call; output asserted; unknown id exits 1 with the API error. |
 | FR-CLI-021 | `elapse events list [--limit 20] [--type …]` prints recent Events as a table (`id, type, created, pending_webhooks`). | Table snapshot. |
 | FR-CLI-022 | `elapse products create --name "GPU · 4090" --rate 0.004` calls `products.create` and prints the `prod_` id; `elapse checkout create --product prod_… --success-url … --cancel-url …` prints `session.url`. | Mock asserts request bodies equal the §4.2 snippet. |
 | FR-CLI-023 | `--json` on every command emits machine-readable output to stdout and human text to stderr. | `jq` parses output in test. |
@@ -66,6 +67,7 @@ A merchant following the Quickstart runs a server on `localhost:3000`; the platf
 | BR-CLI-004 | The CLI receives Deliveries from the platform only; it never talks to the indexer or chain (§5.2: indexer must not know merchant secrets). |
 | BR-CLI-005 | Output uses domain words — Event, Delivery, endpoint — never "tx", "block", or "0x". |
 | BR-CLI-006 | Forward timeout is 10 s, identical to the worker (§5.2), so local behaviour predicts production. |
+| BR-CLI-007 | `listen` receives only the CLI endpoint's own Deliveries. It never mirrors Deliveries addressed to the merchant's other endpoints; those are observed in the dashboard. |
 
 ## Interfaces
 
@@ -77,7 +79,14 @@ elapse products create --name <s> --rate <decimal-string>
 elapse checkout create --product <prod_id> --success-url <u> --cancel-url <u>
 Global: --api-key, --base-url, --json, --help, --version
 Env:    ELAPSE_SECRET_KEY, ELAPSE_BASE_URL, NO_COLOR
-Platform endpoints assumed (API FRD to confirm): POST /v1/cli/sessions → { signing_secret, stream_url }; stream of Delivery frames { id, event, headers, raw_body }; POST /v1/events/:id/resend.
+Platform endpoints (API FRD FR-API-130–133, decided 2026-09-06):
+  POST /v1/cli/sessions                                → { id: clis_…, endpoint_id: wh_…, signing_secret: whsec_…, stream_url, livemode, merchant_name }
+  GET  /v1/cli/sessions/:id/stream   (text/event-stream, sk_ bearer)
+        event: delivery   data: { id: dlv_…, event_id, type, created, headers: { "X-Elapse-Signature": …, "X-Elapse-Delivery": dlv_…, "Content-Type": "application/json" }, raw_body }
+        event: heartbeat  data: { at }                  every 15 s
+  POST /v1/cli/sessions/:id/deliveries/:dlv/ack        { status_code?: int, error?: string, duration_ms: int, printed_only?: bool }
+  POST /v1/events/:id/resend                           → { object: "list", data: [Delivery summary…] }
+Transport: SSE, reconnect with Last-Event-ID = last dlv id so the platform replays unacked frames (FR-CLI-016).
 ```
 
 Example session (demo step 3, §10):
@@ -98,20 +107,29 @@ Ready. Forwarding to http://localhost:3000/webhooks
 
 ## Undecided (human)
 
-1. **Transport platform → CLI.** Options: (a) **SSE** over HTTPS — one-directional, works through corporate proxies, trivial in Hono and Node `fetch`, auto-reconnect is a few lines; (b) WebSocket — bidirectional (ack per Delivery), needs `ws` dependency and a WS-capable host; (c) long-poll `GET /v1/cli/deliveries?after=…` — simplest server, ~1 s latency, more requests. **Recommend (a) SSE**, with the CLI acknowledging by `POST …/deliveries/:id/ack` after the local response so the platform records the forwarded status code in the dashboard Delivery log.
-2. **How the CLI session is signed.** Options: (a) the platform creates a temporary CLI Webhook endpoint (`wh_`) per session with its own `whsec_`, signs Deliveries for it, and the CLI prints that secret (Stripe CLI model); (b) the CLI attaches to an existing registered endpoint and mirrors its Deliveries, so the local server uses that endpoint's secret. **Recommend (a)**: the Quickstart then needs no registered endpoint and no public URL; the secret is printed by FR-CLI-011.
-3. **Replay scope.** Ship `events resend` for 13 Oct (it is one API call and the dashboard has the same button, §5.2) or dashboard-only? **Recommend ship**; it is the demo safety net.
-4. **Test-clock helpers.** Doc §6 lists a "Test clocks" docs page but no CLI. Options: none in CLI; `elapse test-clocks advance --subscription sub_ --seconds 3600`; or the fast-forward is a testnet product with a high rate and no clock at all. **Recommend** no CLI command; the hackathon demo uses a real 15-second cancel (§10 step 2). Revisit if the API grows a test-clock resource.
-5. **`login` method.** Paste secret key vs browser device-code flow. **Recommend paste**; device flow is post-hackathon.
+1. ~~**Transport platform → CLI.**~~ **Decided 2026-09-06 (William): (a) SSE** with a per-Delivery ack carrying the local status code and duration (FR-CLI-014, API FR-API-131/132). Settles worker FRD Undecided 5 the same way. [ADR](../decisions/2026-09-06-cli-transport-and-session.md).
+2. ~~**How the CLI session is signed.**~~ **Decided 2026-09-06 (William): (a) one persistent CLI endpoint per merchant per mode**, `kind: cli`, created on the first `listen`, its `whsec_` stable across runs and printed at start (FR-CLI-010/011). Shown in the dashboard endpoints list as "CLI" with its Deliveries.
+3. ~~**Replay scope.**~~ **Decided 2026-09-06 (William): (a) ship**, Event-level: `POST /v1/events/:id/resend` + `elapse events resend` (FR-CLI-020), alongside the dashboard's per-Delivery resend, as Stripe does.
+4. ~~**Test-clock helpers.**~~ **Decided 2026-09-06 (William): none.** The demo is a real 15-second cancel; the docs "Test clocks" page becomes "Testing" (docs-site FRD to follow). API FR-API-13x test clocks stay unbuilt.
+5. ~~**`login` method.**~~ **Decided 2026-09-06 (William): paste** the secret key at a hidden prompt (FR-CLI-002); `ELAPSE_SECRET_KEY` skips login. Device-code flow is post-hackathon.
+6. ~~**CLI Deliveries when nobody is listening.**~~ **Decided 2026-09-06 (William): (a)** the endpoint is enabled only while a stream is open, 60 s grace, unacked rows `skipped` after 10 min (FR-CLI-018).
+
+## Implementation decisions (Claude, 2026-09-06, from the code)
+
+- **Who signs.** The worker's claim query excludes `kind: cli` endpoints. The API's stream handler signs each frame with the CLI endpoint's decrypted secret through the same `signPayload` helper the worker uses, so the signature is the platform's real one (BR-CLI-001). The ack writes the `delivery_attempts` row (`status_code`, `duration_ms`, `request_headers` with the signature, `actor: "cli"`) and sets the Delivery `succeeded` (2xx) or `exhausted` (anything else, one attempt, no retries; the merchant fixes and resends).
+- **Connected flag.** `webhook_endpoints.cli_connected_until` is bumped by the stream on every frame and heartbeat; Event creation (FR-API-073) matches a `kind: cli` endpoint only when that column is in the future. No sweeper needed; expiry of unacked rows runs inside the stream handler and the worker's existing tick.
+- **Frame source.** The stream polls the CLI endpoint's `queued` Deliveries (and rows with a pending manual resend) every 500 ms, like the worker, and sends each once per connection; `Last-Event-ID` on reconnect re-sends anything still unacked.
 
 ## Open
 
-- API FRD: CLI session endpoint, resend endpoint, Delivery frame schema.
-- Whether `listen` also prints Deliveries to the merchant's *other* registered endpoints (observability) or only its own session.
-- Name collision check for `elapse` on npm and PyPI.
+- ~~**npm scope.**~~ Resolved 2026-09-06: William published `@elapse/sdk@0.1.0`, so the `@elapse` scope is ours. `@elapse/cli` publishes in Week 6 with `pnpm publish` (rewrites the `workspace:*` SDK dependency to a real version).
+- Package manager for the CLI build: `bun build --target=node` from `cli/` into a single `dist/elapse.js` with a shebang, or `tsc`. Decide at build.
 
 ## Revision
 
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
+| 2026-09-06 | Claude (for William) | Grill round: Undecided 1–5 closed (SSE + ack; persistent CLI endpoint per mode; Event-level resend; no test clocks; paste login) and Q6 session lifetime added as FR-CLI-018; FR-CLI-010/014/020 rewritten against API FR-API-130–133; BR-CLI-007; implementation decisions recorded; npm-name check done. [ADR 2026-09-06](../decisions/2026-09-06-cli-transport-and-session.md). Awaiting signature. |
+| 2026-09-06 | William | Signed. Week 4 CLI build begins: API FR-API-130–134 first, then `cli/`. |
+| 2026-09-06 | Claude (for William) | Built `cli/` (FR-CLI-001–003, 010–018, 020–024, 030–032): `src/config.ts` (key precedence, 0600 profile), `src/sse.ts` (parser + reconnect with `Last-Event-ID`), `src/forward.ts` (exact bytes, 10 s timeout), `src/platform.ts` (SDK for the frozen calls; one `fetch` helper for the CLI-only routes, so FR-CLI-031 reads "no second HTTP library"), `src/commands/listen.ts`, `src/main.ts` (Node `util.parseArgs`, no parser dependency). 27 vitest tests against a mock platform and a local receiver. **Proven on the real local API, worker and built binary**: two Events emitted → streamed, forwarded byte-for-byte, verified by `constructEvent` with the printed secret, acked 200, attempt rows visible on `GET /v1/deliveries/:id`; `--events` skip, `--compact`, `events list`, `events resend` (manual attempt n=2 recorded), Ctrl-C summary, exit codes. Bun's 10 s idle timeout cut the first stream; the API now sets `idleTimeout: 60`. Chain-backed proof deferred: the relayer holds 0.02 MON. |

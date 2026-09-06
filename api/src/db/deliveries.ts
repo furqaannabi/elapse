@@ -107,3 +107,30 @@ export async function judgeDeliveryLog(subscriptionId: string): Promise<JudgeDel
 export async function listDeliveriesForEvent(eventId: string): Promise<DeliveryRow[]> {
   return (await sql`SELECT ${COLS} FROM ${FROM} WHERE d.event_id = ${eventId} ORDER BY d.id`) as DeliveryRow[];
 }
+
+/**
+ * FR-API-133 (Stripe's `events resend`): flag every Delivery of the Event for one
+ * manual attempt. A `kind: cli` Delivery is flagged only while `elapse listen`
+ * is connected, so a Resend never lands on a CLI nobody is watching. One audit row.
+ */
+export async function requestEventResend(merchantId: string, livemode: boolean, eventId: string, actor: string): Promise<DeliveryRow[] | null> {
+  const ids = await sql.begin(async (tx) => {
+    const [evt] = await tx`SELECT id FROM events WHERE id = ${eventId} AND merchant_id = ${merchantId} AND livemode = ${livemode}`;
+    if (!evt) return null;
+    const rows = await tx`
+      UPDATE deliveries d SET manual_requested_at = now(), manual_requested_by = ${actor}, updated_at = now()
+      FROM webhook_endpoints w
+      WHERE w.id = d.endpoint_id AND d.event_id = ${eventId}
+        AND (w.kind = 'http' OR w.cli_connected_until > now())
+      RETURNING d.id`;
+    await tx`INSERT INTO audit_log (merchant_id, actor, action, target) VALUES (${merchantId}, ${actor}, 'event.resent', ${eventId})`;
+    return rows.map((r: { id: string }) => r.id);
+  });
+  if (ids === null) return null;
+  const out: DeliveryRow[] = [];
+  for (const id of ids) {
+    const d = await findDelivery(merchantId, livemode, id);
+    if (d) out.push(d);
+  }
+  return out;
+}
