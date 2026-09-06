@@ -25,3 +25,10 @@ describe("FR-EXM-002 config, more", () => {
     expect(c).toEqual({ secretKey: "sk_test_abc", webhookSecret: "whsec_abc", apiUrl: "http://localhost:4000", port: 3000, baseUrl: "http://localhost:3000" });
   });
 });
+
+describe("FR-EXM-002 placeholders", () => {
+  it("names a value still carrying the template's ellipsis", () => {
+    expect(() => loadConfig({ ...full, ELAPSE_SECRET_KEY: "sk_test_…" })).toThrow(new ConfigError("ELAPSE_SECRET_KEY still has the placeholder from .env.example. Dashboard → Developers → API keys → Create."));
+    expect(() => loadConfig({ ...full, ELAPSE_API_URL: "https://…" })).toThrow(/^ELAPSE_API_URL still has the placeholder/);
+  });
+});

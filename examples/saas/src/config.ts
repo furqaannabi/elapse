@@ -23,6 +23,7 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
   const need = (name: keyof typeof WHERE): string => {
     const v = env[name]?.trim();
     if (!v) throw new ConfigError(`${name} is missing. ${WHERE[name]}`);
+    if (v.includes("…")) throw new ConfigError(`${name} still has the placeholder from .env.example. ${WHERE[name]}`);
     return v;
   };
   return {
