@@ -47,14 +47,26 @@ describe("FR-API-130 POST /v1/cli/sessions", () => {
     expect(ep.body.kind).toBe("http");
   });
 
-  test("a CLI endpoint cannot be updated, rolled, deleted or tested through the endpoint routes", async () => {
+  test("a CLI endpoint cannot be updated, rolled or deleted through the endpoint routes", async () => {
     const { body } = await api("POST", "/v1/cli/sessions", { key: f.skTest });
     const id = body.endpoint_id;
     expect((await api("POST", `/v1/webhook_endpoints/${id}`, { key: f.skTest, body: { disabled: true } })).status).toBe(400);
     expect((await api("POST", `/v1/webhook_endpoints/${id}/roll_secret`, { key: f.skTest, body: { grace: 0 } })).status).toBe(400);
-    expect((await api("POST", `/v1/webhook_endpoints/${id}/test`, { key: f.skTest, body: { type: "invoice.settled" } })).status).toBe(400);
     expect((await api("DELETE", `/v1/webhook_endpoints/${id}`, { key: f.skTest })).status).toBe(400);
     expect((await api("GET", `/v1/webhook_endpoints/${id}`, { key: f.skTest })).status).toBe(200);
+  });
+
+  test("FR-API-130 amended (William 2026-09-06): test on the CLI endpoint is refused while nothing listens, and queues a Delivery for the stream while it does", async () => {
+    const { body } = await api("POST", "/v1/cli/sessions", { key: f.skTest });
+    const id = body.endpoint_id;
+    const idle = await api("POST", `/v1/webhook_endpoints/${id}/test`, { key: f.skTest, body: { type: "subscription.canceled" } });
+    expect(idle.status).toBe(400);
+    expect(idle.body.error.message).toContain("elapse listen");
+    await sql`UPDATE webhook_endpoints SET cli_connected_until = now() + interval '60 seconds' WHERE id = ${id}`;
+    const live = await api("POST", `/v1/webhook_endpoints/${id}/test`, { key: f.skTest, body: { type: "subscription.canceled" } });
+    expect(live.status).toBe(200);
+    const rows = await sql`SELECT status FROM deliveries WHERE endpoint_id = ${id} AND event_id = ${live.body.id}`;
+    expect(rows).toEqual([{ status: "queued" }]);
   });
 });
 

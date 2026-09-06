@@ -235,7 +235,13 @@ webhookEndpoints.openapi(
     const { id } = c.req.valid("param");
     const { type } = c.req.valid("json");
     const auth = c.get("auth");
-    const ep = await assertHttpKind(auth, id);
+    // FR-API-130 as amended 2026-09-06: a test delivery may go to the CLI endpoint, but only while `elapse listen` is connected,
+    // because an unacked CLI Delivery would otherwise sit until it expires.
+    const ep = await findWebhookEndpoint(auth.merchantId, auth.livemode, id);
+    if (!ep) throw notFound("webhook endpoint", id);
+    if (ep.kind === "cli" && !(ep.cli_connected_until && ep.cli_connected_until.getTime() > Date.now())) {
+      throw invalid("Nothing is listening on the CLI endpoint. Start `elapse listen` first, then send the test delivery.", "id");
+    }
     const event = await createEvent({
       merchantId: auth.merchantId,
       livemode: auth.livemode,
