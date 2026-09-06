@@ -709,7 +709,8 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         data.deliveries
           .filter((d) => d.endpoint.id === endpointId && (!filter.status || d.status === filter.status))
           .sort((a, b) => b.event.createdAt - a.event.createdAt)
-          .map((d) => present(data, d)),
+          // Like the API's list: a summary with the last attempt only; the drawer fetches the rest (found 2026-09-06).
+          .map((d) => ({ ...present(data, d), attempts: d.attempts.slice(-1) })),
       );
     },
 

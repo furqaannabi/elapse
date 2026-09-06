@@ -103,6 +103,11 @@ export function EndpointDetail({ endpointId }: { endpointId: string }) {
       setRolling(null);
       setSecret(res.secret);
     });
+  // A row is a summary with the last attempt only; the drawer shows it at once and fills in every attempt.
+  const openDelivery = (d: Delivery) => {
+    setOpen(d);
+    void api.getDelivery(d.id).then((full) => setOpen((cur) => (cur?.id === full.id ? full : cur)));
+  };
   const resend = () =>
     run(async () => {
       if (!open) return;
@@ -220,7 +225,7 @@ export function EndpointDetail({ endpointId }: { endpointId: string }) {
               <li key={d.id}>
                 <button
                   type="button"
-                  onClick={() => setOpen(d)}
+                  onClick={() => openDelivery(d)}
                   className="grid w-full gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/60 md:grid-cols-[minmax(0,2fr)_6.5rem_5rem_4rem_6rem] md:items-center md:gap-4"
                 >
                   <span className="min-w-0">

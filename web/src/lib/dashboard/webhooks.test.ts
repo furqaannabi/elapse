@@ -82,9 +82,12 @@ describe("mock dashboard api — webhooks", () => {
 
   it("resend adds a manual attempt without resetting the schedule (FR-DSH-084)", async () => {
     const ep = (await api.listEndpoints("test")).find((e) => !e.disabled);
-    const exhausted = (await api.listDeliveries(ep!.id)).find((d) => d.status === "exhausted")!;
-    expect(exhausted).toBeDefined();
+    const row = (await api.listDeliveries(ep!.id)).find((d) => d.status === "exhausted")!;
+    expect(row).toBeDefined();
+    expect(row.attempts).toHaveLength(1); // a list row is a summary: last attempt only, like the API
+    const exhausted = await api.getDelivery(row.id);
     const n = exhausted.attempts.length;
+    expect(exhausted.attemptsMade).toBe(n);
     const after = await api.resendDelivery(exhausted.id, { idempotencyKey: "rs_1" });
     expect(after.attempts.length).toBe(n + 1);
     expect(after.attempts[after.attempts.length - 1]!.manual).toBe(true);

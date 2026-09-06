@@ -100,7 +100,8 @@ describe("EndpointDetail", () => {
     const all = await api.listDeliveries(ep.id);
     expect(within(log).getAllByRole("listitem").length).toBe(Math.min(all.length, 50));
     await user.selectOptions(screen.getByLabelText(/filter by status/i), "exhausted");
-    const exhausted = (await api.listDeliveries(ep.id, { status: "exhausted" }))[0]!;
+    // The list carries a summary; the drawer must fetch and show every attempt (found 2026-09-06).
+    const exhausted = await api.getDelivery((await api.listDeliveries(ep.id, { status: "exhausted" }))[0]!.id);
     const row = (await screen.findByText(exhausted.event.id)).closest("li")!;
     expect(row).toHaveTextContent(/exhausted/i);
     expect(row).toHaveTextContent(`8 / 8`);
@@ -117,7 +118,8 @@ describe("EndpointDetail", () => {
     mount(api, m, <EndpointDetail endpointId={ep.id} />);
     await screen.findByRole("list", { name: /deliveries/i });
     await user.selectOptions(screen.getByLabelText(/filter by status/i), "exhausted");
-    const exhausted = (await api.listDeliveries(ep.id, { status: "exhausted" }))[0]!;
+    // The list carries a summary; the drawer must fetch and show every attempt (found 2026-09-06).
+    const exhausted = await api.getDelivery((await api.listDeliveries(ep.id, { status: "exhausted" }))[0]!.id);
     const log = screen.getByRole("list", { name: /deliveries/i });
     await user.click(await within(log).findByText(exhausted.event.id));
     const drawer = await screen.findByRole("dialog");
