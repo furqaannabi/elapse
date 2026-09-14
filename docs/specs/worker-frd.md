@@ -1,6 +1,6 @@
 # Webhook worker (`api/src/worker/` — Postgres-queued deliveries) — FRD
 
-Status: **FR-WRK-075 unstarted-session sweep awaiting sign-off 2026-09-14** · **Signed 2026-09-05 (William); FR-WRK-072 signed 2026-09-07 (William); FR-WRK-073 signed 2026-09-07 (William)** · Surface: Platform (Merchant webhook delivery) · Sources: detailed doc §2 "Not a webhook per second", §4.4 Signature, §5.1 catalog, §5.2 steps 3–5, §5.3 payload, §9 "Queue in Postgres + worker. No Kafka.", §10 step 3, §12 Week 2/4, §15; `worker/README.md`; `sdk/ts/src/index.ts` (`constructEvent`); design brief §3.9; API FRD FR-API-060–064, FR-API-073.
+Status: **FR-WRK-075 unstarted-session sweep Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); FR-WRK-072 signed 2026-09-07 (William); FR-WRK-073 signed 2026-09-07 (William)** · Surface: Platform (Merchant webhook delivery) · Sources: detailed doc §2 "Not a webhook per second", §4.4 Signature, §5.1 catalog, §5.2 steps 3–5, §5.3 payload, §9 "Queue in Postgres + worker. No Kafka.", §10 step 3, §12 Week 2/4, §15; `worker/README.md`; `sdk/ts/src/index.ts` (`constructEvent`); design brief §3.9; API FRD FR-API-060–064, FR-API-073.
 
 ## Problem
 
@@ -169,3 +169,4 @@ Env:      DATABASE_URL, WEBHOOK_SECRET_KEK, WORKER_CONCURRENCY=16, WORKER_BATCH=
 | 2026-09-08 | William | Signed FR-WRK-074. |
 | 2026-09-09 | Claude (for William) | Built FR-WRK-042: `expiryForever` runs `expirySweep` every minute beside the delivery loop, in its own try/catch so a sweep failure never stalls deliveries. Bands are 1 h–24 h and 0–1 h, each excluding the tighter, so a target thirty minutes from expiry gets the 1 h notice only; one row per (target, threshold) via `dedupe_key`. FR-WRK-050's auto-disable notice is now also emailed after the transaction commits. Tests in `worker-notify.test.ts`. |
 | 2026-09-14 | Claude (for Furqaan) | **Awaiting sign-off.** FR-WRK-075 sweeps authorised-but-unstarted sessions and refunds them, bounding how long a merchant may hold a subscriber's escrow without starting the meter. Depends on API FR-API-127 and contracts FR-CON-056. |
+| 2026-09-14 | Furqaan | **Signed** FR-WRK-075. |

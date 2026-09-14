@@ -1,6 +1,6 @@
 # `@elapse/sdk` (TypeScript) and `elapse` (Python) — FRD
 
-Status: **FR-SDK-009 `subscriptions.start` — a frozen-surface change — awaiting sign-off 2026-09-14** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
+Status: **FR-SDK-009 `subscriptions.start` — a frozen-surface change — Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
 
 ## Problem
 
@@ -129,3 +129,4 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | 2026-09-09 | Claude (for William) | FR-SDK-005 Subscription type gains `manage_url: string` ([ADR 2026-09-09 manage_url](../decisions/2026-09-09-subscription-manage-url.md)). Ten methods unchanged. **Awaiting William's signature.** |
 | 2026-09-09 | William | Signed the FR-SDK-005 `manage_url` amendment. |
 | 2026-09-14 | Claude (for Furqaan) | **Frozen-surface change, awaiting sign-off.** FR-SDK-009 adds `subscriptions.start(id)`, taking the surface from ten methods to eleven, so that a merchant can start the meter when their resource is ready (Furqaan, 2026-09-14). BR-SDK-001 requires this spec edit and §4.2 of the detailed doc to change together — **§4.2 has not been updated and must be, or the doc and the SDK disagree.** Pause and resume still stay out; this is a start only. Depends on API FR-API-049. |
+| 2026-09-14 | Furqaan | **Signed** FR-SDK-009; the frozen surface becomes eleven methods. §4.2 of the detailed doc still needs the same edit (BR-SDK-001) and is Furqaan's to make. |
