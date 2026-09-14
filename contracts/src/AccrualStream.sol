@@ -167,6 +167,19 @@ contract AccrualStream is ReentrancyGuard {
     /// @notice Factory-only: the permit path pulled `amount` from `from` straight
     ///         into this clone (the factory is the permit's spender), so record
     ///         it and start in the same transaction (FR-CON-016).
+    /// @notice Factory-only twin of `fundAndStart` that leaves the stream in `Created`
+    ///         (FR-CON-019). The subscriber has authorised and their escrow is held, but no
+    ///         second accrues until the merchant starts it.
+    function fund(address from, uint256 amount) external nonReentrant {
+        if (msg.sender != factory) revert NotFactory();
+        if (status != Status.Created) revert InvalidState();
+        if (amount == 0) revert ZeroAmount();
+        if (deposited + amount > maxEscrow) revert CapExceeded();
+        if (token.balanceOf(address(this)) < deposited + amount) revert InsufficientDeposit();
+        deposited += amount;
+        emit Deposited(from, amount, deposited);
+    }
+
     function fundAndStart(address from, uint256 amount) external nonReentrant {
         if (msg.sender != factory) revert NotFactory();
         if (status != Status.Created) revert InvalidState();
@@ -192,7 +205,11 @@ contract AccrualStream is ReentrancyGuard {
     // ─── Lifecycle (FR-CON-020–026) ─────────────────────────────────────────
 
     /// @notice Start the meter. Needs at least one affordable second (FR-CON-021).
-    function start() external onlyParty {
+    ///         FR-CON-055: a party, or the factory's keeper. A merchant's server holds no
+    ///         key, so the platform relayer starts on its behalf once the merchant says the
+    ///         resource is ready. This grants the keeper no power over funds: `_start` only
+    ///         sets `Active`/`startedAt`.
+    function start() external onlyPartyOrKeeper {
         _start();
     }
 

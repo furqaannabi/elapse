@@ -46,17 +46,18 @@ contract SecurityTest is BaseTest {
     /// which holds an API key, not the payout wallet. Cancel only ever pays elapsed seconds to
     /// the merchant and refunds the rest, so the keeper cannot take anything. It still may not
     /// start, pause or resume.
-    function test_FR_CON_054_keeper_may_cancel_but_not_start_pause_or_resume() public {
+    /// FR-CON-055 (signed 2026-09-14) widened `start` to the keeper so the relayer can start
+    /// a meter on a merchant's behalf; pause and resume stay party-only, and cancel can still
+    /// only pay elapsed seconds out and refund the rest.
+    function test_FR_CON_054_keeper_may_cancel_and_start_but_not_pause_or_resume() public {
         address keeper = makeAddr("keeper");
         factory.setKeeper(keeper);
         AccrualStream s = fundedStream();
 
         vm.prank(keeper);
-        vm.expectRevert(AccrualStream.NotParty.selector);
         s.start();
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active), "keeper may start (FR-CON-055)");
 
-        vm.prank(subscriber);
-        s.start();
         vm.warp(block.timestamp + 83);
 
         vm.prank(keeper);

@@ -110,6 +110,27 @@ contract StreamFactory is Ownable {
         AccrualStream(stream).fundAndStart(subscriber, maxEscrow);
     }
 
+    /// @notice Merchant-started metering (FR-CON-019). Identical to `createWithPermit`
+    ///         except the stream is left in `Created`: the subscriber has authorised and
+    ///         their escrow is held, and the merchant starts the meter when its resource is
+    ///         ready. The subscriber's exposure is unchanged — `maxEscrow` is the ceiling.
+    function createWithPermitNoStart(
+        address merchant,
+        address subscriber,
+        address token,
+        uint256 ratePerSecond,
+        uint256 maxEscrow,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (address stream) {
+        try IERC20Permit(token).permit(subscriber, address(this), maxEscrow, deadline, v, r, s) {} catch {}
+        stream = create(merchant, subscriber, token, ratePerSecond, maxEscrow);
+        IERC20(token).safeTransferFrom(subscriber, stream, maxEscrow);
+        AccrualStream(stream).fund(subscriber, maxEscrow);
+    }
+
     // ─── Keeper batch (FR-CON-033) ──────────────────────────────────────────
 
     /// @notice Settle many streams; one bad stream never blocks the batch.
