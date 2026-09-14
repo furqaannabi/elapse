@@ -138,7 +138,7 @@ export function checkout(t: Transport) {
   };
 }
 
-/** `subscriptions.retrieve/list/cancel` (FR-SDK-005, FR-SDK-008). No pause or resume. */
+/** `subscriptions.retrieve/list/cancel/start` (FR-SDK-005, FR-SDK-008, FR-SDK-009). No pause or resume. */
 export function subscriptions(t: Transport) {
   return {
     retrieve(id: string, opts?: RequestOptions): Promise<Subscription> {
@@ -157,6 +157,17 @@ export function subscriptions(t: Transport) {
         opts,
       );
     },
+    /**
+     * FR-SDK-009: start the meter for a Subscription the subscriber has already authorised.
+     * Use it when billing should begin once your resource is ready rather than at checkout;
+     * `active` arrives via webhook once the chain confirms (API FR-API-049).
+     */
+    start(id: string, opts?: RequestOptions): Promise<Subscription> {
+      return Promise.resolve()
+        .then(() => assertId(id, "sub", "id"))
+        .then((v) => t.request<Subscription>("POST", `/subscriptions/${v}/start`, {}, opts));
+    },
+
     /** Asks the platform to end the meter; the `canceled` status arrives via webhook once the chain confirms (API FR-API-042). */
     cancel(id: string, opts?: RequestOptions): Promise<Subscription> {
       return Promise.resolve()

@@ -37,7 +37,7 @@ Send the subscriber to `session.url`. They start a meter, watch the counter tick
 | --- | --- |
 | `products.create / retrieve / list` | `POST /v1/products`, `GET /v1/products/:id`, `GET /v1/products` |
 | `checkout.sessions.create` | `POST /v1/checkout/sessions` |
-| `subscriptions.retrieve / list / cancel` | `GET /v1/subscriptions/:id`, `GET /v1/subscriptions`, `POST /v1/subscriptions/:id/cancel` |
+| `subscriptions.retrieve / list / cancel / start` | `GET /v1/subscriptions/:id`, `GET /v1/subscriptions`, `POST /v1/subscriptions/:id/cancel`, `POST /v1/subscriptions/:id/start` |
 | `customers.retrieve` | `GET /v1/customers/:id` |
 | `invoices.list` | `GET /v1/invoices` |
 | `webhooks.constructEvent(rawBody, header, secret)` | local |

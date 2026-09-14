@@ -108,6 +108,18 @@ describe("FR-SDK-005/008 subscriptions", () => {
     await expect(elapse.subscriptions.list({ status: "past_due" as never })).rejects.toThrow(ElapseInvalidRequestError);
     await expect(elapse.subscriptions.cancel("prod_1")).rejects.toThrow(ElapseInvalidRequestError);
   });
+
+  it("FR-SDK-009 start posts to /start and rejects a non-sub id before any request", async () => {
+    mock.on(() => ({ status: 202, body: { ...sub, status: "active", started_at: 1_756_800_000 } }));
+    const started = await elapse.subscriptions.start("sub_3kP9mL2qR8tVxY");
+    expect(mock.seen[0]!.path).toBe("/v1/subscriptions/sub_3kP9mL2qR8tVxY/start");
+    expect(mock.seen[0]!.method).toBe("POST");
+    expect(started.status).toBe("active");
+
+    const before = mock.seen.length;
+    await expect(elapse.subscriptions.start("prod_1")).rejects.toThrow(ElapseInvalidRequestError);
+    expect(mock.seen.length).toBe(before);
+  });
 });
 
 describe("FR-SDK-006 customers and invoices", () => {
@@ -142,7 +154,8 @@ describe("FR-SDK-007 frozen surface", () => {
     const methods = (o: object) => Object.keys(o).sort();
     expect(methods(elapse.products)).toEqual(["create", "list", "retrieve"]);
     expect(methods(elapse.checkout.sessions)).toEqual(["create"]);
-    expect(methods(elapse.subscriptions)).toEqual(["cancel", "list", "retrieve"]);
+    // FR-SDK-009 (signed 2026-09-14) takes the frozen surface to eleven methods.
+    expect(methods(elapse.subscriptions)).toEqual(["cancel", "list", "retrieve", "start"]);
     expect(methods(elapse.customers)).toEqual(["retrieve"]);
     expect(methods(elapse.invoices)).toEqual(["list"]);
     expect(methods(elapse.webhooks)).toEqual(["constructEvent"]);

@@ -133,6 +133,16 @@ curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/cancel" \
 
 ## Customers
 
+### `subscriptions.start`
+
+Starts the meter for a Subscription the subscriber has already authorised. Use it when billing
+should begin once your resource is ready rather than at checkout; `active` arrives by webhook
+once the chain confirms.
+
+```ts
+await elapse.subscriptions.start("sub_…");
+```
+
 ### `customers.retrieve`
 
 <CodeGroup>
