@@ -1,6 +1,12 @@
 /** Shared addresses and helpers for indexer tests. Lowercase because config sets address_format: lowercase. */
+import testnet from "../deployments/10143.json" with { type: "json" };
+
 export const CHAIN = 10143 as const;
-export const FACTORY = "0x656fa8b348981602acf36fad07804e806cc15d5b";
+/**
+ * The deployed factory, read from the record `pnpm sync-abi` writes — never copied. Hardcoding it here broke
+ * every test when a redeploy moved config.yaml to a new factory (guarded by deployment-sync.test.ts).
+ */
+export const FACTORY = testnet.factory.toLowerCase();
 export const STREAM = "0x86776c5be46d01242285aac66040b3bf0634cd8a";
 export const MERCHANT = "0x1111111111111111111111111111111111111111";
 export const SUBSCRIBER = "0x2222222222222222222222222222222222222222";
@@ -11,8 +17,8 @@ export const TOKEN = "0xb162dfde7073eb1b4dd6279efcd0568e9c09a21c";
 export const RATE = 4_000n;
 export const MAX_ESCROW = 14_400_000n;
 
-/** Simulated blocks are offsets from the factory deployment block in config.yaml (start_block). */
-export const START_BLOCK = 60_009_700;
+/** Simulated blocks are offsets from the factory deployment block, so they are never filtered out by config.yaml `start_block`. */
+export const START_BLOCK = testnet.deployedAtBlock;
 
 let txCounter = 0;
 /** Block/transaction metadata for a simulated event; `block` is an offset from START_BLOCK, each call gets a fresh tx hash. */
