@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { diff, documentedMethods, sdkMethods, specOperations } from "../ci/surface-check";
 
 describe("FR-DOC-042 surface check", () => {
-  it("SDK has nine REST methods", () => {
-    expect(sdkMethods()).toHaveLength(9);
+  // Ten since FR-SDK-009 `subscriptions.start` (frozen-surface change signed 2026-09-14).
+  it("SDK has ten REST methods", () => {
+    expect(sdkMethods()).toHaveLength(10);
   });
   it("parses ### `method` headings and ignores webhooks.constructEvent", () => {
     expect(documentedMethods("### `products.create`\n\ntext\n### `webhooks.constructEvent`\n### `invoices.list`\n")).toEqual(["invoices.list", "products.create"]);

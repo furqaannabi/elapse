@@ -131,17 +131,24 @@ curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/cancel" \
 ```
 </CodeGroup>
 
-## Customers
-
 ### `subscriptions.start`
 
 Starts the meter for a Subscription the subscriber has already authorised. Use it when billing
 should begin once your resource is ready rather than at checkout; `active` arrives by webhook
 once the chain confirms.
 
-```ts
+<CodeGroup>
+```ts TypeScript
 await elapse.subscriptions.start("sub_…");
+// 202: the meter starts when the chain confirms; subscription.updated follows with status active.
 ```
+```bash cURL
+curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/start" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+## Customers
 
 ### `customers.retrieve`
 

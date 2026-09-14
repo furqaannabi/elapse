@@ -55,8 +55,11 @@ jobs:
         env:
           TEST_DATABASE_URL: postgres://elapse:elapse@localhost:55434/elapse_test
         run: bun run typecheck && bun test
+      # indexer/ is a standalone package, not a workspace member (Envio Cloud builds from it alone).
+      # `pnpm --filter indexer test` matched no project and exited 0, so this step never ran a test.
       - name: Indexer
-        run: pnpm --filter indexer test
+        working-directory: indexer
+        run: pnpm install --frozen-lockfile --ignore-workspace && pnpm codegen && pnpm test
 
   cli-node20:
     name: CLI on Node 20 (its floor)
