@@ -85,10 +85,34 @@ async function applyLog(tx: SQL, sub: SubscriptionRow, body: IngestBody, chainEv
     }
     case "Deposited": {
       await tx`UPDATE subscriptions SET funded_wei = ${big(a.totalDeposited).toString()}::numeric, updated_at = now() WHERE id = ${sub.id}`;
+      // FR-API-033/071: a merchant-started stream is funded but not running. The subscriber is
+      // finished here, so the session completes now — otherwise a finished checkout would stay
+      // `open` and could be prepared again while the merchant got ready.
+      if (sub.start_mode === "merchant" && sub.checkout_session_id) {
+        await tx`UPDATE checkout_sessions SET status = 'complete', subscription_id = ${sub.id}, customer_id = ${sub.customer_id}, updated_at = now()
+                 WHERE id = ${sub.checkout_session_id} AND status <> 'complete'`;
+        await emit("checkout.session.completed", {
+          id: sub.checkout_session_id,
+          object: "checkout.session",
+          status: "complete",
+          subscription: sub.id,
+          customer: sub.customer_id,
+          product: sub.product_id,
+          livemode: sub.livemode,
+        });
+        await emit("subscription.created", serializeSubscription(await reload(), ts));
+      }
       break;
     }
     case "StreamStarted": {
       await tx`UPDATE subscriptions SET status = 'active', started_at = to_timestamp(${int(a.startedAt)}), updated_at = now() WHERE id = ${sub.id}`;
+      // A merchant-started stream already completed its session and announced itself at
+      // `Deposited`; starting is a lifecycle change, so it rides on `subscription.updated`
+      // and the frozen six event types stand (FR-API-071).
+      if (sub.start_mode === "merchant") {
+        await emit("subscription.updated", serializeSubscription(await reload(), ts));
+        break;
+      }
       if (sub.checkout_session_id) {
         await tx`UPDATE checkout_sessions SET status = 'complete', subscription_id = ${sub.id}, customer_id = ${sub.customer_id}, updated_at = now()
                  WHERE id = ${sub.checkout_session_id}`;

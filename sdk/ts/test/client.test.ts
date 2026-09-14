@@ -137,6 +137,19 @@ describe("FR-SDK-006 customers and invoices", () => {
   });
 });
 
+describe("FR-SDK-002 start mode", () => {
+  it("sends start_mode only when given", async () => {
+    mock.on(() => ({ status: 200, body: { id: "prod_9Xk2mQ1pL0vRsT", object: "product", name: "GPU", rate_usd_per_second: "0.004", currency: "ausd", start_mode: "merchant" } }));
+    await elapse.products.create({ name: "GPU", rateUsdPerSecond: "0.004", startMode: "merchant" });
+    expect(JSON.parse(mock.seen[0]!.body)).toEqual({ name: "GPU", rate_usd_per_second: "0.004", start_mode: "merchant" });
+
+    // `mock.on` resets `seen`, so the next request is index 0 again.
+    mock.on(() => ({ status: 200, body: { id: "prod_9Xk2mQ1pL0vRsT", object: "product", name: "GPU", rate_usd_per_second: "0.004", currency: "ausd", start_mode: "checkout" } }));
+    await elapse.products.create({ name: "GPU", rateUsdPerSecond: "0.004" });
+    expect(JSON.parse(mock.seen[0]!.body)).toEqual({ name: "GPU", rate_usd_per_second: "0.004" });
+  });
+});
+
 describe("FR-SDK-007 frozen surface", () => {
   it("exports exactly the frozen names", () => {
     expect(Object.keys(sdk).sort()).toEqual(

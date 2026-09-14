@@ -10,6 +10,8 @@ export interface ProductRow {
   rate_usd_per_second: string;
   rate_per_second_wei: string;
   allow_pause: boolean;
+  /** FR-API-049: when this product's meter begins. Snapshotted onto each subscription at prepare. */
+  start_mode: "checkout" | "merchant";
   active: boolean;
   created_at: Date;
   /** Running or paused meters on this product (dashboard FR-DSH-030). */
@@ -18,7 +20,7 @@ export interface ProductRow {
 
 const COLS = sql`id, merchant_id, livemode, name, description,
   rate_usd_per_second::text AS rate_usd_per_second, rate_per_second_wei::text AS rate_per_second_wei,
-  allow_pause, active, created_at,
+  allow_pause, start_mode, active, created_at,
   (SELECT count(*)::int FROM subscriptions s WHERE s.product_id = products.id AND s.status IN ('active', 'paused')) AS active_subscriptions`;
 
 export async function insertProduct(input: {
@@ -29,12 +31,13 @@ export async function insertProduct(input: {
   rateUsdPerSecond: string;
   ratePerSecondWei: bigint;
   allowPause: boolean;
+  startMode?: "checkout" | "merchant";
 }): Promise<ProductRow> {
   const id = newId("prod");
   const [row] = await sql`
-    INSERT INTO products (id, merchant_id, livemode, name, description, rate_usd_per_second, rate_per_second_wei, allow_pause)
+    INSERT INTO products (id, merchant_id, livemode, name, description, rate_usd_per_second, rate_per_second_wei, allow_pause, start_mode)
     VALUES (${id}, ${input.merchantId}, ${input.livemode}, ${input.name}, ${input.description},
-            ${input.rateUsdPerSecond}::numeric, ${input.ratePerSecondWei.toString()}::numeric, ${input.allowPause})
+            ${input.rateUsdPerSecond}::numeric, ${input.ratePerSecondWei.toString()}::numeric, ${input.allowPause}, ${input.startMode ?? "checkout"})
     RETURNING ${COLS}`;
   return row as ProductRow;
 }

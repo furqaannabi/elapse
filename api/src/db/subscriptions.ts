@@ -14,6 +14,12 @@ export interface SubscriptionRow {
   customer_id: string;
   checkout_session_id: string | null;
   status: "incomplete" | "active" | "paused" | "canceled";
+  /** Snapshotted from the product at prepare, so a running meter keeps the mode it started under. */
+  start_mode: "checkout" | "merchant";
+  /** FR-API-049: when the merchant's start was submitted, so an in-flight start is not resubmitted. */
+  start_submitted_at: Date | null;
+  /** FR-WRK-075: when the unstarted sweep submitted a cancel, so a later tick does not resubmit. */
+  cancel_submitted_at: Date | null;
   ended_reason: "canceled" | "cap_reached" | null;
   chain_id: number;
   stream_address: string | null;
@@ -36,7 +42,7 @@ export interface SubscriptionRow {
   customer_email: string | null;
 }
 
-const COLS = sql`id, merchant_id, livemode, product_id, customer_id, checkout_session_id, status, ended_reason, chain_id,
+const COLS = sql`id, merchant_id, livemode, product_id, customer_id, checkout_session_id, status, start_mode, start_submitted_at, cancel_submitted_at, ended_reason, chain_id,
   stream_address, pending_tx, rate_per_second_wei::text AS rate_per_second_wei, max_duration_seconds,
   max_escrow_wei::text AS max_escrow_wei, funded_wei::text AS funded_wei, settled_wei::text AS settled_wei,
   settled_fee_wei::text AS settled_fee_wei, settled_seconds, paused_seconds, started_at, paused_at, canceled_at, simulated, created_at,
@@ -54,6 +60,7 @@ export async function insertSubscription(
     ratePerSecondWei: bigint;
     maxDurationSeconds: number;
     maxEscrowWei: bigint;
+    startMode?: "checkout" | "merchant";
     streamAddress?: string | null;
     pendingTx?: string | null;
   },
@@ -61,9 +68,9 @@ export async function insertSubscription(
 ): Promise<SubscriptionRow> {
   const [row] = await tx`
     INSERT INTO subscriptions (id, merchant_id, livemode, product_id, customer_id, checkout_session_id, chain_id,
-                               rate_per_second_wei, max_duration_seconds, max_escrow_wei, stream_address, pending_tx)
+                               rate_per_second_wei, max_duration_seconds, max_escrow_wei, start_mode, stream_address, pending_tx)
     VALUES (${newId("sub")}, ${input.merchantId}, ${input.livemode}, ${input.productId}, ${input.customerId}, ${input.checkoutSessionId},
-            ${input.chainId}, ${input.ratePerSecondWei.toString()}::numeric, ${input.maxDurationSeconds}, ${input.maxEscrowWei.toString()}::numeric,
+            ${input.chainId}, ${input.ratePerSecondWei.toString()}::numeric, ${input.maxDurationSeconds}, ${input.maxEscrowWei.toString()}::numeric, ${input.startMode ?? "checkout"},
             ${input.streamAddress?.toLowerCase() ?? null}, ${input.pendingTx?.toLowerCase() ?? null})
     RETURNING ${COLS}`;
   return row as SubscriptionRow;

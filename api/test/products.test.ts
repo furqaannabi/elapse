@@ -77,6 +77,7 @@ describe("FR-API-010 products.create", () => {
       rate_per_second_wei: "4000",
       currency: "ausd",
       allow_pause: false,
+      start_mode: "checkout",
       active: true,
       active_subscriptions: 0,
       livemode: false,

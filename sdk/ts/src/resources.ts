@@ -99,7 +99,7 @@ function query(params: Record<string, string | number | boolean | undefined>): s
 /** `products.create/retrieve/list` (FR-SDK-002, FR-SDK-003). */
 export function products(t: Transport) {
   return {
-    create(params: { name: string; rateUsdPerSecond: string; allowPause?: boolean; description?: string }, opts?: RequestOptions): Promise<Product> {
+    create(params: { name: string; rateUsdPerSecond: string; allowPause?: boolean; description?: string; startMode?: "checkout" | "merchant" }, opts?: RequestOptions): Promise<Product> {
       if (typeof params.rateUsdPerSecond !== "string" || !DECIMAL.test(params.rateUsdPerSecond)) {
         return Promise.reject(
           new ElapseInvalidRequestError('rateUsdPerSecond must be a decimal string such as "0.004" (never a number).', { param: "rateUsdPerSecond" }),
@@ -107,6 +107,8 @@ export function products(t: Transport) {
       }
       const body: Record<string, unknown> = { name: params.name, rate_usd_per_second: params.rateUsdPerSecond };
       if (params.allowPause !== undefined) body.allow_pause = params.allowPause;
+      // FR-SDK-002 (amended 2026-09-14): `merchant` defers the meter until subscriptions.start.
+      if (params.startMode !== undefined) body.start_mode = params.startMode;
       if (params.description !== undefined) body.description = params.description;
       return t.request<Product>("POST", "/products", body, opts);
     },

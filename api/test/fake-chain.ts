@@ -11,6 +11,7 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   const pauses: Array<{ stream: string; deadline: bigint; signature: string }> = [];
   const resumes: Array<{ stream: string; deadline: bigint; signature: string }> = [];
   const keeperCancels: string[] = [];
+  const keeperStarts: string[] = [];
   const settleBatches: Array<{ chainId: number; streams: string[]; gas: bigint }> = [];
   /** Per-stream direct settle estimate, or an Error to make the direct call revert (FR-WRK-072). Default 210_000. */
   const settleEstimates = new Map<string, bigint | Error>();
@@ -18,7 +19,7 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   const streamStates = new Map<string, StreamState | Error>();
   const streamLogs = new Map<string, StreamLog[]>();
   const logQueries: Array<{ chainId: number; stream: string; fromBlock: number }> = [];
-  const state = { failNextSettle: null as Error | null, receiptLogs: null as number | null, failNextNativeRead: null as Error | null };
+  const state = { failNextSettle: null as Error | null, receiptLogs: null as number | null, failNextNativeRead: null as Error | null, failNextCancel: null as Error | null };
   const nativeBalances = new Map<string, bigint>(Object.entries(opts.nativeBalances ?? {}).map(([k, v]) => [k.toLowerCase(), v]));
   const cancelNonces = new Map<string, bigint>();
   let n = 0;
@@ -78,7 +79,16 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
       return streamLogs.get(stream.toLowerCase()) ?? [];
     },
     async cancel(_c, stream) {
+      if (state.failNextCancel) {
+        const e = state.failNextCancel;
+        state.failNextCancel = null;
+        throw e;
+      }
       keeperCancels.push(stream.toLowerCase());
+      return hash();
+    },
+    async start(_c: number, stream: string) {
+      keeperStarts.push(stream.toLowerCase());
       return hash();
     },
     async cancelFor(_c, stream, deadline, signature) {
@@ -98,9 +108,14 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
     },
   };
   return {
-    client, creates, cancels, pauses, resumes, keeperCancels, settleBatches, settleEstimates, streamStates, streamLogs, logQueries, balances, nonces, nativeBalances, state,
+    client, creates, cancels, pauses, resumes, keeperCancels,
+    keeperStarts, settleBatches, settleEstimates, streamStates, streamLogs, logQueries, balances, nonces, nativeBalances, state,
     set failNextSettle(e: Error | null) {
       state.failNextSettle = e;
+    },
+    /** Makes the next keeper `cancel()` throw, for the FR-WRK-075 sweep's batch-resilience test. */
+    set failNextCancel(e: Error | null) {
+      state.failNextCancel = e;
     },
     /** Logs the next settle receipt reports; 0 is the drain signature (FR-WRK-072). */
     set receiptLogs(n: number | null) {

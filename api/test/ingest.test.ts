@@ -19,7 +19,7 @@ let subId: string;
 let sessionId: string;
 
 /** A merchant, a 0.004 USD/s product, an open session, a customer and an `incomplete` subscription bound to the kill-gate stream. */
-async function seedIncomplete(opts: { streamAddress?: string | null; pendingTx?: string | null; maxDuration?: number; livemode?: boolean } = {}) {
+async function seedIncomplete(opts: { streamAddress?: string | null; pendingTx?: string | null; maxDuration?: number; livemode?: boolean; startMode?: "checkout" | "merchant" } = {}) {
   const livemode = opts.livemode ?? false;
   const product = await insertProduct({ merchantId: m.merchantId, livemode, name: "GPU", description: null, rateUsdPerSecond: "0.004", ratePerSecondWei: 4000n, allowPause: true });
   productId = product.id;
@@ -31,6 +31,7 @@ async function seedIncomplete(opts: { streamAddress?: string | null; pendingTx?:
   const sub = await insertSubscription({
     merchantId: m.merchantId, livemode, productId, customerId, checkoutSessionId: sessionId,
     chainId: livemode ? chainIdFor(true) : CHAIN, ratePerSecondWei: 4000n, maxDurationSeconds: maxDuration, maxEscrowWei: 4000n * BigInt(maxDuration),
+    startMode: opts.startMode ?? "checkout",
     streamAddress: opts.streamAddress === undefined ? STREAM : opts.streamAddress, pendingTx: opts.pendingTx ?? null,
   });
   subId = sub.id;
@@ -125,6 +126,36 @@ describe("FR-API-071 mapping", () => {
     expect(events.map((e: any) => e.type)).toEqual(["checkout.session.completed", "subscription.created"]);
     expect(events[0].data.object).toMatchObject({ id: sessionId, object: "checkout.session", status: "complete", subscription: subId, customer: customerId });
     expect(events[1].data.object).toMatchObject({ id: subId, object: "subscription", status: "active", started_at: T0, rate_usd_per_second: "0.004", max_escrow_usd: "14.4", funded_usd: "0", settled_usd: "0", stream_address: STREAM, chain_id: CHAIN });
+  });
+
+  it("FR_API_033_Deposited_completes_a_merchant_started_session_while_the_meter_is_still_stopped", async () => {
+    await seedIncomplete({ startMode: "merchant" });
+    await ingest(deposited());
+    const sub = await findSubscription(m.merchantId, false, subId);
+    // Funded, announced, and not accruing: the subscriber is finished, the merchant has not started.
+    expect(sub!.status).toBe("incomplete");
+    expect(sub!.started_at).toBeNull();
+    expect(sub!.funded_wei).toBe("14400000");
+    // Otherwise a finished checkout would stay `open` and could be prepared a second time.
+    const [session] = await sql`SELECT status, subscription_id, customer_id FROM checkout_sessions WHERE id = ${sessionId}`;
+    expect(session).toEqual({ status: "complete", subscription_id: subId, customer_id: customerId });
+    const events = await sql`SELECT type, data FROM events ORDER BY seq`;
+    expect(events.map((e: any) => e.type)).toEqual(["checkout.session.completed", "subscription.created"]);
+    expect(events[1].data.object).toMatchObject({ id: subId, object: "subscription", status: "incomplete", started_at: null, funded_usd: "14.4", stream_address: STREAM });
+  });
+
+  it("FR_API_071_StreamStarted_on_a_merchant_started_session_rides_on_subscription_updated", async () => {
+    await seedIncomplete({ startMode: "merchant" });
+    await ingest(deposited());
+    await ingest(streamStarted(undefined, T0 + 300));
+    const sub = await findSubscription(m.merchantId, false, subId);
+    expect(sub!.status).toBe("active");
+    expect(Math.floor(sub!.started_at!.getTime() / 1000)).toBe(T0 + 300);
+    // The session completed at Deposited, so starting is a lifecycle change carried by
+    // `subscription.updated` — no second `subscription.created`, and the frozen six stand.
+    const events = await sql`SELECT type, data FROM events ORDER BY seq`;
+    expect(events.map((e: any) => e.type)).toEqual(["checkout.session.completed", "subscription.created", "subscription.updated"]);
+    expect(events[2].data.object).toMatchObject({ id: subId, object: "subscription", status: "active", started_at: T0 + 300 });
   });
 
   it("FR_API_071_pause_and_resume_emit_subscription_updated_and_accumulate_paused_seconds", async () => {

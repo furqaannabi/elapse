@@ -22,6 +22,8 @@ export interface CreateWithPermitArgs {
   v: number;
   r: Hex;
   s: Hex;
+  /** FR-CON-019: fund the stream but leave it Created, for merchant-started metering. */
+  noStart?: boolean;
 }
 
 export interface ChainClient {
@@ -54,6 +56,9 @@ export interface ChainClient {
   readStreamLogs(chainId: number, stream: Address, fromBlock: bigint, expect: { settledSeconds: bigint }): Promise<StreamLog[]>;
   /** Submits `AccrualStream.cancel()` as the factory keeper (FR-CON-054, merchant-initiated cancel). */
   cancel(chainId: number, stream: Address): Promise<Hex>;
+
+  /** FR-API-049: start a funded stream as keeper, on the merchant's behalf. */
+  start(chainId: number, stream: Address): Promise<Hex>;
   /** Submits `AccrualStream.cancelFor(deadline, signature)`; resolves with the tx hash at broadcast. */
   cancelFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
   /** Submits `AccrualStream.pauseFor(deadline, signature)` (FR-CON-018); no money moves. */
@@ -137,7 +142,7 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
         chain,
         address: factory,
         abi: factoryAbi,
-        functionName: "createWithPermit",
+        functionName: a.noStart ? "createWithPermitNoStart" : "createWithPermit",
         args: [a.merchant, a.subscriber, a.token, a.ratePerSecond, a.maxEscrow, a.deadline, a.v, a.r, a.s],
       });
     },
@@ -194,6 +199,10 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     async cancel(chainId, stream) {
       assertChain(chainId);
       return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancel", args: [] });
+    },
+    async start(chainId, stream) {
+      assertChain(chainId);
+      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "start", args: [] });
     },
     async cancelFor(chainId, stream, deadline, signature) {
       assertChain(chainId);

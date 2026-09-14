@@ -27,6 +27,7 @@ export const ProductSchema = z
     rate_per_second_wei: z.string().openapi({ example: "4000", description: "Rate in token base units (6 decimals for AUSD)." }),
     currency: z.literal("ausd"),
     allow_pause: z.boolean(),
+    start_mode: z.enum(["checkout", "merchant"]).openapi({ description: "`checkout` starts the meter when the subscriber authorises; `merchant` waits until you call subscriptions.start." }),
     active: z.boolean(),
     active_subscriptions: z.number().int().openapi({ description: "Running or paused meters on this product." }),
     livemode: z.boolean(),
@@ -50,6 +51,7 @@ const CreateProductBody = z
     rate_usd_per_second: RateSchema,
     description: z.string().max(1000).optional(),
     allow_pause: z.boolean().optional(),
+    start_mode: z.enum(["checkout", "merchant"]).optional().openapi({ description: "Default `checkout`. Use `merchant` when billing should begin once your resource is ready." }),
   })
   .openapi("CreateProduct");
 
@@ -63,6 +65,7 @@ export function serializeProduct(p: ProductRow) {
     rate_per_second_wei: p.rate_per_second_wei,
     currency: "ausd" as const,
     allow_pause: p.allow_pause,
+    start_mode: p.start_mode,
     active: p.active,
     livemode: p.livemode,
     created: Math.floor(p.created_at.getTime() / 1000),
@@ -112,6 +115,7 @@ products.openapi(
       rateUsdPerSecond: body.rate_usd_per_second,
       ratePerSecondWei: wei,
       allowPause: body.allow_pause ?? false,
+      startMode: body.start_mode ?? "checkout",
     });
     return c.json(serializeProduct(row), 200);
   },

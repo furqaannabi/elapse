@@ -18,6 +18,24 @@ export const factoryAbi = [
     ],
     outputs: [{ name: "stream", type: "address" }],
   },
+  {
+    // FR-CON-019: funds the stream and leaves it Created; the merchant starts it when ready.
+    type: "function",
+    name: "createWithPermitNoStart",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "merchant", type: "address" },
+      { name: "subscriber", type: "address" },
+      { name: "token", type: "address" },
+      { name: "ratePerSecond", type: "uint256" },
+      { name: "maxEscrow", type: "uint256" },
+      { name: "deadline", type: "uint256" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" },
+    ],
+    outputs: [{ name: "stream", type: "address" }],
+  },
 ] as const;
 
 export const permitTokenAbi = [
@@ -46,6 +64,8 @@ export const permitTokenAbi = [
 export const streamAbi = [
   { type: "function", name: "relayNonce", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "cancel", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  // FR-CON-055: party or keeper, so the relayer can start on the merchant's behalf.
+  { type: "function", name: "start", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "settle", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "status", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
   { type: "function", name: "settledSeconds", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },

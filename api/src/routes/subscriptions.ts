@@ -7,7 +7,7 @@ import { RelayerUnavailable } from "../chain/relayer";
 import { ApiError, notFound } from "../lib/errors";
 import { PUBLIC, router } from "../lib/openapi";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
-import { CheckoutStateError, cancelAsKeeper } from "../services/checkout";
+import { CheckoutStateError, cancelAsKeeper, startAsKeeper } from "../services/checkout";
 import { SubscriptionSchema } from "./checkout-sessions";
 
 /**
@@ -66,6 +66,39 @@ subscriptions.openapi(
     const row = await findSubscription(auth.merchantId, auth.livemode, id);
     if (!row) throw notFound("subscription", id);
     return c.json(serializeSubscription(row), 200);
+  },
+);
+
+subscriptions.openapi(
+  createRoute({
+    method: "post",
+    path: "/subscriptions/{id}/start",
+    operationId: "subscriptions.start",
+    summary: "Start a subscription's meter",
+    ...PUBLIC,
+    tags: ["Subscriptions"],
+    request: { params: z.object({ id: z.string() }) },
+    responses: {
+      202: {
+        description:
+          "Start submitted on chain. Only for products created with `start_mode: \"merchant\"`; the object stays `incomplete` until `subscription.updated` arrives, and `pending_tx` is the relayer's transaction.",
+        content: { "application/json": { schema: SubscriptionSchema.extend({ pending_tx: z.string() }) } },
+      },
+    },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const auth = c.get("auth");
+    const row = await findSubscription(auth.merchantId, auth.livemode, id);
+    if (!row) throw notFound("subscription", id);
+    try {
+      const pendingTx = await startAsKeeper(row);
+      return c.json({ ...serializeSubscription(row), pending_tx: pendingTx }, 202);
+    } catch (e) {
+      if (e instanceof CheckoutStateError) throw new ApiError(409, "invalid_request_error", e.message, undefined, e.code);
+      if (e instanceof RelayerUnavailable) throw new ApiError(503, "api_error", "Starting is temporarily unavailable.");
+      throw e;
+    }
   },
 );
 

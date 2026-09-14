@@ -19,6 +19,7 @@ import { sql } from "../db/client";
 import { chainClient } from "../chain/relayer";
 import { sleep } from "./sleep";
 import { requestReconcile } from "./reconcile";
+import { runUnstartedSweepOnce } from "./unstarted";
 
 export const KEEPER_CADENCE_S = Number(process.env.KEEPER_CADENCE_S ?? 300);
 export const KEEPER_TICK_MS = Number(process.env.KEEPER_TICK_MS ?? 30_000);
@@ -113,6 +114,12 @@ export async function keeperForever(signal?: AbortSignal, log?: KeeperLogger, on
   while (!signal?.aborted) {
     try {
       await runKeeperOnce({ log });
+      // FR-WRK-075 rides the same tick; its failure must never stop settlement.
+      try {
+        await runUnstartedSweepOnce({ log });
+      } catch (e) {
+        console.error("unstarted sweep crashed", { message: (e as Error).message });
+      }
       onTick?.();
     } catch (e) {
       console.error("keeper tick crashed", { message: (e as Error).message });

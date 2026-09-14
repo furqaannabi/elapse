@@ -499,6 +499,87 @@
         ]
       }
     },
+    "/v1/subscriptions/{id}/start": {
+      "post": {
+        "operationId": "subscriptions.start",
+        "summary": "Start a subscription's meter",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Start submitted on chain. Only for products created with `start_mode: \"merchant\"`; the object stays `incomplete` until `subscription.updated` arrives, and `pending_tx` is the relayer's transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pending_tx": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pending_tx"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/subscriptions/{id}/cancel": {
       "post": {
         "operationId": "subscriptions.cancel",
@@ -1062,6 +1143,14 @@
           },
           "allow_pause": {
             "type": "boolean"
+          },
+          "start_mode": {
+            "type": "string",
+            "enum": [
+              "checkout",
+              "merchant"
+            ],
+            "description": "Default `checkout`. Use `merchant` when billing should begin once your resource is ready."
           }
         },
         "required": [
@@ -1273,6 +1362,14 @@
           "allow_pause": {
             "type": "boolean"
           },
+          "start_mode": {
+            "type": "string",
+            "enum": [
+              "checkout",
+              "merchant"
+            ],
+            "description": "`checkout` starts the meter when the subscriber authorises; `merchant` waits until you call subscriptions.start."
+          },
           "active": {
             "type": "boolean"
           },
@@ -1297,6 +1394,7 @@
           "rate_per_second_wei",
           "currency",
           "allow_pause",
+          "start_mode",
           "active",
           "active_subscriptions",
           "livemode",

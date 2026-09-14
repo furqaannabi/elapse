@@ -38,6 +38,8 @@ export type CheckoutErrorCode =
   | "bad_signature"
   | "permit_expired"
   | "no_payout_address"
+  | "not_startable"
+  | "not_funded"
   | "subscriber_mismatch"
   | "insufficient_balance";
 
@@ -107,7 +109,7 @@ export async function prepareSession(input: {
       sub = await insertSubscription(
         {
           merchantId: session.merchant_id, livemode: session.livemode, productId: product.id, customerId: customer.id, checkoutSessionId: session.id,
-          chainId, ratePerSecondWei: rate, maxDurationSeconds: input.maxDurationSeconds, maxEscrowWei: maxEscrow,
+          chainId, ratePerSecondWei: rate, maxDurationSeconds: input.maxDurationSeconds, maxEscrowWei: maxEscrow, startMode: product.start_mode,
         },
         tx,
       );
@@ -174,6 +176,8 @@ export async function startSession(input: { session: CheckoutSessionRow; signatu
   const { v, r, s } = splitSignature(input.signature);
   const pendingTx = await chain.createWithPermit({
     chainId, merchant: payout as Address, subscriber: wallet, token, ratePerSecond: BigInt(sub.rate_per_second_wei), maxEscrow, deadline, v, r, s,
+    // FR-CON-019: a merchant-started product funds the stream and leaves it Created.
+    noStart: sub.start_mode === "merchant",
   });
   // Written immediately so ingest can bind StreamCreated by tx hash before the receipt is read (FR-API-071 note).
   await sql`UPDATE subscriptions SET pending_tx = ${pendingTx.toLowerCase()}, updated_at = now() WHERE id = ${sub.id}`;
@@ -281,6 +285,22 @@ export function cancelSubscription(input: { session: CheckoutSessionRow; signatu
 }
 
 /** Merchant-initiated cancel (FR-API-042): the relayer is the factory keeper (FR-CON-054) and calls `cancel()` directly. */
+/**
+ * FR-API-049: start a meter the subscriber has already authorised. Only a `merchant`-mode
+ * subscription reaches here unstarted; the relayer submits `start()` as keeper (contracts
+ * FR-CON-055) because a merchant's server holds no key. `active` arrives via ingest.
+ */
+export async function startAsKeeper(sub: SubscriptionRow): Promise<Hex> {
+  if (sub.status === "active") throw new CheckoutStateError("already_started", "This meter is already running.");
+  // The row stays `incomplete` until StreamStarted ingests, so the marker is what makes this idempotent.
+  if (sub.start_submitted_at) throw new CheckoutStateError("already_started", "A start is already in flight for this meter.");
+  if (sub.status !== "incomplete") throw new CheckoutStateError("not_startable", "This subscription can no longer be started.");
+  if (!sub.stream_address) throw new CheckoutStateError("not_funded", "The subscriber has not authorised this session yet.");
+  const pendingTx = await chainClient().start(sub.chain_id, sub.stream_address as Address);
+  await sql`UPDATE subscriptions SET pending_tx = ${pendingTx.toLowerCase()}, start_submitted_at = now(), updated_at = now() WHERE id = ${sub.id}`;
+  return pendingTx;
+}
+
 export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
   if (!sub.stream_address || (sub.status !== "active" && sub.status !== "paused")) {
     throw new CheckoutStateError("not_running", "The subscription has no running meter.");
