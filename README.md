@@ -108,8 +108,8 @@ sequenceDiagram
 
 | Contract | Address |
 |---|---|
-| StreamFactory | `0x4B768dA0D29C084145f23Cd06b3b5fc2e07a2840` |
-| AccrualStream implementation | `0x3Ccb83A576FD4f8b30b1E46441d89CD2AF4D5586` |
+| StreamFactory | `0x4C3526d71365064e24A755AAb161e00CfA243649` |
+| AccrualStream implementation | `0x25968D476062C48e82235F1a4B413F7AEdf23826` |
 | AUSD (live mode) | `0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC` |
 
 The chain picks the token ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)): AUSD, in both modes — six decimals, ERC-2612 permit, never minted by us. A short wallet sees Add funds and must be sent AUSD. After the hackathon, live mode moves to mainnet AUSD (`0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a` on chain 143). MockUSD survives only as a Foundry test fixture.

@@ -57,7 +57,19 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
-## Current testnet deployment (2026-09-07, relayed pause/resume)
+## Current testnet deployment (2026-09-14, merchant-started metering)
+
+| | |
+| --- | --- |
+| Factory | [`0x4C3526d71365064e24A755AAb161e00CfA243649`](https://testnet.monadscan.com/address/0x4C3526d71365064e24A755AAb161e00CfA243649) · Sourcify exact match |
+| Implementation | `0x25968D476062C48e82235F1a4B413F7AEdf23826` · Sourcify exact match |
+| Owner | `0x35134987bB541607Cd45e62Dd1feA4F587607817` (the `hackathons` keystore; `elapse-dev` owned the previous factory) |
+| Keeper (relayer) | `0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35`, set in the deploy run |
+| Fee | 200 bps, set by `setFee` after deploy — `Deploy.s.sol` leaves the 100 bps constructor default ([ADR 2026-09-08](../docs/decisions/2026-09-08-platform-fee-two-percent.md)) |
+| Block | 62451503, tx `0xd6670974…d4ce7a` |
+| Why | FR-CON-019/055/056: `createWithPermitNoStart` funds without starting; the keeper may `start()`; an unstarted stream refunds in full on cancel |
+
+## Previous testnet deployment (2026-09-07, relayed pause/resume)
 
 | | |
 | --- | --- |
