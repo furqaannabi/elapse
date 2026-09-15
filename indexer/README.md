@@ -72,15 +72,15 @@ audit and reverse by hand (FR-IDX-033) until the Week 4 `reconcile` script exist
 
 ## Hosted deployment (Envio Cloud)
 
-Indexer `elapse` in the `furqaannabi` organisation, small tier: repository `furqaannabi/elapse`, root directory `indexer/`, config `config.yaml`, **deployment branch `envio`**, auto-deploy on. Envio builds with pnpm 10 and recommends Node 24.
+Indexer `elapse-2` in the `furqaannabi` organisation (recreated 2026-09-15; the first `elapse` was scheduled for deletion), small tier: repository `furqaannabi/elapse`, root directory `indexer/`, config `config.yaml`, **deployment branch `master`**, auto-deploy on. Envio builds with pnpm 10 and recommends Node 24.
 
-**What triggers a build.** A push to `envio` that changes something under `indexer/`. Pushes to other branches, and commits that touch nothing in the root directory, are not picked up (`envio-cloud indexer commits elapse furqaannabi` stays empty). To deploy: fast-forward `envio` to `master` (`git push origin master:envio`), never force. Each push creates a deployment, and the plan allows three per indexer, so delete a superseded one only after its replacement has synced.
+**What triggers a build.** A push to `master` that changes something under `indexer/`. Commits that touch nothing in the root directory are not picked up (confirmed 2026-09-15: three empty or out-of-root commits registered nothing; `1c37e38`, a README change, deployed). So any merged change under `indexer/` deploys. Each push creates a deployment, and the plan allows three per indexer, so delete a superseded one only after its replacement has synced.
 
-**Environment variables** must be prefixed `ENVIO_` and are literal (no quotes). `ENVIO_INGEST_URL` (the API's `/internal/ingest`) and `ENVIO_INGEST_TOKEN` must be set **before** a deploy: without them the indexer syncs but every ingest POST fails, and a second deploy spends another slot. Set them with `envio-cloud indexer env set elapse furqaannabi ENVIO_INGEST_URL=… ENVIO_INGEST_TOKEN=…`.
+**Environment variables** must be prefixed `ENVIO_` and are literal (no quotes). `ENVIO_INGEST_URL` (the API's `/internal/ingest`) and `ENVIO_INGEST_TOKEN` must be set **before** a deploy: without them the indexer syncs but every ingest POST fails, and a second deploy spends another slot. Set them with `envio-cloud indexer env set elapse-2 furqaannabi ENVIO_INGEST_URL=… ENVIO_INGEST_TOKEN=…`.
 
 **CLI.** `npx envio-cloud` (alpha) reads settings, commits, deployments, logs and status: `indexer settings get`, `indexer commits`, `deployment status|logs|endpoint`, and `deployment deploy <indexer> <commit>` for an `inactive` commit. Note that `envio-cloud login` authenticates silently with an existing GitHub CLI session if one is present.
 
-The GraphQL endpoint changes per deployment; read it with `envio-cloud deployment endpoint elapse <commit> furqaannabi` and set it as `INDEXER_GRAPHQL_URL` on the API.
+The GraphQL endpoint changes per deployment; read it with `envio-cloud deployment endpoint elapse-2 <commit> furqaannabi` and set it as `INDEXER_GRAPHQL_URL` on the API.
 
 ## Deferred to Week 4
 
