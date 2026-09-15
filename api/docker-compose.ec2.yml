@@ -68,7 +68,6 @@ x-api-image: &api-image
     context: ..
     dockerfile: api/Dockerfile
   image: elapse-api:latest
-  env_file: ${ELAPSE_API_ENV:-.env}
   restart: unless-stopped
   logging:
     driver: json-file
@@ -80,7 +79,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: elapse
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in api/.env}
+      POSTGRES_PASSWORD: elapse
       POSTGRES_DB: elapse
     volumes:
       - elapse-pg:/var/lib/postgresql/data
@@ -93,9 +92,11 @@ services:
 
   api:
     <<: *api-image
+    env_file:
+      - .env
     environment:
       # Overrides any DATABASE_URL in api/.env, so a leftover Neon URL can never be used by accident.
-      DATABASE_URL: postgres://elapse:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in api/.env}@db:5432/elapse
+      DATABASE_URL: postgres://elapse:elapse@db:5432/elapse
       PORT: "4000"
       NODE_ENV: production
     # Loopback only: the host's nginx reaches it, the internet does not. Keep 4000 closed in the security group.
@@ -113,11 +114,13 @@ services:
 
   worker:
     <<: *api-image
+    env_file:
+      - .env
     # Webhook deliveries, the keeper (settleBatch) and the unstarted-session sweep. Exactly one:
     # two keepers would both submit settle and cancel transactions and burn relayer gas.
     command: ["bun", "src/worker/index.ts"]
     environment:
-      DATABASE_URL: postgres://elapse:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in api/.env}@db:5432/elapse
+      DATABASE_URL: postgres://elapse:elapse@db:5432/elapse
       NODE_ENV: production
       KEEPER_CADENCE_S: "3600" # ADR 2026-09-08 keeper cadence
     depends_on:
