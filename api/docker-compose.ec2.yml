@@ -1,0 +1,106 @@
+# Production on one EC2 host: Postgres, the API, the webhook worker, and Caddy for TLS.
+# This replaces Railway + Neon (api/README "Hosting"); record that move as an ADR before cutover.
+# Local development keeps using api/docker-compose.yml (Postgres on :55434, test credentials).
+#
+# On the instance (Ubuntu 24.04, Docker + compose plugin, security group: 22 from your IP, 80/443 open, nothing else):
+#   git clone https://github.com/furqaannabi/elapse.git && cd elapse
+#   sudo install -d -m 700 /etc/elapse
+#   sudo nano /etc/elapse/api.env && sudo chmod 600 /etc/elapse/api.env   # see "api.env" below
+#   printf 'POSTGRES_PASSWORD=%s\nAPI_HOST=api.elapse.finance\n' "$(openssl rand -hex 24)" | sudo tee /etc/elapse/compose.env >/dev/null && sudo chmod 600 /etc/elapse/compose.env
+#   sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env up -d --build
+#
+# Both files live outside the checkout: api/.env is the API's local development file, and nothing secret sits in the repo.
+#
+# api.env holds everything from api/.env.example except DATABASE_URL, which is set below:
+#   PORT WEBHOOK_SECRET_KEK DASHBOARD_ORIGIN DOCS_ORIGIN PUBLIC_API_URL NEXT_PUBLIC_CHECKOUT_URL
+#   PRIVY_APP_ID PRIVY_VERIFICATION_KEY RESEND_API_KEY EMAIL_FROM INGEST_TOKEN MONAD_RPC_URL CHAIN_ID
+#   RELAYER_PRIVATE_KEY INDEXER_GRAPHQL_URL
+# RELAYER_PRIVATE_KEY controls a funded wallet: prefer AWS Secrets Manager / SSM over a file on the disk.
+#
+# Moving data off Neon (once, before switching DNS; stop the Railway worker first so nothing writes):
+#   sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env up -d db
+#   sudo docker run --rm postgres:16 pg_dump --no-owner --no-acl "$NEON_DATABASE_URL" \
+#     | sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env exec -T db psql -U elapse -d elapse
+#
+# Backups are now yours: schedule EBS snapshots of the root volume, or a nightly pg_dump to S3.
+#
+# Update: git pull && sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env up -d --build
+# Migrations run on every API start (the image's default command), before the worker is allowed to start.
+
+x-api-image: &api-image
+  build:
+    context: ..
+    dockerfile: api/Dockerfile
+  image: elapse-api:latest
+  env_file: ${ELAPSE_API_ENV:-/etc/elapse/api.env}
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: elapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /etc/elapse/compose.env}
+      POSTGRES_DB: elapse
+    volumes:
+      - elapse-pg:/var/lib/postgresql/data
+    # No published port: only the containers on this network reach Postgres.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elapse -d elapse"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *api-image
+    environment:
+      # Overrides any DATABASE_URL in api.env, so a leftover Neon URL can never be used by accident.
+      DATABASE_URL: postgres://elapse:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /etc/elapse/compose.env}@db:5432/elapse
+      PORT: "4000"
+      NODE_ENV: production
+    expose: ["4000"]
+    depends_on:
+      db: { condition: service_healthy }
+    # The image has no curl; Node 24's fetch does the check against the unauthenticated status route.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/v1/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 6
+
+  worker:
+    <<: *api-image
+    # Webhook deliveries, the keeper (settleBatch) and the unstarted-session sweep. Exactly one:
+    # two keepers would both submit settle and cancel transactions and burn relayer gas.
+    command: ["bun", "src/worker/index.ts"]
+    environment:
+      DATABASE_URL: postgres://elapse:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /etc/elapse/compose.env}@db:5432/elapse
+      NODE_ENV: production
+      KEEPER_CADENCE_S: "3600" # ADR 2026-09-08 keeper cadence
+    depends_on:
+      # Healthy API means migrations have run, so the worker never queries a table that is not there yet.
+      api: { condition: service_healthy }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    # Terminates TLS for API_HOST (certificate issued and renewed automatically once DNS points here).
+    command: ["caddy", "reverse-proxy", "--from", "${API_HOST:?set API_HOST in /etc/elapse/compose.env}", "--to", "api:4000"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api: { condition: service_healthy }
+
+volumes:
+  elapse-pg:
+  caddy-data:
+  caddy-config:
