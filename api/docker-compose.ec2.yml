@@ -1,4 +1,5 @@
-# Production on one EC2 host: Postgres, the API, the webhook worker, and Caddy for TLS.
+# Production on one EC2 host: Postgres, the API and the webhook worker, behind the host's existing nginx.
+# nginx terminates TLS and proxies to the API on 127.0.0.1:4000; its server block is at the end of this header.
 # This replaces Railway + Neon (api/README "Hosting"); record that move as an ADR before cutover.
 # Local development keeps using api/docker-compose.yml (Postgres on :55434, test credentials).
 #
@@ -6,7 +7,7 @@
 #   git clone https://github.com/furqaannabi/elapse.git && cd elapse
 #   sudo install -d -m 700 /etc/elapse
 #   sudo nano /etc/elapse/api.env && sudo chmod 600 /etc/elapse/api.env   # see "api.env" below
-#   printf 'POSTGRES_PASSWORD=%s\nAPI_HOST=api.elapse.finance\n' "$(openssl rand -hex 24)" | sudo tee /etc/elapse/compose.env >/dev/null && sudo chmod 600 /etc/elapse/compose.env
+#   printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" | sudo tee /etc/elapse/compose.env >/dev/null && sudo chmod 600 /etc/elapse/compose.env
 #   sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env up -d --build
 #
 # Both files live outside the checkout: api/.env is the API's local development file, and nothing secret sits in the repo.
@@ -23,6 +24,41 @@
 #     | sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env exec -T db psql -U elapse -d elapse
 #
 # Backups are now yours: schedule EBS snapshots of the root volume, or a nightly pg_dump to S3.
+#
+# nginx on the host: /etc/nginx/sites-available/api.elapse.finance, symlink into sites-enabled, then
+#   sudo nginx -t && sudo systemctl reload nginx && sudo certbot --nginx -d api.elapse.finance
+#
+#   server {
+#     listen 80;                      # certbot turns this into 443 ssl plus a redirect
+#     server_name api.elapse.finance;
+#     client_max_body_size 1m;        # the largest request is a 50 KB logo upload
+#
+#     # `elapse listen` streams deliveries as server-sent events: no buffering, long-lived.
+#     location ~ ^/v1/cli/sessions/[^/]+/stream$ {
+#       proxy_pass http://127.0.0.1:4000;
+#       proxy_http_version 1.1;
+#       proxy_set_header Connection "";
+#       proxy_buffering off;
+#       proxy_cache off;
+#       proxy_read_timeout 3600s;
+#       proxy_set_header Host $host;
+#       proxy_set_header X-Forwarded-For $remote_addr;
+#       proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+#
+#     location / {
+#       proxy_pass http://127.0.0.1:4000;
+#       proxy_http_version 1.1;
+#       proxy_set_header Host $host;
+#       # Overwrite, never append. The API trusts the FIRST X-Forwarded-For entry (clientIp in
+#       # api/src/middleware/auth.ts) for rate limits and the relay audit log, so
+#       # $proxy_add_x_forwarded_for would let any caller choose its own IP. If an AWS load balancer
+#       # is ever put in front of nginx, use real_ip_header/set_real_ip_from instead of $remote_addr.
+#       proxy_set_header X-Forwarded-For $remote_addr;
+#       proxy_set_header X-Real-IP $remote_addr;
+#       proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+#   }
 #
 # Update: git pull && sudo docker compose -f api/docker-compose.ec2.yml --env-file /etc/elapse/compose.env up -d --build
 # Migrations run on every API start (the image's default command), before the worker is allowed to start.
@@ -62,7 +98,9 @@ services:
       DATABASE_URL: postgres://elapse:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in /etc/elapse/compose.env}@db:5432/elapse
       PORT: "4000"
       NODE_ENV: production
-    expose: ["4000"]
+    # Loopback only: the host's nginx reaches it, the internet does not. Keep 4000 closed in the security group.
+    ports:
+      - "127.0.0.1:4000:4000"
     depends_on:
       db: { condition: service_healthy }
     # The image has no curl; Node 24's fetch does the check against the unauthenticated status route.
@@ -86,21 +124,5 @@ services:
       # Healthy API means migrations have run, so the worker never queries a table that is not there yet.
       api: { condition: service_healthy }
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    # Terminates TLS for API_HOST (certificate issued and renewed automatically once DNS points here).
-    command: ["caddy", "reverse-proxy", "--from", "${API_HOST:?set API_HOST in /etc/elapse/compose.env}", "--to", "api:4000"]
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      api: { condition: service_healthy }
-
 volumes:
   elapse-pg:
-  caddy-data:
-  caddy-config:
