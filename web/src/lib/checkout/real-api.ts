@@ -78,6 +78,7 @@ export function mapSubscription(w: WireSubscription): Subscription {
     // BR-CHK-003: once stopped, the chain's totals travel with the subscription so a receipt rebuilt
     // later shows the seconds billed, not started→canceled wall clock (which counts paused time).
     ...(w.status === "canceled" ? { settled: { secondsElapsed: w.seconds_elapsed, settledUsd: w.settled_usd } } : {}),
+    ...(w.start_mode ? { startMode: w.start_mode } : {}),
     // FR-CHK-034: held money is the real deposit (funded_usd), never the cap the page reads as fundedUsd.
     ...(w.status === "incomplete" && w.start_mode === "merchant" && typeof w.start_by === "number" && parseUsd(w.funded_usd) > 0n
       ? { hold: { startBy: w.start_by * 1000, heldUsd: w.funded_usd } }
@@ -266,6 +267,8 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
       const prep = await bindingCall<{ permit: PermitPayload }>(`/v1/checkout/sessions/${id}/prepare`, { max_duration_seconds: cap });
       const signature = await w.signTypedData(prep.permit);
       await call("POST", `/v1/checkout/sessions/${id}/start`, { signature });
+      // FR-CHK-033: in merchant mode the meter never goes active from here; the page waits for the funding instead.
+      if (wire.subscription?.start_mode === "merchant") return mapSession(await getWire(id), local);
       return mapSession(await waitFor(id, (s) => s.subscription?.status === "active" || s.subscription?.status === "canceled"), local);
     },
 

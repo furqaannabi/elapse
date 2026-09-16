@@ -65,6 +65,8 @@ export type Subscription = {
    * what is actually held, not the cap.
    */
   hold?: { startBy: number; heldUsd: string };
+  /** FR-API-137: `merchant` means the merchant starts the meter, not the subscriber's authorisation. Absent on older payloads. */
+  startMode?: "checkout" | "merchant";
 };
 
 export type Customer = {

@@ -278,3 +278,23 @@ describe("FR-CHK-034 held subscriptions from the wire", () => {
     expect(mapSession(wireSession({ subscription: wireSub({ start_mode: "merchant", start_by: T0 + 900, funded_usd: "0" }) }) as never).subscription?.hold).toBeUndefined();
   });
 });
+
+describe("FR-CHK-033 merchant-mode start does not wait for the meter", () => {
+  it("FR_CHK_033_start_returns_once_the_authorisation_is_submitted_without_polling_for_active", async () => {
+    const a = api();
+    await a.signIn("cs_abc", {});
+    const merchantSub = wireSub({ start_mode: "merchant", start_by: T0 + 900 });
+    responses = [
+      wireSession({ customer: { id: "cus_1", email: null }, subscription: merchantSub }),
+      { customer: "cus_1", subscription: "sub_1", chain_id: 10143, max_duration_seconds: 3600, max_escrow_usd: "14.4", permit: { domain: {}, types: { Permit: [] }, primaryType: "Permit", message: { owner: wallet.address, spender: "0xf", value: "14400000", nonce: "0", deadline: String(T0 + 700) } } },
+      { subscription: "sub_1", pending_tx: "0x" + "11".repeat(32) },
+      wireSession({ customer: { id: "cus_1", email: null }, subscription: merchantSub }),
+    ];
+    calls = [];
+    const s = await a.start("cs_abc");
+    expect(calls.find((c) => c.url.endsWith("/start"))).toBeTruthy();
+    // One read before signing, one after submitting: the merchant starts the meter, so there is nothing to wait for.
+    expect(calls.filter((c) => c.method === "GET")).toHaveLength(2);
+    expect(s.subscription).toMatchObject({ status: "incomplete", startMode: "merchant" });
+  });
+});

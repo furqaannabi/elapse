@@ -37,6 +37,8 @@ import { CapStep } from "./cap-step";
 import { JudgePanel } from "./judge-panel";
 import { HeldView } from "./held-view";
 import { MeterView } from "./meter-view";
+import { AuthorisedView } from "./authorised-view";
+import { leaveTo, successHrefOf } from "@/lib/checkout/navigate";
 import { RatePanel } from "./rate-panel";
 import { Receipt } from "./receipt";
 import { CheckoutSkeleton, StateNotice } from "./state-notice";
@@ -50,6 +52,9 @@ type Load =
 
 /** FR-CHK-032: how often a running meter re-reads its session from the server. */
 const FOLLOW_INTERVAL_MS = 5_000;
+/** FR-CHK-033: how often the page checks that a merchant-mode authorisation has been funded, and for how long. */
+const AUTHORISED_POLL_MS = 2_000;
+const AUTHORISED_WAIT_MS = 20_000;
 
 export function CheckoutPage({ sessionId }: { sessionId: string }) {
   const api = getCheckoutApi(sessionId);
@@ -71,6 +76,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
   const [judgeOpen, setJudgeOpen] = useState(params.get("judge") === "1");
   const [judge, setJudge] = useState<JudgeData | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // FR-CHK-033: when a merchant-mode Start was submitted; the page then waits for the funding and returns to the merchant.
+  const [authorisedAt, setAuthorisedAt] = useState<number | null>(null);
 
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -126,6 +133,34 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
       window.removeEventListener("focus", read);
     };
   }, [following, api, sessionId]);
+
+  // FR-CHK-033: after a merchant-mode authorisation, re-read every 2 s; once the session is complete (the funding
+  // confirmed, API FR-API-033) leave for the merchant. Give up after 20 s and let the page offer the button.
+  useEffect(() => {
+    if (authorisedAt === null) return;
+    let alive = true;
+    const id = setInterval(() => {
+      if (Date.now() - authorisedAt >= AUTHORISED_WAIT_MS) {
+        clearInterval(id);
+        return;
+      }
+      api
+        .getSession(sessionId)
+        .then((session) => {
+          if (!alive) return;
+          setLoad({ status: "ready", session });
+          if (session.status === "complete") {
+            clearInterval(id);
+            leaveTo(successHrefOf(session));
+          }
+        })
+        .catch(() => {});
+    }, AUTHORISED_POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [authorisedAt, api, sessionId]);
 
   // Re-derive the view once a second so low balance and the cap end flip
   // without a server round trip; the meter itself ticks at 100 ms inside.
@@ -228,7 +263,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
   const view: CheckoutView = deriveView(session, now);
   // FR-CHK-002: on the real API the cap and start steps sign with the device's wallet, which Privy restores after load.
   const gate = actionGate({ ready: flow.ready ?? true, walletReady: real ? (flow.signedInAlready ?? false) || (session.signedIn ?? false) : true, needsWallet: view === "cap" || view === "ready" });
-  const successHref = `${session.merchant.successUrl}${session.merchant.successUrl.includes("?") ? "&" : "?"}session_id=${session.id}`;
+  const successHref = successHrefOf(session);
+  const authorising = authorisedAt !== null && view === "ready";
 
   // A session that has stopped still gets a receipt when opened later,
   // rebuilt from the subscription (BR-CHK-003). A meter that ran past its
@@ -352,11 +388,15 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
-      {view === "ready" && gate === "ok" && session.subscription && addingFor === null && balance?.needsFunding && parseUsd(balance.balanceUsd) < parseUsd(session.subscription.fundedUsd) && (
+      {authorising && (
+        <AuthorisedView merchantName={session.merchant.name} successHref={successHref} stillWaiting={now - authorisedAt! >= AUTHORISED_WAIT_MS} />
+      )}
+
+      {view === "ready" && !authorising && gate === "ok" && session.subscription && addingFor === null && balance?.needsFunding && parseUsd(balance.balanceUsd) < parseUsd(session.subscription.fundedUsd) && (
         <AddMoneyStep neededUsd={session.subscription.fundedUsd} initial={balance} refresh={refreshBalance} onFunded={onFunded} cancelHref={session.merchant.cancelUrl} />
       )}
 
-      {view === "ready" && gate === "ok" && session.subscription && addingFor === null && !(balance?.needsFunding && parseUsd(balance.balanceUsd) < parseUsd(session.subscription.fundedUsd)) && (
+      {view === "ready" && !authorising && gate === "ok" && session.subscription && addingFor === null && !(balance?.needsFunding && parseUsd(balance.balanceUsd) < parseUsd(session.subscription.fundedUsd)) && (
         <div className="flex flex-1 flex-col gap-4">
           <RatePanel product={session.product} />
           <div className="rounded-xl border border-border bg-card px-5 py-4 text-sm">
@@ -376,7 +416,16 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             <Button
               size="lg"
               disabled={busy}
-              onClick={() => run(() => api.start(sessionId))}
+              onClick={() =>
+                run(async () => {
+                  const started = await api.start(sessionId);
+                  // FR-CHK-033: the merchant starts a merchant-mode meter; this page only waits for the funding.
+                  if (started.subscription?.startMode === "merchant" && started.subscription.status === "incomplete") {
+                    setAuthorisedAt(Date.now());
+                  }
+                  return started;
+                })
+              }
               className="h-12 w-full text-base"
             >
               {busy ? "Starting…" : "Start"}
