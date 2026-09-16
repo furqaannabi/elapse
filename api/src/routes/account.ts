@@ -7,7 +7,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { config } from "../config";
 import { sql } from "../db/client";
-import { ACCOUNT_STATUSES, findAccountSubscription, listAccountSubscriptions, serializeAccountSubscription, type AccountStatus } from "../db/account";
+import { ACCOUNT_ROW_STATUSES, ACCOUNT_STATUSES, findAccountSubscription, listAccountSubscriptions, serializeAccountSubscription, type AccountStatus } from "../db/account";
 import { findCheckoutSession } from "../db/checkout-sessions";
 import { ApiError, invalid } from "../lib/errors";
 import { sendEmail } from "../lib/email";
@@ -23,7 +23,7 @@ const AccountSubscriptionSchema = z
   .object({
     id: z.string(),
     object: z.literal("subscription"),
-    status: z.enum(ACCOUNT_STATUSES),
+    status: z.enum(ACCOUNT_ROW_STATUSES),
     livemode: z.boolean(),
     checkout_session: z.string().nullable(),
     restarted_as: z.string().nullable(),
@@ -38,15 +38,17 @@ const AccountSubscriptionSchema = z
     settled_usd: z.string(),
     refunded_usd: z.string(),
     seconds_elapsed: z.number().int(),
+    start_mode: z.enum(["checkout", "merchant"]),
+    start_by: z.number().int().nullable().openapi({ description: "FR-API-137: when an unstarted merchant-mode meter is refunded if the merchant never starts it; null otherwise." }),
   })
   .openapi("AccountSubscription");
 
 const StatusQuery = z
   .object({ status: z.string().optional() })
   .transform((q, ctx) => {
-    if (!q.status) return [...ACCOUNT_STATUSES] as AccountStatus[];
+    if (!q.status) return [...ACCOUNT_ROW_STATUSES] as AccountStatus[];
     const parts = q.status.split(",").map((x) => x.trim()) as AccountStatus[];
-    if (parts.some((p) => !ACCOUNT_STATUSES.includes(p))) {
+    if (parts.some((p) => !(ACCOUNT_STATUSES as readonly string[]).includes(p))) {
       ctx.addIssue({ code: "custom", message: `must be one of ${ACCOUNT_STATUSES.join(", ")}`, path: ["status"] });
       return z.NEVER;
     }

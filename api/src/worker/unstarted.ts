@@ -19,6 +19,16 @@ import type { KeeperLogger } from "./keeper";
 export const UNSTARTED_WINDOW_S = Number(process.env.UNSTARTED_WINDOW_S ?? 900);
 const DEFAULT_BATCH = 50;
 
+/**
+ * FR-API-137: when this sweep will refund a session the merchant never started, as unix seconds, or
+ * `null` when it never will (checkout mode, or already running or ended). The subscriber is shown this
+ * time; `selectUnstarted` below applies the same window, so what the page promises is what happens.
+ */
+export function startBy(sub: { status: string; start_mode: string; created_at: Date; max_duration_seconds: number }, windowS = UNSTARTED_WINDOW_S): number | null {
+  if (sub.start_mode !== "merchant" || sub.status !== "incomplete") return null;
+  return Math.floor(sub.created_at.getTime() / 1000) + Math.min(sub.max_duration_seconds, windowS);
+}
+
 interface UnstartedRow {
   id: string;
   chain_id: number;

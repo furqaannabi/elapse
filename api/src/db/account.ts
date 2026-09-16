@@ -7,9 +7,16 @@ import { sql } from "./client";
 import { findSubscription, serializeSubscription, type SubscriptionRow } from "./subscriptions";
 import { baseUnitsToDecimal } from "../lib/money";
 import { config } from "../config";
+import { startBy } from "../worker/unstarted";
 
+/** Values the `status` filter accepts (FR-API-121). */
 export const ACCOUNT_STATUSES = ["active", "paused", "canceled"] as const;
-export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+/**
+ * What a row can be. `incomplete` appears only in the unfiltered list and only as held money
+ * (FR-API-138): merchant mode, funded, not started. It is not a filter value.
+ */
+export const ACCOUNT_ROW_STATUSES = [...ACCOUNT_STATUSES, "incomplete"] as const;
+export type AccountStatus = (typeof ACCOUNT_ROW_STATUSES)[number];
 
 interface AccountRow extends SubscriptionRow {
   merchant_name: string;
@@ -20,7 +27,7 @@ interface AccountRow extends SubscriptionRow {
   product_allow_pause: boolean | null;
 }
 
-const COLS = sql`s.id, s.merchant_id, s.livemode, s.product_id, s.customer_id, s.checkout_session_id, s.status, s.ended_reason, s.chain_id,
+const COLS = sql`s.id, s.merchant_id, s.livemode, s.product_id, s.customer_id, s.checkout_session_id, s.status, s.start_mode, s.start_submitted_at, s.cancel_submitted_at, s.ended_reason, s.chain_id,
   s.stream_address, s.pending_tx, s.rate_per_second_wei::text AS rate_per_second_wei, s.max_duration_seconds,
   s.max_escrow_wei::text AS max_escrow_wei, s.funded_wei::text AS funded_wei, s.settled_wei::text AS settled_wei,
   s.settled_fee_wei::text AS settled_fee_wei, s.settled_seconds, s.paused_seconds, s.started_at, s.paused_at, s.canceled_at, s.simulated, s.created_at,
@@ -41,6 +48,7 @@ export async function listAccountSubscriptions(walletAddress: string, statuses: 
     JOIN products p ON p.id = s.product_id
     JOIN merchants m ON m.id = s.merchant_id
     WHERE c.wallet_address = ${walletAddress.toLowerCase()} AND s.status = ANY(${sql.array([...statuses], "TEXT")})
+      AND (s.status <> 'incomplete' OR (s.start_mode = 'merchant' AND s.stream_address IS NOT NULL AND s.funded_wei > 0))
     ORDER BY s.started_at DESC NULLS LAST, s.created_at DESC
     LIMIT 200`;
   return rows as unknown as AccountRow[];
@@ -81,6 +89,8 @@ export function serializeAccountSubscription(row: AccountRow, now = Math.floor(D
     settled_usd: s.settled_usd,
     refunded_usd: baseUnitsToDecimal(refunded < 0n ? 0n : refunded, d),
     seconds_elapsed: s.seconds_elapsed,
+    start_mode: row.start_mode,
+    start_by: startBy(row),
   };
 }
 

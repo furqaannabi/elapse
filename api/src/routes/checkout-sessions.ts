@@ -6,6 +6,7 @@ import { getMerchantBranding, getPayoutAddress, type MerchantBranding } from "..
 import { findProduct, type ProductRow } from "../db/products";
 import { ApiError, invalid, notFound } from "../lib/errors";
 import { findSubscription, serializeSubscription, type SubscriptionRow } from "../db/subscriptions";
+import { startBy } from "../worker/unstarted";
 import { findCustomer } from "../db/customers";
 import { sql } from "../db/client";
 import { RelayerUnavailable } from "../chain/relayer";
@@ -105,7 +106,10 @@ export const PublicCheckoutSessionSchema = z
     merchant: BrandingSchema.extend({ success_url: z.string(), cancel_url: z.string() }),
     product: PublicProductSchema,
     customer: z.object({ id: z.string(), email: z.string().nullable() }).nullable(),
-    subscription: SubscriptionSchema.nullable(),
+    subscription: SubscriptionSchema.extend({
+      start_mode: z.enum(["checkout", "merchant"]),
+      start_by: z.number().int().nullable().openapi({ description: "FR-API-137: when an unstarted merchant-mode meter is refunded if the merchant never starts it; null otherwise." }),
+    }).nullable(),
     max_duration_seconds: z.number().int().nullable(),
     max_escrow_usd: z.string().nullable(),
     last_max_duration_seconds: z.number().int().nullable(),
@@ -194,7 +198,8 @@ export function serializePublicSession(
       active: product.active,
     },
     customer,
-    subscription: sub ? serializeSubscription(sub) : null,
+    // FR-API-137: only the subscriber's projection carries these; the merchant's Subscription object is unchanged.
+    subscription: sub ? { ...serializeSubscription(sub), start_mode: sub.start_mode, start_by: startBy(sub) } : null,
     last_max_duration_seconds: s.last_max_duration_seconds,
     restarted_as: s.restarted_as,
     max_duration_seconds: s.max_duration_seconds,

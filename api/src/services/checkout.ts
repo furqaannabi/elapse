@@ -188,6 +188,11 @@ export const CANCEL_TTL_SECONDS = 600;
 /** Pause-or-resume submissions per Subscription per hour (FR-API-047); each is a relayer tx and a merchant webhook. */
 export const PAUSE_RESUME_PER_HOUR = 10;
 
+/** FR-API-137: authorised and funded in `merchant` mode, but the merchant has not started it. */
+export function isHeld(sub: SubscriptionRow): boolean {
+  return sub.status === "incomplete" && sub.start_mode === "merchant" && !!sub.stream_address && BigInt(sub.funded_wei) > 0n;
+}
+
 /** A Subscription that can be canceled on chain right now: it has a stream and is active or paused. */
 async function runningSubscription(session: CheckoutSessionRow): Promise<SubscriptionRow> {
   const sub = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
@@ -203,6 +208,11 @@ async function runningSubscription(session: CheckoutSessionRow): Promise<Subscri
  * is not re-checked on resume: a meter paused while the flag was on may always resume.
  */
 async function actionableSubscription(session: CheckoutSessionRow, action: RelayAction): Promise<SubscriptionRow> {
+  if (action === "cancel") {
+    // FR-API-137: Stop also works before the merchant starts, refunding the whole deposit (contracts FR-CON-056).
+    const held = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
+    if (held && isHeld(held)) return held;
+  }
   const sub = await runningSubscription(session);
   if (action === "pause") {
     if (sub.status !== "active") throw new CheckoutStateError("invalid_state", "The meter is already paused.");
@@ -267,7 +277,9 @@ export async function submitRelay(action: RelayAction, input: { session: Checkou
   }
   const submit = action === "cancel" ? chain.cancelFor : action === "pause" ? chain.pauseFor : chain.resumeFor;
   const pendingTx = await submit.call(chain, sub.chain_id, stream, deadline, input.signature as Hex);
-  await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;
+  // A held stream stays `incomplete` until StreamCanceled ingests; the stamp keeps the FR-WRK-075 sweep from cancelling it again.
+  const heldCancel = action === "cancel" && isHeld(sub);
+  await sql`UPDATE subscriptions SET updated_at = now(), cancel_submitted_at = CASE WHEN ${heldCancel} THEN now() ELSE cancel_submitted_at END WHERE id = ${sub.id}`;
   if (action !== "cancel") {
     await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${sub.merchant_id}, 'checkout', ${`subscription.${action}`}, ${sub.id}, ${input.ip ?? null})`;
   }
