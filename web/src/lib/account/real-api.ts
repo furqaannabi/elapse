@@ -7,12 +7,12 @@
  * then poll the list until ingest confirms `canceled`.
  */
 import { AccountApiError, type AccountApi } from "./mock-api";
-import type { AccountMerchant, AccountMeter, AccountReceipt, AccountView } from "./types";
+import type { AccountHeld, AccountMerchant, AccountMeter, AccountReceipt, AccountView } from "./types";
 import type { SubscriberWallet } from "@/lib/checkout/real-api";
 
 export interface WireAccountSubscription {
   id: `sub_${string}`;
-  status: "active" | "paused" | "canceled";
+  status: "active" | "paused" | "canceled" | "incomplete";
   livemode: boolean;
   checkout_session?: string | null;
   restarted_as?: string | null;
@@ -27,6 +27,9 @@ export interface WireAccountSubscription {
   settled_usd: string;
   refunded_usd: string;
   seconds_elapsed: number;
+  /** FR-API-137/138. */
+  start_mode?: "checkout" | "merchant";
+  start_by?: number | null;
 }
 
 export interface RealAccountOptions {
@@ -59,6 +62,18 @@ export function meterFrom(w: WireAccountSubscription): AccountMeter {
   };
 }
 
+/** FR-CHK-036: the API lists an `incomplete` row only when it is held money (FR-API-138). */
+export function heldFrom(w: WireAccountSubscription): AccountHeld {
+  return {
+    subscription: w.id,
+    test: !w.livemode,
+    merchant: merchantOf(w.merchant),
+    product: { name: w.product.name },
+    heldUsd: w.funded_usd,
+    startBy: (w.start_by ?? 0) * 1000,
+  };
+}
+
 export function receiptFrom(w: WireAccountSubscription): AccountReceipt {
   return {
     subscription: w.id,
@@ -80,8 +95,10 @@ export function receiptFrom(w: WireAccountSubscription): AccountReceipt {
 export function viewFrom(rows: WireAccountSubscription[]): AccountView {
   const running = rows.filter((r) => r.status === "active" || r.status === "paused");
   const ended = rows.filter((r) => r.status === "canceled");
+  const held = rows.filter((r) => r.status === "incomplete" && r.start_mode === "merchant" && typeof r.start_by === "number");
   return {
     status: "signed_in",
+    held: held.map(heldFrom).sort((a, b) => a.startBy - b.startBy),
     meters: running.map(meterFrom).sort((a, b) => b.startedAt - a.startedAt),
     receipts: ended.map(receiptFrom).sort((a, b) => b.settledAt - a.settledAt),
   };

@@ -109,8 +109,13 @@ export function ReceiptSheet({
               <dd className="text-right">{r.product.name}</dd>
               <dt className="text-ink-soft">Rate</dt>
               <dd className="numerals text-right">${r.product.rateUsdPerSecond} / second</dd>
-              <dt className="text-ink-soft">Started</dt>
-              <dd className="numerals text-right">{clock(r.startedAt)}</dd>
+              {/* FR-CHK-036: a held meter stopped before the merchant started it has no start time. */}
+              {r.startedAt > 0 && (
+                <>
+                  <dt className="text-ink-soft">Started</dt>
+                  <dd className="numerals text-right">{clock(r.startedAt)}</dd>
+                </>
+              )}
               <dt className="text-ink-soft">Stopped</dt>
               <dd className="numerals text-right">{clock(r.settledAt)}</dd>
               <dt className="text-ink-soft">Charged</dt>

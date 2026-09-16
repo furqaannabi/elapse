@@ -19,7 +19,7 @@ describe("mock account api", () => {
   });
 
   it("names a seed per screen (FR-CHK-025)", () => {
-    expect([...ACCOUNT_SEEDS]).toEqual(["two-merchants", "empty", "low-balance", "signed-out"]);
+    expect([...ACCOUNT_SEEDS]).toEqual(["two-merchants", "empty", "low-balance", "signed-out", "held"]);
   });
 
   it("starts signed out on the signed-out seed and signs in with a passkey (FR-CHK-016)", async () => {

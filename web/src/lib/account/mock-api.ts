@@ -19,9 +19,9 @@ import {
   settledNano,
   wholeSeconds,
 } from "@/lib/meter/math";
-import type { AccountMeter, AccountReceipt, AccountView } from "./types";
+import type { AccountMeter, AccountReceipt, AccountView, AccountHeld } from "./types";
 
-export const ACCOUNT_SEEDS = ["two-merchants", "empty", "low-balance", "signed-out"] as const;
+export const ACCOUNT_SEEDS = ["two-merchants", "empty", "low-balance", "signed-out", "held"] as const;
 export type AccountSeed = (typeof ACCOUNT_SEEDS)[number];
 
 export class AccountApiError extends Error {
@@ -74,8 +74,27 @@ function meter(
   };
 }
 
-function seedState(seed: AccountSeed, now: number): { meters: AccountMeter[]; receipts: AccountReceipt[] } {
-  if (seed === "empty") return { meters: [], receipts: [] };
+function seedState(seed: AccountSeed, now: number): { held: AccountHeld[]; meters: AccountMeter[]; receipts: AccountReceipt[] } {
+  if (seed === "empty") return { held: [], meters: [], receipts: [] };
+
+  // FR-CHK-036: one merchant-mode session waiting to be started, beside one running meter.
+  if (seed === "held") {
+    return {
+      held: [
+        {
+          subscription: "sub_held1",
+          merchant: { name: "Northwind Compute" },
+          product: { name: "Serverless runtime" },
+          heldUsd: "7.2",
+          startBy: now + 600_000,
+        },
+      ],
+      meters: [
+        meter({ subscription: "sub_run1", merchant: NIMBUS, product: GPU, startedAt: now - 214_000, maxDurationSeconds: 3600 }),
+      ],
+      receipts: [],
+    };
+  }
 
   if (seed === "low-balance") {
     return {
@@ -88,6 +107,7 @@ function seedState(seed: AccountSeed, now: number): { meters: AccountMeter[]; re
           maxDurationSeconds: 3600,
         }),
       ],
+      held: [],
       receipts: [],
     };
   }
@@ -135,7 +155,7 @@ function seedState(seed: AccountSeed, now: number): { meters: AccountMeter[]; re
       maxDurationSeconds: 3600,
     },
   ];
-  return { meters, receipts };
+  return { held: [], meters, receipts };
 }
 
 export function createMockAccountApi(
@@ -192,6 +212,7 @@ export function createMockAccountApi(
     finalizeCapped();
     return {
       status: "signed_in",
+      held: state.held,
       meters: [...state.meters].sort((a, b) => b.startedAt - a.startedAt).map((m) => ({ ...m })),
       receipts: [...state.receipts].sort((a, b) => b.settledAt - a.settledAt).map((r) => ({ ...r })),
     };
@@ -212,6 +233,26 @@ export function createMockAccountApi(
     async cancel(subscription) {
       await wait();
       finalizeCapped();
+      const held = state.held.findIndex((x) => x.subscription === subscription);
+      if (held >= 0) {
+        // FR-CHK-036: stopping before the merchant starts settles nothing; the whole deposit comes back.
+        const [h] = state.held.splice(held, 1);
+        const t = now();
+        const receipt: AccountReceipt = {
+          subscription: h!.subscription,
+          merchant: h!.merchant,
+          product: { name: h!.product.name, rateUsdPerSecond: "0.002" },
+          seconds: 0,
+          amountSettledUsd: "0.00",
+          refundedUsd: formatReceiptUsd(parseUsd(h!.heldUsd)),
+          startedAt: 0,
+          settledAt: t,
+          endedReason: "canceled",
+          maxDurationSeconds: 3600,
+        };
+        state.receipts.unshift(receipt);
+        return { receipt, view: view() };
+      }
       const m = state.meters.find((x) => x.subscription === subscription);
       if (!m) throw new AccountApiError("not_found", "That meter is not running");
       const receipt = settle(m, now(), "canceled");

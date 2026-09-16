@@ -55,7 +55,21 @@ export type AccountReceipt = {
   maxDurationSeconds: number;
 };
 
+/**
+ * FR-CHK-036: money the subscriber has put up for a merchant-mode session the merchant has not
+ * started. Nothing is accruing, so it has no rate or start time; `startBy` (epoch ms) is when it all
+ * comes back if the merchant never starts.
+ */
+export type AccountHeld = {
+  subscription: `sub_${string}`;
+  test?: boolean;
+  merchant: AccountMerchant;
+  product: { name: string };
+  heldUsd: string;
+  startBy: number;
+};
+
 /** Signed out, or signed in with everything the page shows. */
 export type AccountView =
   | { status: "signed_out" }
-  | { status: "signed_in"; meters: AccountMeter[]; receipts: AccountReceipt[] };
+  | { status: "signed_in"; held: AccountHeld[]; meters: AccountMeter[]; receipts: AccountReceipt[] };

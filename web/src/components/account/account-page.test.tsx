@@ -200,3 +200,33 @@ describe("AccountPage", () => {
     expect(within(dialog).getByRole("link", { name: /newer session followed/i })).toHaveAttribute("href", "/c/cs_new");
   });
 });
+
+describe("AccountPage · FR-CHK-036 held money", () => {
+  const clock = new Date(NOW + 600_000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+  it("FR_CHK_036_a_held_session_is_listed_with_what_is_held_and_when_it_comes_back_outside_the_running_total", async () => {
+    mount("held");
+    const row = await screen.findByRole("group", { name: "Northwind Compute · Serverless runtime" });
+    expect(within(row).getByText("Not started · $7.20 held")).toBeInTheDocument();
+    expect(within(row).getByText(`Comes back at ${clock} if not started`)).toBeInTheDocument();
+    // Only the real meter counts as running; held money accrues nothing.
+    expect(screen.getByText(/^1 meter running/)).toBeInTheDocument();
+  });
+
+  it("FR_CHK_036_stop_on_a_held_session_says_nothing_has_been_charged_and_ends_as_a_past_session", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mount("held");
+    const row = await screen.findByRole("group", { name: "Northwind Compute · Serverless runtime" });
+    await user.click(within(row).getByRole("button", { name: /stop/i }));
+    expect(await screen.findByText(/You haven.t been charged\. All of it comes back\./)).toBeInTheDocument();
+    expect(screen.queryByText(/you.ll pay/i)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Stop the meter" }));
+    expect(await screen.findByText("Past sessions")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Northwind Compute · Serverless runtime" })).toBeNull();
+
+    // Its receipt: nothing charged, everything back, and no start time for a meter that never started.
+    await user.click(screen.getByRole("button", { name: /northwind compute/i }));
+    expect(await screen.findByText("Returned to you")).toBeInTheDocument();
+    expect(screen.queryByText("Started")).toBeNull();
+  });
+});

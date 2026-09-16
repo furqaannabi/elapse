@@ -130,3 +130,28 @@ describe("real account api", () => {
     await expect(api().pause("sub_1")).rejects.toMatchObject({ code: "rate_limited", message: "Too many changes. Try again in a bit." });
   });
 });
+
+import { viewFrom, type WireAccountSubscription } from "./real-api";
+
+describe("FR-CHK-036 held money on /account", () => {
+  const T = 1_757_000_000;
+  const row = (over: Partial<WireAccountSubscription>): WireAccountSubscription => ({
+    id: "sub_held", status: "incomplete", livemode: false, checkout_session: "cs_held", restarted_as: null,
+    merchant: { name: "Northwind Compute", logo_url: null, support_url: null },
+    product: { name: "Serverless runtime", rate_usd_per_second: "0.002", allow_pause: false },
+    started_at: null, paused_at: null, canceled_at: null, ended_reason: null,
+    max_duration_seconds: 3600, funded_usd: "7.2", settled_usd: "0", refunded_usd: "0", seconds_elapsed: 0,
+    start_mode: "merchant", start_by: T + 900,
+    ...over,
+  });
+
+  it("FR_CHK_036_an_unstarted_merchant_row_is_held_money_not_a_meter_or_a_receipt", () => {
+    const v = viewFrom([row({}), row({ id: "sub_run", status: "active", started_at: T, start_mode: "checkout", start_by: null })]);
+    if (v.status !== "signed_in") throw new Error("expected signed in");
+    expect(v.held).toEqual([
+      { subscription: "sub_held", test: true, merchant: { name: "Northwind Compute" }, product: { name: "Serverless runtime" }, heldUsd: "7.2", startBy: (T + 900) * 1000 },
+    ]);
+    expect(v.meters.map((m) => m.subscription)).toEqual(["sub_run"]);
+    expect(v.receipts).toEqual([]);
+  });
+});

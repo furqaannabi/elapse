@@ -20,9 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { FaceIdSheet } from "@/components/checkout/face-id-sheet";
 import type { AccountApi } from "@/lib/account/mock-api";
-import type { AccountMeter, AccountReceipt, AccountView } from "@/lib/account/types";
+import type { AccountHeld, AccountMeter, AccountReceipt, AccountView } from "@/lib/account/types";
 import { AccountFrame } from "./account-frame";
 import { CancelSheet } from "./cancel-sheet";
+import { HeldRow } from "./held-row";
 import { MeterRow } from "./meter-row";
 import { ReceiptRow, ReceiptSheet } from "./receipt-list";
 import { RunningTotal } from "./running-total";
@@ -50,7 +51,7 @@ export function AccountPage({
   const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
-  const [stopping, setStopping] = useState<AccountMeter | null>(null);
+  const [stopping, setStopping] = useState<AccountMeter | AccountHeld | null>(null);
   const [pending, setPending] = useState<{ subscription: string; action: "pause" | "resume" } | null>(null);
   const [openReceipt, setOpenReceipt] = useState<AccountReceipt | null>(null);
   const [receiptLimit, setReceiptLimit] = useState(RECEIPTS_SHOWN);
@@ -156,8 +157,8 @@ export function AccountPage({
     );
   }
 
-  const { meters, receipts } = view;
-  const nothing = meters.length === 0 && receipts.length === 0;
+  const { held, meters, receipts } = view;
+  const nothing = held.length === 0 && meters.length === 0 && receipts.length === 0;
 
   return (
     <AccountFrame>
@@ -174,6 +175,15 @@ export function AccountPage({
         </section>
       ) : (
         <div className="flex flex-col gap-6">
+          {/* FR-CHK-036: held money sits above running meters and never counts toward the running total. */}
+          {held.length > 0 && (
+            <section className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+              {held.map((h) => (
+                <HeldRow key={h.subscription} held={h} busy={busy} onStop={() => setStopping(h)} />
+              ))}
+            </section>
+          )}
+
           <RunningTotal meters={meters} />
 
           {meters.length > 0 && (
