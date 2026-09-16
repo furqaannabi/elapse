@@ -69,8 +69,13 @@ export function Receipt({
           <dd className="text-right">{product.name}</dd>
           <dt className="text-ink-soft">Rate</dt>
           <dd className="numerals text-right">${receipt.rateUsdPerSecond} / second</dd>
-          <dt className="text-ink-soft">Started</dt>
-          <dd className="numerals text-right">{time(receipt.startedAt)}</dd>
+          {/* FR-CHK-034: a held meter stopped before the merchant started it has no start time. */}
+          {receipt.startedAt > 0 && (
+            <>
+              <dt className="text-ink-soft">Started</dt>
+              <dd className="numerals text-right">{time(receipt.startedAt)}</dd>
+            </>
+          )}
           <dt className="text-ink-soft">Stopped</dt>
           <dd className="numerals text-right">{time(receipt.canceledAt)}</dd>
           <dt className="text-ink-soft">Charged</dt>

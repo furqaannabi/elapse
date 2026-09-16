@@ -10,7 +10,7 @@
  * for the server to agree.
  *
  * Maps to: FR-CHK-002, FR-CHK-004, FR-CHK-006, FR-CHK-007, FR-CHK-008,
- * FR-CHK-010.
+ * FR-CHK-010, FR-CHK-034.
  */
 import { elapsedMs, parseRate } from "@/lib/meter/math";
 import { isLowBalance, parseUsd, remainingRuntimeMs } from "./funding";
@@ -23,6 +23,9 @@ export function deriveView(session: CheckoutSession, now: number): CheckoutView 
 
   const sub = session.subscription;
   if (sub?.status === "canceled") return "canceled";
+  // FR-CHK-034: funded, waiting for the merchant to start. Merchant mode completes the session at funding,
+  // so this comes before "used"; the mapper sets `hold` only when the money is really there.
+  if (sub?.hold) return "held";
   // The API marks a session `complete` the moment its meter starts (FR-API-033); a running or
   // paused meter is still this subscriber's, so "already used" is only a complete session
   // whose meter is not live for them.

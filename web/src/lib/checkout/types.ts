@@ -59,6 +59,12 @@ export type Subscription = {
    * the mock and a predicted cap end leave it out and the receipt recounts.
    */
   settled?: { secondsElapsed: number; settledUsd: string };
+  /**
+   * FR-CHK-034: set only while the subscriber has funded a merchant-mode session the merchant has
+   * not started. `startBy` (epoch ms) is when it all comes back if it never starts; `heldUsd` is
+   * what is actually held, not the cap.
+   */
+  hold?: { startBy: number; heldUsd: string };
 };
 
 export type Customer = {
@@ -89,6 +95,8 @@ export type CheckoutSession = {
 /** Everything the page can show. Derived, never stored. */
 export type CheckoutView =
   | "expired"
+  /** FR-CHK-034: funded, the merchant has not started the meter. */
+  | "held"
   | "used"
   | "archived"
   | "signin"

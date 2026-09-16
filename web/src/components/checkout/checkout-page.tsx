@@ -35,6 +35,7 @@ import { FaceIdSheet, type AuthResult } from "./face-id-sheet";
 import { AddMoneyStep } from "./add-money-step";
 import { CapStep } from "./cap-step";
 import { JudgePanel } from "./judge-panel";
+import { HeldView } from "./held-view";
 import { MeterView } from "./meter-view";
 import { RatePanel } from "./rate-panel";
 import { Receipt } from "./receipt";
@@ -98,7 +99,8 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
   // FR-CHK-032: the meter follows the server. While the subscription runs or is paused, re-read
   // the session every 5 s and on focus, so a merchant cancel (FR-API-042) or a cap end on chain
   // reaches the page without a reload. The receipt then comes from the server's totals (BR-CHK-003).
-  const following = load.status === "ready" && (load.session.subscription?.status === "active" || load.session.subscription?.status === "paused");
+  // FR-CHK-032 amendment (FR-CHK-034): a held meter follows too, so the merchant's start or a refund reaches the page.
+  const following = load.status === "ready" && (load.session.subscription?.status === "active" || load.session.subscription?.status === "paused" || !!load.session.subscription?.hold);
   useEffect(() => {
     if (!following) return;
     let alive = true;
@@ -234,8 +236,10 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
   // (FR-CHK-007).
   const stopped = ((): { sub: NonNullable<CheckoutSession["subscription"]> } | null => {
     const sb = session.subscription;
-    if (!sb || sb.startedAt === null) return null;
+    if (!sb) return null;
+    // Checked before startedAt: a held meter stopped before the merchant started it still gets its receipt (FR-CHK-034).
     if (sb.status === "canceled" && sb.canceledAt !== null) return { sub: sb };
+    if (sb.startedAt === null) return null;
     if (view !== "canceled") return null;
     const endsAt = capEndsAt(sb.startedAt, parseUsd(sb.fundedUsd), parseRate(sb.rateUsdPerSecond));
     if (endsAt === null) return null;
@@ -244,6 +248,22 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
     };
   })();
   const shownReceipt: ReceiptData | null = receipt ?? (stopped ? buildReceipt(stopped.sub) : null);
+
+  // Stop from the meter (FR-CHK-008) or from the held view (FR-CHK-034): one path, the receipt comes back with the session.
+  const stop = async () => {
+    setBusy(true);
+    try {
+      const r = await api.cancel(sessionId);
+      setReceipt(r.receipt);
+      setLoad({ status: "ready", session: r.session });
+    } catch (e) {
+      const next = afterError(e);
+      toast.error(next.message);
+      if (next.openSignIn) setAuthOpen(true);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const startAgain = async () => {
     setBusy(true);
@@ -368,6 +388,17 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
         </div>
       )}
 
+      {view === "held" && session.subscription?.hold && (
+        <HeldView
+          productName={session.product.name}
+          merchantName={session.merchant.name}
+          successHref={successHref}
+          hold={session.subscription.hold}
+          busy={busy}
+          onStop={stop}
+        />
+      )}
+
       {(view === "running" || view === "low_balance" || view === "paused") &&
         session.subscription && (
           <MeterView
@@ -377,20 +408,7 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             busy={busy}
             merchantName={session.merchant.name}
             successHref={successHref}
-            onCancel={async () => {
-              setBusy(true);
-              try {
-                const r = await api.cancel(sessionId);
-                setReceipt(r.receipt);
-                setLoad({ status: "ready", session: r.session });
-              } catch (e) {
-                const next = afterError(e);
-                toast.error(next.message);
-                if (next.openSignIn) setAuthOpen(true);
-              } finally {
-                setBusy(false);
-              }
-            }}
+            onCancel={stop}
             onPause={() => run(() => api.pause(sessionId))}
             onResume={() => run(() => api.resume(sessionId))}
           />

@@ -171,3 +171,17 @@ describe("FR-CHK-002 actionGate: what the primary action does while the device's
     expect(actionGate({ ready: true, walletReady: false, needsWallet: false })).toBe("ok");
   });
 });
+
+describe("FR-CHK-034 held view", () => {
+  const held = sub({ status: "incomplete", maxDurationSeconds: 3600, fundedUsd: "14.4", hold: { startBy: NOW + 600_000, heldUsd: "14.4" } });
+
+  it("FR_CHK_034_a_held_subscription_shows_the_held_view_never_start_or_used", () => {
+    // Merchant mode completes the session at funding (FR-API-033), so "complete" must not read as used.
+    expect(deriveView({ ...base, status: "complete", customer: { id: "cus_1" }, subscription: held }, NOW)).toBe("held");
+    expect(deriveView({ ...base, customer: { id: "cus_1" }, subscription: held }, NOW)).toBe("held");
+  });
+
+  it("FR_CHK_034_an_incomplete_subscription_without_a_hold_still_shows_start", () => {
+    expect(deriveView({ ...base, customer: { id: "cus_1" }, subscription: sub({ status: "incomplete", fundedUsd: "14.4" }) }, NOW)).toBe("ready");
+  });
+});

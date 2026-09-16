@@ -33,6 +33,7 @@ describe("mock checkout api", () => {
       cs_expired: "expired",
       cs_used: "used",
       cs_archived: "archived",
+      cs_held: "held",
     };
     expect(Object.keys(expected).sort()).toEqual([...SEEDED_SESSION_IDS].sort());
     for (const [id, view] of Object.entries(expected)) {

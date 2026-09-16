@@ -265,3 +265,16 @@ describe("real CheckoutApi", () => {
     await expect(a.setCap("cs_abc", 3600)).rejects.toMatchObject({ code: "sign_in_required" });
   });
 });
+
+describe("FR-CHK-034 held subscriptions from the wire", () => {
+  it("FR_CHK_034_a_funded_unstarted_merchant_mode_subscription_carries_its_hold", () => {
+    const s = mapSession(wireSession({ status: "complete", subscription: wireSub({ start_mode: "merchant", start_by: T0 + 900, funded_usd: "14.4", stream_address: "0x86776c5be46d01242285aac66040b3bf0634cd8a" }) }) as never);
+    expect(s.subscription?.hold).toEqual({ startBy: (T0 + 900) * 1000, heldUsd: "14.4" });
+  });
+
+  it("FR_CHK_034_no_hold_in_checkout_mode_or_before_the_money_arrives", () => {
+    expect(mapSession(wireSession({ subscription: wireSub({ start_mode: "checkout", start_by: null, funded_usd: "14.4" }) }) as never).subscription?.hold).toBeUndefined();
+    // Prepared on a merchant-mode product but not yet funded: max_escrow_usd is set, funded_usd is not.
+    expect(mapSession(wireSession({ subscription: wireSub({ start_mode: "merchant", start_by: T0 + 900, funded_usd: "0" }) }) as never).subscription?.hold).toBeUndefined();
+  });
+});

@@ -5,7 +5,7 @@
  *
  * Seeds one session per screen (FR-CHK-015) so any state is reachable by
  * URL: /c/cs_demo, /c/cs_ready, /c/cs_short, /c/cs_running, /c/cs_lowbal, /c/cs_capped,
- * /c/cs_paused, /c/cs_done, /c/cs_expired, /c/cs_used, /c/cs_archived.
+ * /c/cs_paused, /c/cs_done, /c/cs_expired, /c/cs_used, /c/cs_archived, /c/cs_held.
  *
  * Money rules mirror the contract: the cap is the pot, reaching it ends
  * the session at that second (FR-CHK-007, contracts FR-CON-041), and any
@@ -124,6 +124,7 @@ export const SEEDED_SESSION_IDS = [
   "cs_expired",
   "cs_used",
   "cs_archived",
+  "cs_held",
 ] as const;
 
 const MERCHANT = {
@@ -177,6 +178,13 @@ function seed(now: number): Record<string, CheckoutSession> {
   const CAP = { maxDurationSeconds: 3600, fundedUsd: "14.4" };
   return {
     cs_demo: open("cs_demo"),
+    // FR-CHK-034: funded on a merchant-mode product; the merchant has not started it. Merchant mode
+    // completes the session at funding, so it is `complete` with nothing running.
+    cs_held: open("cs_held", {
+      status: "complete",
+      customer: CUSTOMER,
+      subscription: sub({ ...CAP, hold: { startBy: now + 600_000, heldUsd: CAP.fundedUsd } }),
+    }),
     cs_ready: open("cs_ready", { customer: CUSTOMER, subscription: sub({ ...CAP }) }),
     // FR-CHK-031: a signed-in wallet holding $0.50 that fills up after 6 s (see `getBalance`).
     cs_short: open("cs_short", { customer: CUSTOMER }),
@@ -392,10 +400,18 @@ export function createMockCheckoutApi(
       await wait();
       const s = get(id);
       const sb = s.subscription;
-      if (!sb || sb.status === "canceled" || sb.startedAt === null) {
+      if (!sb || sb.status === "canceled" || (sb.startedAt === null && !sb.hold)) {
         throw new CheckoutApiError("invalid_state", "Nothing to cancel");
       }
       const t = now();
+      if (sb.hold) {
+        // FR-CHK-034: Stop before the merchant starts settles nothing and returns the whole deposit.
+        const { hold: _hold, ...rest } = sb;
+        const refunded: Subscription = { ...rest, status: "canceled", endedReason: "canceled", canceledAt: t, settled: { secondsElapsed: 0, settledUsd: "0" } };
+        const done = put({ ...s, status: "complete", subscription: refunded });
+        record(id, "subscription.canceled");
+        return { session: done, receipt: buildReceipt(refunded) };
+      }
       const stopped: Subscription = {
         ...sb,
         status: "canceled",
