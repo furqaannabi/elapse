@@ -22,6 +22,34 @@ contract MerchantStartTest is BaseTest {
         assertEq(usd.balanceOf(address(s)), 0, "stream drained");
     }
 
+    /// Amended 2026-09-16: the hosted checkout and /account offer Stop before the merchant starts,
+    /// which the relayer submits as the subscriber's signed cancelFor.
+    function test_FR_CON_056_subscriber_signed_cancelFor_on_an_unstarted_stream_refunds_everything() public {
+        uint256 subKey = 0xA11CE;
+        address sub = vm.addr(subKey);
+        usd.mint(sub, ESCROW);
+        AccrualStream s = AccrualStream(factory.create(merchant, sub, address(usd), RATE, ESCROW));
+        vm.startPrank(sub);
+        usd.approve(address(s), ESCROW);
+        s.deposit(ESCROW);
+        vm.stopPrank();
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Created), "funded, not started");
+
+        vm.warp(block.timestamp + 600); // time passing before a start must not accrue anything
+        uint256 deadline = block.timestamp + 300;
+        (uint8 v, bytes32 r, bytes32 sig_s) = vm.sign(subKey, s.cancelDigest(s.relayNonce(), deadline));
+
+        uint256 before = usd.balanceOf(sub);
+        vm.prank(makeAddr("relayer"));
+        s.cancelFor(deadline, abi.encodePacked(r, sig_s, v));
+
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Canceled));
+        assertEq(s.settledAmount(), 0, "nothing may be settled");
+        assertEq(usd.balanceOf(sub) - before, ESCROW, "full refund to the subscriber");
+        assertEq(usd.balanceOf(merchant), 0, "merchant paid nothing");
+        assertEq(usd.balanceOf(address(s)), 0, "stream drained");
+    }
+
     function test_FR_CON_056_keeper_can_refund_an_unstarted_stream() public {
         address keeper = makeAddr("keeper");
         factory.setKeeper(keeper);
