@@ -27,6 +27,8 @@ export interface Product {
   rate_per_second_wei: string;
   currency: "ausd";
   allow_pause: boolean;
+  /** `checkout` starts the meter when the subscriber authorises; `merchant` waits for `subscriptions.start`. */
+  start_mode: "checkout" | "merchant";
   active: boolean;
   livemode: boolean;
   created: number;
