@@ -1,6 +1,6 @@
 # `@elapse/sdk` (TypeScript) and `elapse` (Python) — FRD
 
-Status: **FR-SDK-042 (0.1.4 release, `Product.start_mode`) awaiting Furqaan's sign-off** · **FR-SDK-009 `subscriptions.start` — a frozen-surface change — Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
+Status: **FR-SDK-042 (0.1.4 release, `Product.start_mode`) Signed 2026-09-16 (Furqaan)** · **FR-SDK-009 `subscriptions.start` — a frozen-surface change — Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
 
 ## Problem
 
@@ -133,3 +133,4 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | 2026-09-14 | Furqaan | **Signed** FR-SDK-009; the frozen surface becomes eleven methods. §4.2 of the detailed doc still needs the same edit (BR-SDK-001) and is Furqaan's to make. |
 | 2026-09-14 | Claude (for Furqaan) | **Second frozen-surface edit.** FR-SDK-002 `products.create` gains an optional `startMode` (`checkout` \| `merchant`), because Furqaan put start mode on the Product rather than the Checkout session. The method count is unchanged at eleven, but BR-SDK-001 still applies: this spec and §4.2 of the detailed doc must change together, and **§4.2 remains unedited** — two surface changes now await it. |
 | 2026-09-15 | Claude (for Furqaan) | **FR-SDK-042, awaiting sign-off** ([ADR 2026-09-15](../decisions/2026-09-15-merchant-started-checkout-and-lambda.md)): release 0.1.4 so `examples/lambda` can use merchant start from npm, and add `start_mode` to the `Product` type so the example can tell a checkout-mode product from a merchant-mode one. Found while grilling: the workspace SDK and the published package are both numbered 0.1.3 but differ, and neither the published 0.1.3 nor 0.1.0 (which both examples resolve) has `subscriptions.start`. |
+| 2026-09-16 | Furqaan | **Signed** FR-SDK-042. |
