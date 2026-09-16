@@ -1,0 +1,62 @@
+# Deploys the API + worker to the EC2 host after CI passes on master (api/docker-compose.ec2.yml).
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   EC2_HOST         public IP or DNS name of the instance
+#   EC2_USER         the deploy user (not root)
+#   EC2_SSH_KEY      private key for that user (ed25519, used only by this workflow)
+#   EC2_KNOWN_HOSTS  the host's key line from ssh-keyscan, verified by hand; never trust-on-first-use in CI
+name: Deploy EC2
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits rather than racing an older one on the box.
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # Only a green CI run from a push to master; manual runs deploy the branch's head.
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Configure SSH
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=15 \
+            "$EC2_USER@$EC2_HOST" "bash -s -- $SHA" < api/scripts/deploy-ec2.sh
+
+      - name: Public health check
+        run: curl -fsS -m 15 https://api.elapse.finance/v1/status > /dev/null
+
+      - name: Remove key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
