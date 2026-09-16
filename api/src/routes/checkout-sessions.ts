@@ -44,6 +44,7 @@ const PublicProductSchema = z.object({
   rate_usd_per_second: z.string(),
   allow_pause: z.boolean(),
   active: z.boolean(),
+  start_mode: z.enum(["checkout", "merchant"]),
 });
 
 /** FR-API-040 wire object; shared with the subscriptions routes when they land. */
@@ -196,6 +197,8 @@ export function serializePublicSession(
       rate_usd_per_second: serializeProduct(product).rate_usd_per_second,
       allow_pause: product.allow_pause,
       active: product.active,
+      // Checkout FR-CHK-035: the cap step says billing waits for the merchant before any subscription exists.
+      start_mode: product.start_mode,
     },
     customer,
     // FR-API-137: only the subscriber's projection carries these; the merchant's Subscription object is unchanged.

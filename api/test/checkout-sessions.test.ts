@@ -132,7 +132,7 @@ describe("FR-API-031 retrieve: two projections", () => {
         success_url: "https://acme.test/ok",
         cancel_url: "https://acme.test/no",
       },
-      product: { id: prod.id, name: "GPU hour", rate_usd_per_second: "0.004", allow_pause: true, active: true },
+      product: { id: prod.id, name: "GPU hour", rate_usd_per_second: "0.004", allow_pause: true, active: true, start_mode: "checkout" },
       customer: null,
       subscription: null,
       last_max_duration_seconds: null,

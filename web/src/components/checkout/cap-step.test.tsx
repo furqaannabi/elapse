@@ -113,3 +113,15 @@ describe("CapStep with a short wallet (FR-CHK-031)", () => {
     expect(screen.queryByRole("button", { name: /add funds/i })).toBeNull();
   });
 });
+
+describe("CapStep · FR-CHK-035 billing waits for the merchant", () => {
+  it("FR_CHK_035_a_merchant_mode_product_says_billing_starts_when_the_merchant_starts", () => {
+    render(<CapStep rateUsdPerSecond={rate} onChoose={vi.fn()} waitsForMerchant="Northwind Compute" />);
+    expect(screen.getByText("Billing starts when Northwind Compute starts your session.")).toBeInTheDocument();
+  });
+
+  it("FR_CHK_035_a_checkout_mode_product_is_unchanged", () => {
+    render(<CapStep rateUsdPerSecond={rate} onChoose={vi.fn()} />);
+    expect(screen.queryByText(/billing starts when/i)).toBeNull();
+  });
+});

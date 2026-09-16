@@ -381,6 +381,7 @@ export function CheckoutPage({ sessionId }: { sessionId: string }) {
             rateUsdPerSecond={session.product.rateUsdPerSecond}
             availableUsd={balance?.needsFunding ? balance.balanceUsd : undefined}
             initialSeconds={session.lastMaxDurationSeconds}
+            {...(session.product.startMode === "merchant" ? { waitsForMerchant: session.merchant.name } : {})}
             busy={busy}
             onChoose={(seconds) => run(() => api.setCap(sessionId, seconds))}
             onAddMoney={(seconds) => setAddingFor(formatUsd(maxEscrowNano(seconds, parseRate(session.product.rateUsdPerSecond)), 3, { symbol: false }))}

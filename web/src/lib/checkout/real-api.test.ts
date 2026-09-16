@@ -298,3 +298,11 @@ describe("FR-CHK-033 merchant-mode start does not wait for the meter", () => {
     expect(s.subscription).toMatchObject({ status: "incomplete", startMode: "merchant" });
   });
 });
+
+describe("FR-CHK-035 the product's start mode from the wire", () => {
+  it("FR_CHK_035_maps_the_product_start_mode", () => {
+    const merchant = mapSession(wireSession({ product: { id: "prod_1", name: "Lambda", rate_usd_per_second: "0.002", allow_pause: false, active: true, start_mode: "merchant" } }) as never);
+    expect(merchant.product.startMode).toBe("merchant");
+    expect(mapSession(wireSession() as never).product.startMode).toBeUndefined();
+  });
+});

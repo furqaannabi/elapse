@@ -77,6 +77,19 @@ describe("FR-API-137 start mode and refund-by time for the subscriber", () => {
   });
 });
 
+describe("FR-API-137 the product's start mode before anything is authorised", () => {
+  it("FR_API_137_the_public_session_product_says_whether_billing_waits_for_the_merchant", async () => {
+    for (const mode of ["merchant", "checkout"] as const) {
+      const p = await api("POST", "/v1/products", { key: m.skTest, body: { name: `P ${mode}`, rate_usd_per_second: "0.002", start_mode: mode } });
+      const s = await api("POST", "/v1/checkout/sessions", { key: m.skTest, body: { product: p.body.id, success_url: "https://x.test/ok", cancel_url: "https://x.test/no" } });
+      const pub = await api("GET", `/v1/checkout/sessions/${s.body.id}`, { key: m.pkTest });
+      // No subscription yet: the cap step reads the mode from the product (checkout FR-CHK-035).
+      expect(pub.body.subscription).toBeNull();
+      expect(pub.body.product.start_mode).toBe(mode);
+    }
+  });
+});
+
 describe("FR-API-138 /account lists held money", () => {
   it("FR_API_138_lists_a_funded_unstarted_merchant_row_with_its_refund_time_and_hides_other_incomplete_rows", async () => {
     const held = await heldSession();

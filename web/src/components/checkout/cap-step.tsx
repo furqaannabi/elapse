@@ -33,6 +33,7 @@ export function CapStep({
   busy,
   onChoose,
   onAddMoney,
+  waitsForMerchant,
 }: {
   rateUsdPerSecond: string;
   /** What the subscriber can spend, USD decimal string. Omit when unknown. */
@@ -44,6 +45,8 @@ export function CapStep({
   onChoose: (seconds: number) => void;
   /** Offered, with the smallest preset, when the wallet cannot afford any preset (FR-CHK-031). */
   onAddMoney?: (seconds: number) => void;
+  /** FR-CHK-035: the merchant's name when the product is merchant-started, so billing waits for them. */
+  waitsForMerchant?: string;
 }) {
   const rate = useMemo(() => parseRate(rateUsdPerSecond), [rateUsdPerSecond]);
   const available = useMemo(
@@ -82,6 +85,9 @@ export function CapStep({
         <p className="mt-1 text-sm text-ink-soft">
           You only pay the seconds you use. Anything unused comes back when you stop.
         </p>
+        {waitsForMerchant && (
+          <p className="mt-1 text-pretty text-sm text-ink-soft">Billing starts when {waitsForMerchant} starts your session.</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="How long">

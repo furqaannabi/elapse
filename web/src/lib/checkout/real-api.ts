@@ -34,7 +34,7 @@ type WireSession = {
   status: "open" | "complete" | "expired";
   expires_at: number;
   merchant: { name: string; logo_url: string | null; accent: string | null; support_url: string | null; success_url: string; cancel_url: string };
-  product: { id: string; name: string; rate_usd_per_second: string; allow_pause: boolean; active: boolean };
+  product: { id: string; name: string; rate_usd_per_second: string; allow_pause: boolean; active: boolean; start_mode?: "checkout" | "merchant" };
   customer: { id: string; email: string | null } | null;
   subscription: WireSubscription | null;
   max_duration_seconds: number | null;
@@ -106,6 +106,7 @@ export function mapSession(w: WireSession, local?: { signedIn: boolean }): Check
       rateUsdPerSecond: w.product.rate_usd_per_second,
       allowPause: w.product.allow_pause,
       status: w.product.active ? "active" : "archived",
+      ...(w.product.start_mode ? { startMode: w.product.start_mode } : {}),
     },
     customer,
     subscription: w.subscription ? mapSubscription(w.subscription) : null,

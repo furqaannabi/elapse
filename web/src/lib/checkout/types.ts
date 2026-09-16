@@ -34,6 +34,8 @@ export type Product = {
   rateUsdPerSecond: string;
   allowPause: boolean;
   status: "active" | "archived";
+  /** FR-CHK-035: `merchant` means billing waits for the merchant to start the session. Absent on older payloads. */
+  startMode?: "checkout" | "merchant";
 };
 
 export type Subscription = {
