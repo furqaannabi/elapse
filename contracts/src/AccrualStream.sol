@@ -77,6 +77,9 @@ contract AccrualStream is ReentrancyGuard {
     /// Replay protection shared by every relayed action: `cancelFor`, `pauseFor`,
     /// `resumeFor` (FR-CON-017, FR-CON-018). The digest tag tells them apart.
     uint256 public relayNonce;
+    /// Funded through `createWithPermitNoStart` (FR-CON-019). Once such a stream is running, only the
+    /// merchant or the keeper can stop or pause it (FR-CON-057). Declared last so no earlier slot moves.
+    bool public merchantStarted;
 
     // ─── Events (the contract's API to the platform, BR-CON-008) ────────────
 
@@ -98,6 +101,8 @@ contract AccrualStream is ReentrancyGuard {
     error AlreadyCanceled();
     error CapExceeded();
     error BadSignature();
+    /// FR-CON-057: the merchant started this meter, so the subscriber cannot stop, pause or resume it.
+    error MerchantControlled();
 
     // ─── Lifecycle of the implementation itself ─────────────────────────────
 
@@ -177,6 +182,7 @@ contract AccrualStream is ReentrancyGuard {
         if (deposited + amount > maxEscrow) revert CapExceeded();
         if (token.balanceOf(address(this)) < deposited + amount) revert InsufficientDeposit();
         deposited += amount;
+        merchantStarted = true;
         emit Deposited(from, amount, deposited);
     }
 
@@ -225,24 +231,26 @@ contract AccrualStream is ReentrancyGuard {
     /// @notice Manual pause (reason 0). Paused time is never billed (FR-CON-022, BR-CON-003).
     ///         A pause that observes exhaustion ends the stream instead (FR-CON-041).
     function pause() external nonReentrant onlyParty {
+        _refuseSubscriber(msg.sender);
         _pause();
     }
 
     /// @notice Pause on behalf of a party who signed for it; the relayer submits and
     ///         pays gas (FR-CON-018). No money moves. The keeper gets no such power.
     function pauseFor(uint256 deadline, bytes calldata signature) external nonReentrant {
-        _consumeRelay(pauseDigest(relayNonce, deadline), deadline, signature);
+        _refuseSubscriber(_consumeRelay(pauseDigest(relayNonce, deadline), deadline, signature));
         _pause();
     }
 
     /// @notice Resume a manually paused meter (FR-CON-023).
     function resume() external onlyParty {
+        _refuseSubscriber(msg.sender);
         _resume();
     }
 
     /// @notice Resume on behalf of a party who signed for it (FR-CON-018).
     function resumeFor(uint256 deadline, bytes calldata signature) external nonReentrant {
-        _consumeRelay(resumeDigest(relayNonce, deadline), deadline, signature);
+        _refuseSubscriber(_consumeRelay(resumeDigest(relayNonce, deadline), deadline, signature));
         _resume();
     }
 
@@ -278,24 +286,36 @@ contract AccrualStream is ReentrancyGuard {
     }
 
     /// Checks a relayed authorisation (deadline, party signature) and burns the nonce.
-    function _consumeRelay(bytes32 digest, uint256 deadline, bytes calldata signature) internal {
+    /// @return signer The party who signed, so callers can apply per-party rules (FR-CON-057).
+    function _consumeRelay(bytes32 digest, uint256 deadline, bytes calldata signature) internal returns (address signer) {
         if (block.timestamp > deadline) revert BadSignature();
-        address signer = _recover(digest, signature);
+        signer = _recover(digest, signature);
         if (signer != subscriber && signer != merchant) revert BadSignature();
         relayNonce += 1;
+    }
+
+    /// FR-CON-057: on a running merchant-started stream the subscriber may not stop, pause or resume.
+    /// Before start (`Created`) and on checkout-mode streams nothing changes. A merchant who is also the
+    /// subscriber keeps control as merchant.
+    function _refuseSubscriber(address who) internal view {
+        if (
+            merchantStarted && who == subscriber && who != merchant
+                && (status == Status.Active || status == Status.Paused)
+        ) revert MerchantControlled();
     }
 
     /// @notice Stop the meter: settle unsettled whole seconds, refund the rest
     ///         (FR-CON-024, FR-CON-025). A stream past its cap ends at the cap
     ///         second instead (FR-CON-041).
     function cancel() external nonReentrant onlyPartyOrKeeper notCanceled {
+        _refuseSubscriber(msg.sender);
         _cancel();
     }
 
     /// @notice Cancel on behalf of a party who signed for it, so the relayer can
     ///         submit and pay gas (FR-CON-017). Message: keccak256(stream, nonce, deadline).
     function cancelFor(uint256 deadline, bytes calldata signature) external nonReentrant notCanceled {
-        _consumeRelay(cancelDigest(relayNonce, deadline), deadline, signature);
+        _refuseSubscriber(_consumeRelay(cancelDigest(relayNonce, deadline), deadline, signature));
         _cancel();
     }
 
