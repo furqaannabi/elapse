@@ -1,5 +1,5 @@
 /** Money for display, from the shared meter math (ADR 2026-09-17; BR-RCT-005: never a float). */
-import { formatUsd, parseRate } from "@elapse/meter-core";
+import { formatUsd, parseRate } from "./math";
 
 export const CAP_PRESETS_SECONDS = [3_600, 14_400] as const;
 

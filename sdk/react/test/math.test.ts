@@ -18,7 +18,7 @@ import {
   perMinute,
   settledNano,
   wholeSeconds,
-} from "./math";
+} from "../src/math";
 
 describe("parseRate", () => {
   it("parses a decimal USD-per-second string into nano-dollars", () => {

@@ -12,12 +12,14 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./styles.css": "./styles.css"
+    "./styles.css": "./styles.css",
+    "./math": "./src/math.ts"
   },
   "files": [
+    "README.md",
     "dist",
-    "styles.css",
-    "README.md"
+    "src/math.ts",
+    "styles.css"
   ],
   "sideEffects": [
     "*.css"
@@ -33,7 +35,6 @@
     "react-dom": ">=18 <20"
   },
   "devDependencies": {
-    "@elapse/meter-core": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",

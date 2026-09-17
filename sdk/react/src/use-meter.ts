@@ -8,7 +8,7 @@
  * Controls follow the start mode: a merchant-started meter cannot be stopped or paused by the
  * subscriber (FR-CHK-037, FR-API-139); a held one can be stopped for a full refund.
  */
-import { accruedNano, elapsedMs, formatElapsed, formatUsd, parseRate } from "@elapse/meter-core";
+import { accruedNano, elapsedMs, formatElapsed, formatUsd, parseRate } from "./math";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explorerUrl } from "./explorer";
 import { formatAmount } from "./money";

@@ -6,7 +6,6 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: "es2022",
-  // Peers stay imports; the shared meter math is inlined so it is never a runtime dependency (ADR 2026-09-17).
+  // Peers stay imports.
   external: ["react", "react-dom", "react/jsx-runtime", "motion"],
-  noExternal: ["@elapse/meter-core"],
 });

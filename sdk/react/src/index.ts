@@ -6,3 +6,4 @@ export { fetchPublicSession, type PublicSession, type PublicSubscription } from 
 export { explorerUrl } from "./explorer";
 export { Meter } from "./meter";
 export { useMeter, type MeterHandlers, type MeterReceipt, type MeterView } from "./use-meter";
+export * from "./math";
