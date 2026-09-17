@@ -1,6 +1,6 @@
 # `examples/saas` (the merchant in the demo video) — FRD
 
-Status: **FR-EXM-032 and the FR-EXM-003 amendment (`@elapse/react`) awaiting Furqaan's sign-off** · **Signed 2026-09-06 (William)** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md) (example-first build order, explicit `baseUrl`, local-API CI).
+Status: **FR-EXM-032 and the FR-EXM-003 amendment (`@elapse/react`) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md) (example-first build order, explicit `baseUrl`, local-API CI).
 
 ## Problem
 
@@ -120,3 +120,4 @@ Listening on :3000
 | 2026-09-06 | Claude (for William) | Acme GPU's own look ([ADR 2026-09-06](../decisions/2026-09-06-example-merchant-own-brand.md)): `public/{index,ok,cancel}.html` + `public/acme.css`, served by the example; FR-EXM-010 wording amended. The success page's meter status follows the entitlement ("Meter running" / "Meter stopped"). Tests 31; pinned copy unchanged. |
 | 2026-09-07 | Claude (for William) | FR-EXM-010 gap from the first full run: a subscriber who cancels on the meter never visits `/ok`, so the product page kept handing out the finished session and Start showed its receipt. The cache now also treats a session as used once `checkout.session.completed` has arrived for it (the SDK surface has no session retrieve; the webhook is the signal). Test in `server.test.ts`; 31 pass. |
 | 2026-09-17 | Claude (for Furqaan) | **FR-EXM-032, awaiting sign-off** ([ADR](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md)): the SaaS example authorises and meters in its own page with `@elapse/react`. |
+| 2026-09-17 | Furqaan | **Signed** FR-EXM-032 and the FR-EXM-003 amendment (`@elapse/react`). |

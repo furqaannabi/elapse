@@ -1,6 +1,6 @@
 # Docs site — FRD
 
-Status: **FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK) awaiting Furqaan's sign-off** · **Signed 2026-09-06 (William)** · Surface: Merchant developer docs (public, desktop-first) · Sources: detailed doc §4.1–§4.4, §5.1–§5.3, §6, §9, §10 step 1, §11 (Agora page), §12 Weeks 3, 4, 6, §13, §14, §15; design brief (direction, Landing CTA "Read the docs"); `docs/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md); [ADR 2026-09-06 CLI](../decisions/2026-09-06-cli-transport-and-session.md) (test clocks out).
+Status: **FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Merchant developer docs (public, desktop-first) · Sources: detailed doc §4.1–§4.4, §5.1–§5.3, §6, §9, §10 step 1, §11 (Agora page), §12 Weeks 3, 4, 6, §13, §14, §15; design brief (direction, Landing CTA "Read the docs"); `docs/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md); [ADR 2026-09-06 CLI](../decisions/2026-09-06-cli-transport-and-session.md) (test clocks out).
 
 ## Problem
 
@@ -161,3 +161,4 @@ examples/saas/src/*.ts       region source
 | 2026-09-09 | Claude (for William) | Quickstart "Forward webhooks" step gains a note: the CLI registers a `cli://` endpoint visible on the dashboard; production uses a merchant-added `https://` endpoint with the same server code. Prompted by William's question after the production path was proven through a tunnel. |
 | 2026-09-13 | Claude (for William) | AUSD-only content ([ADR 2026-09-13](../decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)): testing/checkout/contracts pages stop teaching minted test dollars; token table regenerated to one AUSD row; Testing gains "Getting testnet AUSD" naming Agora's faucet as the self-serve source (William's call, 2026-09-13 — platform code still never calls it). |
 | 2026-09-17 | Claude (for Furqaan) | **FR-DOC-047, awaiting sign-off** ([ADR](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md)): React page, Quickstart on components, surface check covers `@elapse/react`. |
+| 2026-09-17 | Furqaan | **Signed** FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK). |

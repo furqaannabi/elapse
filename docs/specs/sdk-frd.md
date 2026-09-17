@@ -1,6 +1,6 @@
 # `@elapse/sdk` (TypeScript) and `elapse` (Python) — FRD
 
-Status: **FR-SDK-043 (0.2.0, no `url`; frozen-surface change) awaiting Furqaan's sign-off** · **FR-SDK-042 (0.1.4 release, `Product.start_mode`) Signed 2026-09-16 (Furqaan)** · **FR-SDK-009 `subscriptions.start` — a frozen-surface change — Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
+Status: **FR-SDK-043 (0.2.0, no `url`; frozen-surface change) Signed 2026-09-17 (Furqaan)** · **FR-SDK-042 (0.1.4 release, `Product.start_mode`) Signed 2026-09-16 (Furqaan)** · **FR-SDK-009 `subscriptions.start` — a frozen-surface change — Signed 2026-09-14 (Furqaan)** · **Signed 2026-09-05 (William); Python frozen out of the submission 2026-09-07 (William, FR-SDK-041)** · Surface: Merchant SDK (server-side, Node 20+) · Sources: detailed doc §3, §4.1–§4.4, §5.1–§5.3, §9, §12 (Weeks 2, 5), §14, §15; current `sdk/ts/src/index.ts`, `sdk/ts/package.json`.
 
 ## Problem
 
@@ -137,3 +137,4 @@ Errors: `ElapseError > { ElapseAuthenticationError, ElapseInvalidRequestError, E
 | 2026-09-16 | Furqaan | **Signed** FR-SDK-042. |
 | 2026-09-16 | Claude (for Furqaan) | **Built** FR-SDK-042: `package.json` 0.1.4 and `Product.start_mode`. Found on the way: `VERSION` in `src/http.ts` (the User-Agent) still said 0.1.1 through the 0.1.2 and 0.1.3 releases; it now says 0.1.4 and `test/release.test.ts` pins it to `package.json`. `pnpm pack` checked: 0.1.4, the `/start` route, `start_mode` in the types, `startMode` on `products.create`, no env files. **Not published:** a human runs `npm publish` from `sdk/ts`; until then `examples/lambda` cannot resolve `^0.1.4`. |
 | 2026-09-17 | Claude (for Furqaan) | **FR-SDK-043, awaiting sign-off** ([ADR](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md)): 0.2.0 removes `url` from the Checkout session and repoints `manage_url` to `/account`. §4.2 is Furqaan's edit. |
+| 2026-09-17 | Furqaan | **Signed** FR-SDK-043 (0.2.0, no `url`; frozen-surface change). |

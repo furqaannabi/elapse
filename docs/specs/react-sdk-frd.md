@@ -1,6 +1,6 @@
 # React SDK (`@elapse/react`) — FRD
 
-Status: **Draft — awaiting Furqaan's sign-off** · Surface: Merchant front end (`sdk/react/`) · Sources: [ADR 2026-09-17 React SDK replaces hosted checkout](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md); [ADR 2026-09-17 merchant stops](../decisions/2026-09-17-merchant-started-meters-only-merchant-stops.md); checkout FRD (copy, meter, held view, receipt, BR-CHK-001–007); meter FRD (math, `useMeter`); API FR-API-031/137/140; `DESIGN.md`.
+Status: **Signed 2026-09-17 (Furqaan)** · Surface: Merchant front end (`sdk/react/`) · Sources: [ADR 2026-09-17 React SDK replaces hosted checkout](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md); [ADR 2026-09-17 merchant stops](../decisions/2026-09-17-merchant-started-meters-only-merchant-stops.md); checkout FRD (copy, meter, held view, receipt, BR-CHK-001–007); meter FRD (math, `useMeter`); API FR-API-031/137/140; `DESIGN.md`.
 
 ## Problem
 
@@ -87,3 +87,4 @@ Subscribers leave the merchant's app for a hosted page to authorise and watch a 
 | Date | Who | Change |
 | --- | --- | --- |
 | 2026-09-17 | Claude (for Furqaan) | **Created from the grill, awaiting sign-off.** Popup for every signature, events plus opt-in `<TxLink>`, styled and themeable components with hooks, synthesised sound on by default, hosted checkout replaced after this is proven ([ADR 2026-09-17](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md)). |
+| 2026-09-17 | Furqaan | **Signed** Draft —. |
