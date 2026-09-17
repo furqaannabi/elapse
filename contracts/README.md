@@ -57,7 +57,19 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
-## Current testnet deployment (2026-09-14, merchant-started metering)
+## Current testnet deployment (2026-09-17, only the merchant stops)
+
+| | |
+| --- | --- |
+| Factory | [`0xc430C8EE28AaaCbaBFE06CdB6A6900cE616DD357`](https://testnet.monadscan.com/address/0xc430C8EE28AaaCbaBFE06CdB6A6900cE616DD357) · Sourcify exact match |
+| Implementation | `0x58312Cd745B214Dcab5728c31204B1DEDF5B0B35` · Sourcify exact match |
+| Owner | `0x35134987bB541607Cd45e62Dd1feA4F587607817` (the `hackathons` keystore) |
+| Keeper (relayer) | `0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35`, set in the deploy run |
+| Fee | 200 bps, set by `setFee` after deploy (this build predates the 2 % constructor default of `b324cdc`) |
+| Block | 63259976, tx `0xa4866e6f…166b0c` |
+| Why | FR-CON-057: a merchant-started stream refuses the subscriber's cancel, pause and resume once running ([ADR 2026-09-17](../docs/decisions/2026-09-17-merchant-started-meters-only-merchant-stops.md)) |
+
+## Previous testnet deployment (2026-09-14, merchant-started metering)
 
 | | |
 | --- | --- |

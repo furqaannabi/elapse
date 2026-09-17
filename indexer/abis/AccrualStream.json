@@ -264,6 +264,19 @@
   },
   {
     "type": "function",
+    "name": "merchantStarted",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "pause",
     "inputs": [],
     "outputs": [],
@@ -728,6 +741,11 @@
   {
     "type": "error",
     "name": "InvalidState",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "MerchantControlled",
     "inputs": []
   },
   {
