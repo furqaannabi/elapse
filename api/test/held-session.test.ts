@@ -3,7 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { api, resetDb, seedMerchant, type Fixture } from "./helpers";
 import { setChainClient } from "../src/chain/relayer";
 import { fakeChain } from "./fake-chain";
-import { STREAM, streamCreated, deposited } from "./ingest-fixtures";
+import { STREAM, streamCreated, deposited, streamStarted } from "./ingest-fixtures";
 import { privyFixture } from "./privy-fixture";
 import { UNSTARTED_WINDOW_S, runUnstartedSweepOnce } from "../src/worker/unstarted";
 
@@ -121,3 +121,50 @@ describe("FR-API-138 /account lists held money", () => {
     expect(swept.canceled).toEqual([]);
   });
 });
+
+describe("FR-API-139 only the merchant stops a started merchant-mode meter", () => {
+  async function startedSession() {
+    const held = await heldSession();
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamStarted() });
+    return held;
+  }
+
+  it("FR_API_139_every_subscriber_stop_pause_or_resume_route_answers_409_and_nothing_reaches_the_chain", async () => {
+    const { sessionId, subId } = await startedSession();
+    chain.setRelayNonce(STREAM, 0n);
+    const headers = await identity();
+    const routes: Array<[string, Record<string, unknown>]> = [];
+    for (const action of ["cancel", "pause", "resume"]) {
+      routes.push([`/v1/checkout/sessions/${sessionId}/${action}/prepare`, {}]);
+      routes.push([`/v1/checkout/sessions/${sessionId}/${action}`, { signature: "0x" + "ab".repeat(65), deadline: String(Math.floor(Date.now() / 1000) + 300) }]);
+      routes.push([`/v1/account/subscriptions/${subId}/${action}/prepare`, {}]);
+      routes.push([`/v1/account/subscriptions/${subId}/${action}`, { signature: "0x" + "ab".repeat(65), deadline: String(Math.floor(Date.now() / 1000) + 300) }]);
+    }
+    for (const [path, body] of routes) {
+      const r = await api("POST", path, { ...(path.startsWith("/v1/checkout") ? { key: m.pkTest } : {}), body, headers });
+      expect({ path, status: r.status, code: r.body.error?.code }).toEqual({ path, status: 409, code: "merchant_controlled" });
+    }
+    expect(chain.cancels).toEqual([]);
+    expect(chain.pauses).toEqual([]);
+    expect(chain.resumes).toEqual([]);
+  });
+
+  it("FR_API_139_the_public_session_says_whether_the_subscriber_can_stop", async () => {
+    const held = await heldSession();
+    let pub = await api("GET", `/v1/checkout/sessions/${held.sessionId}`, { key: m.pkTest });
+    expect(pub.body.subscription.subscriber_can_stop).toBe(true); // held: a full refund is still theirs to take
+
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamStarted() });
+    pub = await api("GET", `/v1/checkout/sessions/${held.sessionId}`, { key: m.pkTest });
+    expect(pub.body.subscription.status).toBe("active");
+    expect(pub.body.subscription.subscriber_can_stop).toBe(false);
+  });
+
+  it("FR_API_139_the_merchant_can_still_cancel_through_the_api", async () => {
+    const { subId } = await startedSession();
+    const r = await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest });
+    expect(r.status).toBe(202);
+    expect(chain.keeperCancels).toEqual([STREAM]);
+  });
+});
+

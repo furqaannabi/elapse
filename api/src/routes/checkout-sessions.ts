@@ -11,7 +11,7 @@ import { findCustomer } from "../db/customers";
 import { sql } from "../db/client";
 import { RelayerUnavailable } from "../chain/relayer";
 import { SubscriberAuthError, SubscriberAuthUnconfigured, verifyIdentityToken, type SubscriberIdentity } from "../lib/privy";
-import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancelSubscription, prepareRelay, submitRelay, readCheckoutBalance, PERMIT_TTL_SECONDS, CANCEL_TTL_SECONDS } from "../services/checkout";
+import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancelSubscription, prepareRelay, submitRelay, readCheckoutBalance, PERMIT_TTL_SECONDS, CANCEL_TTL_SECONDS, isMerchantControlled } from "../services/checkout";
 import { PERMIT_TYPES } from "../chain/permit";
 import { baseUnitsToDecimal } from "../lib/money";
 import { PUBLIC, router } from "../lib/openapi";
@@ -110,6 +110,7 @@ export const PublicCheckoutSessionSchema = z
     subscription: SubscriptionSchema.extend({
       start_mode: z.enum(["checkout", "merchant"]),
       start_by: z.number().int().nullable().openapi({ description: "FR-API-137: when an unstarted merchant-mode meter is refunded if the merchant never starts it; null otherwise." }),
+      subscriber_can_stop: z.boolean().openapi({ description: "FR-API-139: false once the merchant has started a merchant-mode meter; only the merchant can stop it." }),
     }).nullable(),
     max_duration_seconds: z.number().int().nullable(),
     max_escrow_usd: z.string().nullable(),
@@ -202,7 +203,7 @@ export function serializePublicSession(
     },
     customer,
     // FR-API-137: only the subscriber's projection carries these; the merchant's Subscription object is unchanged.
-    subscription: sub ? { ...serializeSubscription(sub), start_mode: sub.start_mode, start_by: startBy(sub) } : null,
+    subscription: sub ? { ...serializeSubscription(sub), start_mode: sub.start_mode, start_by: startBy(sub), subscriber_can_stop: !isMerchantControlled(sub) } : null,
     last_max_duration_seconds: s.last_max_duration_seconds,
     restarted_as: s.restarted_as,
     max_duration_seconds: s.max_duration_seconds,
@@ -341,7 +342,7 @@ export function mapCheckoutError(e: unknown): never {
   if (e instanceof CheckoutStateError) {
     if (e.code === "subscriber_mismatch") throw new ApiError(403, "authentication_error", e.message, undefined, e.code);
     if (e.code === "rate_limited") throw new ApiError(429, "rate_limit_error", e.message, undefined, e.code);
-    const status = e.code === "already_started" || e.code === "session_not_open" || e.code === "not_running" ? 409 : 400;
+    const status = e.code === "already_started" || e.code === "session_not_open" || e.code === "not_running" || e.code === "merchant_controlled" ? 409 : 400;
     throw new ApiError(status, "invalid_request_error", e.message, undefined, e.code);
   }
   if (e instanceof RelayerUnavailable) throw new ApiError(503, "api_error", "Starting sessions is temporarily unavailable.");

@@ -11,7 +11,7 @@ import type { Address, Hex } from "viem";
 import { sql } from "../db/client";
 import type { CheckoutSessionRow } from "../db/checkout-sessions";
 import { insertCustomer } from "../db/customers";
-import { getPayoutAddress } from "../db/merchants";
+import { getMerchantBranding, getPayoutAddress } from "../db/merchants";
 import { findProduct } from "../db/products";
 import { findSubscription, insertSubscription, type SubscriptionRow } from "../db/subscriptions";
 import { chainClient } from "../chain/relayer";
@@ -26,6 +26,7 @@ const MIN_CAP = 60;
 const MAX_CAP = 2_592_000;
 
 export type CheckoutErrorCode =
+  | "merchant_controlled"
   | "not_running"
   | "invalid_state"
   | "pause_not_allowed"
@@ -188,6 +189,14 @@ export const CANCEL_TTL_SECONDS = 600;
 /** Pause-or-resume submissions per Subscription per hour (FR-API-047); each is a relayer tx and a merchant webhook. */
 export const PAUSE_RESUME_PER_HOUR = 10;
 
+/**
+ * FR-API-139: a merchant-mode meter the merchant has started is the merchant's to stop, pause or resume.
+ * The contract refuses the subscriber (FR-CON-057); refusing here keeps the relayer from paying for a revert.
+ */
+export function isMerchantControlled(sub: Pick<SubscriptionRow, "start_mode" | "status">): boolean {
+  return sub.start_mode === "merchant" && (sub.status === "active" || sub.status === "paused");
+}
+
 /** FR-API-137: authorised and funded in `merchant` mode, but the merchant has not started it. */
 export function isHeld(sub: SubscriptionRow): boolean {
   return sub.status === "incomplete" && sub.start_mode === "merchant" && !!sub.stream_address && BigInt(sub.funded_wei) > 0n;
@@ -208,6 +217,11 @@ async function runningSubscription(session: CheckoutSessionRow): Promise<Subscri
  * is not re-checked on resume: a meter paused while the flag was on may always resume.
  */
 async function actionableSubscription(session: CheckoutSessionRow, action: RelayAction): Promise<SubscriptionRow> {
+  const current = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
+  if (current && isMerchantControlled(current)) {
+    const merchant = (await getMerchantBranding(session.merchant_id))?.name ?? "the merchant";
+    throw new CheckoutStateError("merchant_controlled", `Only ${merchant} can stop this meter.`);
+  }
   if (action === "cancel") {
     // FR-API-137: Stop also works before the merchant starts, refunding the whole deposit (contracts FR-CON-056).
     const held = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
