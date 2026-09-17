@@ -60,3 +60,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-17 | [Once the merchant starts a merchant-mode meter, only the merchant can stop it](./2026-09-17-merchant-started-meters-only-merchant-stops.md) | Furqaan |
 | 2026-09-17 | [`@elapse/react` replaces the hosted checkout; signatures happen in an Elapse popup](./2026-09-17-react-sdk-replaces-hosted-checkout.md) | Furqaan |
 | 2026-09-17 | [Meter math moves to a shared workspace package, `@elapse/meter-core`](./2026-09-17-meter-math-shared-package.md) | Furqaan |
+| 2026-09-17 | [Delete the hosted checkout now, and fix what depended on it in the same change](./2026-09-17-delete-hosted-checkout-now.md) | Furqaan |
