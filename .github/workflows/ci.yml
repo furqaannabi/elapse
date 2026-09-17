@@ -44,6 +44,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: SDK
         run: pnpm --filter @elapse/sdk build && pnpm --filter @elapse/sdk test
+      - name: Meter core (money math shared by web and @elapse/react)
+        run: pnpm --filter @elapse/meter-core typecheck && pnpm --filter @elapse/meter-core test
+      - name: React SDK (FR-RCT-061)
+        run: pnpm --filter @elapse/react typecheck && pnpm --filter @elapse/react test && pnpm --filter @elapse/react build
       - name: Example merchant
         run: pnpm --filter elapse-example-saas typecheck && pnpm --filter elapse-example-saas test
       - name: Example merchant (lambda, runner mocked — never calls AWS)
