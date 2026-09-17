@@ -57,3 +57,5 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-12 | [`examples/lambda` requires AWS and is exempt from the clone-and-run guarantee](./2026-09-12-examples-lambda-aws-only.md) | Furqaan |
 | 2026-09-13 | [AUSD is the only escrow token; MockUSD becomes a test fixture; live mode is mainnet's mode](./2026-09-13-ausd-only-mockusd-to-test-fixture.md) | William |
 | 2026-09-15 | [Merchant-started metering on the hosted checkout, `/account` and `examples/lambda`](./2026-09-15-merchant-started-checkout-and-lambda.md) | Furqaan |
+| 2026-09-17 | [Once the merchant starts a merchant-mode meter, only the merchant can stop it](./2026-09-17-merchant-started-meters-only-merchant-stops.md) | Furqaan |
+| 2026-09-17 | [`@elapse/react` replaces the hosted checkout; signatures happen in an Elapse popup](./2026-09-17-react-sdk-replaces-hosted-checkout.md) | Furqaan |
