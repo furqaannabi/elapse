@@ -83,7 +83,10 @@ contract FactoryTest is BaseTest {
     }
 
     function test_FR_CON_006_fee_defaults_caps_and_is_owner_only() public {
-        assertEq(factory.feeBps(), 100);
+        // Amended 2026-09-17: a freshly constructed factory charges 2 % (ADR 2026-09-08). The shared
+        // fixture sets 1 % explicitly, so this reads a new factory, not `factory`.
+        assertEq(new StreamFactory(treasury).feeBps(), 200, "default is 2 %");
+        assertEq(factory.feeBps(), 100, "the fixture's explicit 1 %");
         assertEq(factory.treasury(), treasury);
         assertEq(factory.MAX_FEE_BPS(), 1_000);
 

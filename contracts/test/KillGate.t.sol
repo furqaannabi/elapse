@@ -23,6 +23,7 @@ contract KillGateTest is Test {
     function setUp() public {
         usd = new MockUSD();
         factory = new StreamFactory(treasury);
+        factory.setFee(100, treasury); // the recorded kill-gate run settled at 1 %; the default is now 2 %
         usd.mint(subscriber, ESCROW);
     }
 

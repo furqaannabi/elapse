@@ -25,6 +25,9 @@ abstract contract BaseTest is Test {
     function setUp() public virtual {
         usd = new MockUSD();
         factory = new StreamFactory(treasury);
+        // The fixture is a 1 % factory (the kill-gate and invariant numbers are written against it);
+        // since the default became 2 % that is set explicitly.
+        factory.setFee(100, treasury);
         usd.mint(subscriber, 100 * ESCROW);
         vm.warp(1_756_800_000); // a real-looking timestamp so 0 never means "unset"
     }

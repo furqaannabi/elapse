@@ -25,8 +25,8 @@ contract StreamFactory is Ownable {
 
     address public immutable implementation;
     address public keeper;
-    /// Basis points of every settlement paid to `treasury`. Default 1 %.
-    uint16 public feeBps = 100;
+    /// Basis points of every settlement paid to `treasury`. Default 2 % (ADR 2026-09-08).
+    uint16 public feeBps = 200; // 2 % by default (FR-CON-006 amended 2026-09-17, ADR 2026-09-08)
     address public treasury;
 
     event StreamCreated(
