@@ -59,6 +59,8 @@ export function meterFrom(w: WireAccountSubscription): AccountMeter {
     pausedAt: ms(w.paused_at),
     maxDurationSeconds: w.max_duration_seconds,
     fundedUsd: w.funded_usd,
+    // FR-CHK-037: listed as a meter means active or paused, so merchant mode here means the merchant started it.
+    ...(w.start_mode === "merchant" ? { merchantControlled: true } : {}),
   };
 }
 

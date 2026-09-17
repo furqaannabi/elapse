@@ -86,7 +86,13 @@ export function CapStep({
           You only pay the seconds you use. Anything unused comes back when you stop.
         </p>
         {waitsForMerchant && (
-          <p className="mt-1 text-pretty text-sm text-ink-soft">Billing starts when {waitsForMerchant} starts your session.</p>
+          <>
+            <p className="mt-1 text-pretty text-sm text-ink-soft">Billing starts when {waitsForMerchant} starts your session.</p>
+            {/* FR-CHK-037: said before Face ID, because the subscriber cannot stop this meter once it starts. */}
+            <p className="mt-1 text-pretty text-sm text-ink-soft">
+              Only {waitsForMerchant} can stop this meter. It ends by itself at your {seconds !== null ? formatCap(seconds) : "chosen time"} at the latest.
+            </p>
+          </>
         )}
       </div>
 

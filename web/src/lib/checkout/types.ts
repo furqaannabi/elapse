@@ -69,6 +69,8 @@ export type Subscription = {
   hold?: { startBy: number; heldUsd: string };
   /** FR-API-137: `merchant` means the merchant starts the meter, not the subscriber's authorisation. Absent on older payloads. */
   startMode?: "checkout" | "merchant";
+  /** FR-API-139: false once the merchant has started a merchant-mode meter; only the merchant can stop it. Absent means true. */
+  subscriberCanStop?: boolean;
 };
 
 export type Customer = {

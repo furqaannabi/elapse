@@ -125,3 +125,13 @@ describe("CapStep · FR-CHK-035 billing waits for the merchant", () => {
     expect(screen.queryByText(/billing starts when/i)).toBeNull();
   });
 });
+
+describe("CapStep · FR-CHK-037 only the merchant stops it", () => {
+  it("FR_CHK_037_says_before_authorising_that_only_the_merchant_stops_it_and_where_it_ends", async () => {
+    const user = userEvent.setup();
+    render(<CapStep rateUsdPerSecond={rate} onChoose={vi.fn()} waitsForMerchant="Northwind Compute" />);
+    expect(screen.getByText("Only Northwind Compute can stop this meter. It ends by itself at your 1 hour at the latest.")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /4 hours/i }));
+    expect(screen.getByText("Only Northwind Compute can stop this meter. It ends by itself at your 4 hours at the latest.")).toBeInTheDocument();
+  });
+});

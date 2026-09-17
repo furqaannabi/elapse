@@ -155,3 +155,16 @@ describe("FR-CHK-036 held money on /account", () => {
     expect(v.receipts).toEqual([]);
   });
 });
+
+describe("FR-CHK-037 a started merchant-mode meter on /account", () => {
+  it("FR_CHK_037_maps_merchant_mode_meters_as_merchant_controlled", async () => {
+    const { meterFrom } = await import("./real-api");
+    const base = {
+      id: "sub_m" as const, livemode: false, merchant: { name: "Northwind Compute", logo_url: null, support_url: null },
+      product: { name: "Serverless runtime", rate_usd_per_second: "0.002" }, started_at: 1_757_000_000, paused_at: null, canceled_at: null,
+      ended_reason: null, max_duration_seconds: 3600, funded_usd: "7.2", settled_usd: "0", refunded_usd: "0", seconds_elapsed: 0,
+    };
+    expect(meterFrom({ ...base, status: "active", start_mode: "merchant" }).merchantControlled).toBe(true);
+    expect(meterFrom({ ...base, status: "active", start_mode: "checkout" }).merchantControlled).toBeUndefined();
+  });
+});

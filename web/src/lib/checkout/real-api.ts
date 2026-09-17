@@ -59,6 +59,8 @@ type WireSubscription = {
   /** FR-API-137. */
   start_mode?: "checkout" | "merchant";
   start_by?: number | null;
+  /** FR-API-139. */
+  subscriber_can_stop?: boolean;
 };
 
 const ms = (s: number | null) => (s === null ? null : s * 1000);
@@ -79,6 +81,7 @@ export function mapSubscription(w: WireSubscription): Subscription {
     // later shows the seconds billed, not started→canceled wall clock (which counts paused time).
     ...(w.status === "canceled" ? { settled: { secondsElapsed: w.seconds_elapsed, settledUsd: w.settled_usd } } : {}),
     ...(w.start_mode ? { startMode: w.start_mode } : {}),
+    ...(w.subscriber_can_stop === false ? { subscriberCanStop: false } : {}),
     // FR-CHK-034: held money is the real deposit (funded_usd), never the cap the page reads as fundedUsd.
     ...(w.status === "incomplete" && w.start_mode === "merchant" && typeof w.start_by === "number" && parseUsd(w.funded_usd) > 0n
       ? { hold: { startBy: w.start_by * 1000, heldUsd: w.funded_usd } }

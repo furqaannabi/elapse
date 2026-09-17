@@ -14,7 +14,10 @@
  * There is no way to add funds: the cap is the session, and reaching it
  * ends the meter rather than pausing it (FR-CHK-007).
  *
- * Maps to: FR-CHK-005, FR-CHK-006, FR-CHK-007; BR-CHK-004.
+ * A merchant-mode meter the merchant has started has no Stop or Pause: only the merchant can stop
+ * it, and it ends by itself at the cap (FR-CHK-037, contracts FR-CON-057).
+ *
+ * Maps to: FR-CHK-005, FR-CHK-006, FR-CHK-007, FR-CHK-037; BR-CHK-004.
  */
 "use client";
 
@@ -65,6 +68,7 @@ export function MeterView({
     ? new Date(subscription.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
     : null;
   const paused = view === "paused";
+  const merchantControlled = subscription.subscriberCanStop === false;
 
   return (
     <section className="flex flex-1 flex-col gap-4">
@@ -130,12 +134,18 @@ export function MeterView({
           Back to {merchantName}
           <ArrowRight data-icon="inline-end" className="size-4" />
         </a>
-        {view === "paused" && (
+        {merchantControlled && (
+          <p className="text-center text-sm text-ink-soft">
+            {merchantName} stops this meter. It ends by itself at your {capName}.
+          </p>
+        )}
+        {view === "paused" && !merchantControlled && (
           <Button size="lg" onClick={onResume} disabled={busy} className="h-12 w-full text-base">
             <Play data-icon="inline-start" className="size-4" />
             Resume
           </Button>
         )}
+        {!merchantControlled && (
         <div className="flex gap-2">
           {product.allowPause && view !== "paused" && (
             <Button
@@ -159,6 +169,8 @@ export function MeterView({
             {busy ? (paused ? "One moment…" : "Stopping…") : "Stop"}
           </Button>
         </div>
+        )}
+        {!merchantControlled && (
         <p className="text-center text-xs text-ink-soft">
           {paused ? (
             <>Nothing is charged while paused. Resume when you&rsquo;re ready, or stop to get the rest back.</>
@@ -172,6 +184,7 @@ export function MeterView({
             </>
           )}
         </p>
+        )}
       </div>
     </section>
   );

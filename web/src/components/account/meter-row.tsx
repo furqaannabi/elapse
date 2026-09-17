@@ -8,7 +8,9 @@
  * The card is the same at every width; a wide screen shows more of them
  * side by side (FR-CHK-024) rather than stretching these.
  *
- * Maps to: FR-CHK-018, FR-CHK-021, FR-CHK-006, FR-CHK-024, FR-CHK-030; BR-CHK-001.
+ * A merchant-mode meter the merchant started has neither: only the merchant can stop it (FR-CHK-037).
+ *
+ * Maps to: FR-CHK-018, FR-CHK-021, FR-CHK-006, FR-CHK-024, FR-CHK-030, FR-CHK-037; BR-CHK-001.
  */
 "use client";
 
@@ -87,18 +89,22 @@ export function MeterRow({
           </p>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={onStop}
-          disabled={busy}
-          aria-label={`Stop this meter at ${m.merchant.name}`}
-          className="h-11 shrink-0 px-4"
-        >
-          Stop
-        </Button>
+        {m.merchantControlled ? (
+          <p className="max-w-[9rem] shrink-0 text-right text-xs text-ink-soft">{m.merchant.name} stops this meter</p>
+        ) : (
+          <Button
+            variant="outline"
+            onClick={onStop}
+            disabled={busy}
+            aria-label={`Stop this meter at ${m.merchant.name}`}
+            className="h-11 shrink-0 px-4"
+          >
+            Stop
+          </Button>
+        )}
       </div>
 
-      {m.allowPause && (paused ? onResume : onPause) && (
+      {m.allowPause && !m.merchantControlled && (paused ? onResume : onPause) && (
         <button
           type="button"
           onClick={paused ? onResume : onPause}

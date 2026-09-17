@@ -33,6 +33,8 @@ export type AccountMeter = {
   maxDurationSeconds: number;
   /** Escrow held for the session (rate × cap), USD decimal string. */
   fundedUsd: string;
+  /** FR-CHK-037: a merchant-mode meter the merchant started; the subscriber cannot stop or pause it. */
+  merchantControlled?: boolean;
 };
 
 /** One finished session, in the words the receipt uses. One per ended meter, keyed by the subscription. */

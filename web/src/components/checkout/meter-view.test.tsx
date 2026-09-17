@@ -110,3 +110,26 @@ describe("MeterView", () => {
     vi.useRealTimers();
   });
 });
+
+describe("MeterView · FR-CHK-037 the merchant stops a merchant-mode meter", () => {
+  it("FR_CHK_037_a_started_merchant_mode_meter_has_no_stop_or_pause_and_says_who_stops_it", () => {
+    render(
+      <MeterView
+        {...props}
+        product={{ ...product, allowPause: true }}
+        subscription={sub({ startMode: "merchant", subscriberCanStop: false })}
+        view="running"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /^stop$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /pause/i })).toBeNull();
+    expect(screen.getByText("Nimbus stops this meter. It ends by itself at your 1 hour.")).toBeInTheDocument();
+    // The usual "Stop it here" reassurance would now be false.
+    expect(screen.queryByText(/stop it here/i)).toBeNull();
+  });
+
+  it("FR_CHK_037_a_checkout_mode_meter_keeps_stop", () => {
+    render(<MeterView {...props} subscription={sub()} view="running" />);
+    expect(screen.getByRole("button", { name: /^stop$/i })).toBeInTheDocument();
+  });
+});
