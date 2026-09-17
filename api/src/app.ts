@@ -43,6 +43,11 @@ const dashboardCors = cors({
 });
 // The docs reference's try-it panel (FR-API-086): a test key from the browser is fine; a live key is not.
 const docsCors = cors({ origin: (o) => (config.docsOrigin && o === config.docsOrigin ? o : null), allowMethods: ["GET", "POST", "OPTIONS"], allowHeaders: ["content-type", "authorization", "idempotency-key"], maxAge: 600 });
+// FR-API-140(c): `@elapse/react` reads the public session from the merchant's own page, on any origin.
+// Only that read: no credentials, GET only, and the publishable key still authenticates it. Every
+// mutation happens in the Elapse popup on Elapse's origin, so no other route answers a foreign origin.
+const publicSessionReadCors = cors({ origin: (o) => o, allowMethods: ["GET", "OPTIONS"], allowHeaders: ["authorization"], maxAge: 600 });
+const PUBLIC_SESSION_READ = /^\/v1\/checkout\/sessions\/cs_[A-Za-z0-9]+$/;
 app.use("/v1/*", async (c, next) => {
   const origin = c.req.header("origin");
   // The dashboard policy is a superset, so a shared dev origin (both on localhost:3000) still works.
@@ -55,6 +60,10 @@ app.use("/v1/*", async (c, next) => {
       }
       await next();
     });
+  }
+  if (origin && origin !== checkoutOrigin() && PUBLIC_SESSION_READ.test(c.req.path)) {
+    const method = c.req.method === "OPTIONS" ? c.req.header("access-control-request-method") : c.req.method;
+    if (method === "GET") return publicSessionReadCors(c, next);
   }
   if (c.req.path.startsWith("/v1/checkout/sessions") || c.req.path.startsWith("/v1/account") || c.req.path === "/v1/status") return checkoutCors(c, next);
   return next();
