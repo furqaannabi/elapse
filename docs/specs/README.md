@@ -49,8 +49,8 @@ FRs are user-facing behaviour ("As a subscriber I can…"). BRs are constraints 
 | `react-sdk-frd.md` | **Signed 2026-09-17 (Furqaan)** · `@elapse/react` replaces the hosted checkout; every signature in the Elapse popup | — |
 | `cli-frd.md` | **Signed** · built 2026-09-06 (API FR-API-130–134 + `cli/`), proven on the local API; npm publish pending the `@elapse` scope check | William, 2026-09-06 |
 | `docs-site-frd.md` | **Signed** · built 2026-09-06 (`docs-site/`, snippet sync, surface check, CI workflow); Mintlify hosting connect and hosted API URL pending · FR-DOC-022 manage section **signed and built 2026-09-09** · FR-DOC-047 React page **signed 2026-09-17 (Furqaan)** | William, 2026-09-06 |
-| `examples-frd.md` | **Signed** · built and proven 2026-09-06, including the FR-EXM-031 CI job · FR-EXM-032 `@elapse/react` **signed 2026-09-17 (Furqaan)** · FR-EXM-032 amendment (esbuild bundle) **awaiting sign-off 2026-09-17** | William, 2026-09-06 |
-| `examples-lambda-frd.md` | **Signed** · per-second serverless-compute example on real AWS Lambda; auto-lifecycle (first-Run start, heartbeat/idle/beacon/cap end); runner infra live 2026-09-12; build in progress · merchant-start amendments FR-EXM-102/114/115/125/126/133 **signed 2026-09-16 (Furqaan)** · FR-EXM-152 `@elapse/react` **signed 2026-09-17 (Furqaan)** · FR-EXM-152 amendment (esbuild bundle) **awaiting sign-off 2026-09-17** | Furqaan, 2026-09-12 |
+| `examples-frd.md` | **Signed** · built and proven 2026-09-06, including the FR-EXM-031 CI job · FR-EXM-032 `@elapse/react` **signed 2026-09-17 (Furqaan)** · FR-EXM-032 amendment (esbuild bundle) **signed 2026-09-17 (Furqaan)** | William, 2026-09-06 |
+| `examples-lambda-frd.md` | **Signed** · per-second serverless-compute example on real AWS Lambda; auto-lifecycle (first-Run start, heartbeat/idle/beacon/cap end); runner infra live 2026-09-12; build in progress · merchant-start amendments FR-EXM-102/114/115/125/126/133 **signed 2026-09-16 (Furqaan)** · FR-EXM-152 `@elapse/react` **signed 2026-09-17 (Furqaan)** · FR-EXM-152 amendment (esbuild bundle) **signed 2026-09-17 (Furqaan)** | Furqaan, 2026-09-12 |
 
 ## Process
 
