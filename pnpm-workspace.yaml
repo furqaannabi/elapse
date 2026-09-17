@@ -1,5 +1,6 @@
 packages:
   - "sdk/ts"
+  - "sdk/react"
   - "cli"
   - "api"
   - "web"
