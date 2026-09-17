@@ -131,7 +131,7 @@ describe("real DashboardApi", () => {
     expect(calls.at(-1)).toMatchObject({ url: `${BASE}/v1/products/prod_1`, body: { active: true } });
     responses = [{ id: "cs_1", url: "http://localhost:3000/c/cs_1" }];
     const link = await createRealDashboardApi({ baseUrl: BASE, getMode: () => "test", dashboardOrigin: "https://dash.test" }).createCheckoutLink("prod_2");
-    expect(link.url).toBe("http://localhost:3000/c/cs_1");
+    expect(link).toEqual({ id: "cs_1" }); // the hosted checkout URL is no longer surfaced (FR-CHK-040)
     expect(calls.at(-1)!.body).toEqual({ product: "prod_2", success_url: "https://dash.test/dashboard/subscriptions", cancel_url: "https://dash.test/dashboard/products" });
   });
 

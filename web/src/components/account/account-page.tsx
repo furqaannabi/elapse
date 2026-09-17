@@ -35,20 +35,16 @@ export function AccountPage({
   api,
   pollMs = 1000,
   email,
-  navigate,
 }: {
   api: AccountApi;
   /** How often the view is re-read: 1 s against the mock, 5 s against the API (FR-CHK-018). */
   pollMs?: number;
   /** The sign-in's email, for the receipt's "Sent to …"; absent = no Email receipt button (FR-CHK-029). */
   email?: string | null;
-  /** Where to go after Start again opens a session; defaults to a full navigation (FR-CHK-020). */
-  navigate?: (url: string) => void;
 }) {
   const [view, setView] = useState<AccountView | null>(null);
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [stopping, setStopping] = useState<AccountMeter | AccountHeld | null>(null);
@@ -236,22 +232,6 @@ export function AccountPage({
         onOpenChange={(o) => !o && setOpenReceipt(null)}
         emailBusy={emailBusy}
         emailSentTo={emailSentTo}
-        startBusy={starting}
-        onStartAgain={
-          openReceipt?.session
-            ? async () => {
-                const session = openReceipt.session!;
-                setStarting(true);
-                try {
-                  const { url } = await api.startAgain(session);
-                  (navigate ?? ((u: string) => window.location.assign(u)))(url);
-                } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Could not open a new session");
-                  setStarting(false);
-                }
-              }
-            : undefined
-        }
         onEmail={
           email === null
             ? undefined

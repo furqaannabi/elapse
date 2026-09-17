@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { Mail, RotateCcw } from "lucide-react";
+import { Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -64,15 +64,11 @@ export function ReceiptSheet({
   onEmail,
   emailBusy,
   emailSentTo,
-  onStartAgain,
-  startBusy,
 }: {
   receipt: AccountReceipt | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Opens a follow-on session for this receipt (FR-CHK-020, decided 2026-09-07); absent when the receipt has no session. */
-  onStartAgain?: () => void;
-  startBusy?: boolean;
   /** Absent = no email on the sign-in, so the button is not offered (FR-CHK-029). */
   onEmail?: () => void;
   emailBusy?: boolean;
@@ -124,24 +120,13 @@ export function ReceiptSheet({
               <dd className="numerals text-right">${r.refundedUsd}</dd>
             </dl>
 
-            {r.restartedAs && (
-              <a href={`/c/${r.restartedAs}`} className="mt-5 block py-1 text-center text-sm !text-ink-soft underline-offset-3 hover:!text-foreground">
-                A newer session followed this one · open it
-              </a>
-            )}
-            {onStartAgain && !r.restartedAs && (
-              <Button size="lg" onClick={onStartAgain} disabled={startBusy} className="mt-5 h-12 w-full text-base">
-                <RotateCcw data-icon="inline-start" className="size-4" />
-                {startBusy ? "Opening…" : "Start again"}
-              </Button>
-            )}
             {onEmail && (
               <Button
                 variant="outline"
                 size="lg"
                 onClick={onEmail}
                 disabled={emailBusy || Boolean(emailSentTo)}
-                className={onStartAgain ? "mt-2 h-12 w-full text-base" : "mt-5 h-12 w-full text-base"}
+                className="mt-5 h-12 w-full text-base"
               >
                 <Mail data-icon="inline-start" className="size-4" />
                 {emailBusy ? "Sending…" : emailSentTo ? `Sent to ${emailSentTo}` : "Email receipt"}

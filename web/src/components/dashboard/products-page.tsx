@@ -92,10 +92,11 @@ export function ProductsPage() {
 
   const copyLink = (p: Product) =>
     run(async () => {
-      const { url } = await api.createCheckoutLink(p.id, { idempotencyKey: newIdempotencyKey() });
-      await navigator.clipboard.writeText(url);
+      // FR-CHK-040: no hosted page any more; the session id goes to <Authorize session> in the merchant's app.
+      const { id } = await api.createCheckoutLink(p.id, { idempotencyKey: newIdempotencyKey() });
+      await navigator.clipboard.writeText(id);
       setLiveLink(null);
-      toast.success("Checkout URL copied");
+      toast.success("Session id copied");
     });
 
   const archive = (p: Product, status: Product["status"]) =>
@@ -173,11 +174,11 @@ export function ProductsPage() {
                     size="sm"
                     disabled={archived || busy}
                     onClick={() => (mode === "live" ? setLiveLink(p) : copyLink(p))}
-                    aria-label={`Copy checkout URL for ${p.name}`}
+                    aria-label={`Copy a checkout session id for ${p.name}`}
                     className="h-9 md:h-8"
                   >
                     <Link2 data-icon="inline-start" className="size-3.5" />
-                    Copy checkout URL
+                    Copy session id
                   </Button>
                 </div>
                 <DropdownMenu>
@@ -242,9 +243,9 @@ export function ProductsPage() {
       <Dialog open={liveLink !== null} onOpenChange={(o) => !o && setLiveLink(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create a live checkout link?</DialogTitle>
+            <DialogTitle>Create a live checkout session?</DialogTitle>
             <DialogDescription>
-              You are in live mode. Anyone who opens this link can start a real meter on “{liveLink?.name}” and pay in real money.
+              You are in live mode. A subscriber who authorises this session in your app starts a real meter on “{liveLink?.name}” and pays in real money.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -252,7 +253,7 @@ export function ProductsPage() {
               Cancel
             </Button>
             <Button disabled={busy} onClick={() => liveLink && copyLink(liveLink)} className="h-9">
-              Create link
+              Create session
             </Button>
           </DialogFooter>
         </DialogContent>

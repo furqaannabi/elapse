@@ -477,11 +477,11 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
     async createCheckoutLink(productId, opts) {
       // A link minted from the dashboard brings the subscriber back to the dashboard's own pages.
       const origin = o.dashboardOrigin ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-      const s = await call<{ id: string; url: string }>("POST", "/v1/checkout/sessions", {
+      const s = await call<{ id: string }>("POST", "/v1/checkout/sessions", {
         body: { product: productId, success_url: `${origin}/dashboard/subscriptions`, cancel_url: `${origin}/dashboard/products` },
         idempotencyKey: idem(opts),
       });
-      return { id: s.id as `cs_${string}`, url: s.url };
+      return { id: s.id as `cs_${string}` };
     },
     // ── subscriptions (FR-DSH-040..044) ──
     async listSubscriptions(mode, filter) {

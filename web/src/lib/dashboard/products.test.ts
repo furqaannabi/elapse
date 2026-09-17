@@ -54,7 +54,6 @@ describe("mock dashboard api — products", () => {
     const [p] = (await api.listProducts("test", {})).data;
     const link = await api.createCheckoutLink(p!.id, { idempotencyKey: "cl1" });
     expect(link.id).toMatch(/^cs_/);
-    expect(link.url).toMatch(new RegExp(`/c/${link.id}$`));
     const again = await api.createCheckoutLink(p!.id, { idempotencyKey: "cl1" });
     expect(again.id).toBe(link.id);
   });

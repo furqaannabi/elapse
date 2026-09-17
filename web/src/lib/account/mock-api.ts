@@ -44,8 +44,6 @@ export interface AccountApi {
   /** Resume a paused meter; the paused span is never billed (FR-CHK-030). */
   resume(subscription: string): Promise<AccountView>;
   emailReceipt(subscription: string): Promise<{ sent: true }>;
-  /** Opens a follow-on session for the receipt's session and returns where to go (FR-CHK-020, FR-API-126). */
-  startAgain(session: string): Promise<{ url: string }>;
 }
 
 const NIMBUS = { name: "Nimbus", supportUrl: "https://nimbus.example/support" };
@@ -280,12 +278,6 @@ export function createMockAccountApi(
       return view();
     },
 
-    async startAgain() {
-      await wait();
-      // Seeded receipts name sessions that exist only here; the seeded "ready" checkout is the
-      // one follow-on that survives the page load (see the checkout mock).
-      return { url: "/c/cs_ready" };
-    },
 
     async emailReceipt(subscription) {
       await wait();

@@ -74,15 +74,16 @@ describe("ProductsPage", () => {
     expect(within(screen.getByRole("list", { name: /products/i })).getByText("Render minute")).toBeInTheDocument();
   });
 
-  it("copies a checkout URL for a product (FR-DSH-032)", async () => {
+  it("copies a checkout session id for a product (FR-DSH-032, amended by FR-CHK-040)", async () => {
     const user = userEvent.setup();
     const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
     const m = await signIn(api);
     mount(api, m);
     const list = await screen.findByRole("list", { name: /products/i });
     const row = within(list).getByText("GPU · 4090").closest("li")!;
-    await user.click(within(row).getByRole("button", { name: /copy checkout url/i }));
-    await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringMatching(/\/c\/cs_/)));
+    await user.click(within(row).getByRole("button", { name: /copy a checkout session id/i }));
+    // The hosted checkout is retired: the id goes to <Authorize session> in the merchant's app.
+    await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringMatching(/^cs_[A-Za-z0-9]+$/)));
   });
 
   it("asks before creating a live link (FR-DSH-032)", async () => {
@@ -93,11 +94,11 @@ describe("ProductsPage", () => {
     mount(api, m);
     const list = await screen.findByRole("list", { name: /products/i });
     const row = within(list).getAllByRole("listitem")[0]!;
-    await user.click(within(row).getByRole("button", { name: /copy checkout url/i }));
+    await user.click(within(row).getByRole("button", { name: /copy a checkout session id/i }));
     const dialog = await screen.findByRole("dialog");
     expect(dialog).toHaveTextContent(/real/i);
-    await user.click(within(dialog).getByRole("button", { name: /create link/i }));
-    await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringMatching(/\/c\/cs_/)));
+    await user.click(within(dialog).getByRole("button", { name: /create session/i }));
+    await waitFor(() => expect(write).toHaveBeenCalledWith(expect.stringMatching(/^cs_[A-Za-z0-9]+$/)));
   });
 
   it("archives after a confirmation naming the product (FR-DSH-033, BR-DSH-010)", async () => {

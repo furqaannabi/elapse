@@ -1,21 +1,17 @@
 /**
- * Hosted checkout route: `/c/[session]`.
- *
- * Server component that reads the session id and hands off to the client
- * root. No merchant secret is ever available here; the page is driven by
- * the session id alone (BR-CHK-005; decided 2026-09-05, the id is the pass).
- *
- * Maps to: FR-CHK-001; design brief Surface 2.
+ * `/c/[session]` — retired (checkout FR-CHK-040, ADR 2026-09-17 delete the hosted checkout now).
+ * Subscribers authorise and watch their meter inside the merchant's app with `@elapse/react`; an old
+ * link says so and points back to the merchant.
  */
 import type { Metadata } from "next";
-import { CheckoutRoot } from "@/components/checkout/checkout-root";
+import { RetiredCheckout } from "@/components/checkout/retired-checkout";
 
 export const metadata: Metadata = {
-  title: "Checkout",
+  title: "Checkout link no longer used",
   robots: { index: false, follow: false },
 };
 
 export default async function Page({ params }: { params: Promise<{ session: string }> }) {
   const { session } = await params;
-  return <CheckoutRoot sessionId={session} />;
+  return <RetiredCheckout sessionId={session} />;
 }

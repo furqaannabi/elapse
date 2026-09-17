@@ -114,7 +114,7 @@ const STEPS = [
   {
     key: "hasSucceededDelivery",
     title: "Receive your first event",
-    body: "Create a checkout session, open it, start the meter, cancel. Your endpoint gets the webhook.",
+    body: "Create a checkout session, authorise it with <Authorize> in your app, start the meter, stop it. Your endpoint gets the webhook.",
     href: "/dashboard/developers/events",
     action: "Watch events",
   },
@@ -128,7 +128,7 @@ const session = await elapse.checkout.sessions.create({
   success_url: "https://your.app/thanks?session_id={CHECKOUT_SESSION_ID}",
   cancel_url: "https://your.app/pricing",
 });
-// send the subscriber to session.url`;
+// in your app: <Authorize session={session.id} /> then <Meter session={session.id} /> (@elapse/react)`;
 
 function Checklist({
   state,

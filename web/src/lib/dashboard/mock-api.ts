@@ -122,7 +122,8 @@ export interface DashboardApi extends DashboardApiMore {
   createProduct(mode: Mode, input: ProductInput, opts?: WriteOpts): Promise<Product>;
   updateProduct(id: string, input: Partial<ProductInput> & { status?: Product["status"] }, opts?: WriteOpts): Promise<Product>;
   /** A test/live checkout session for the product; `url` is what the merchant copies (FR-DSH-032). */
-  createCheckoutLink(productId: string, opts?: WriteOpts): Promise<{ id: `cs_${string}`; url: string }>;
+  /** A checkout session for `<Authorize session>` in the merchant's app; the hosted checkout is retired (FR-CHK-040). */
+  createCheckoutLink(productId: string, opts?: WriteOpts): Promise<{ id: `cs_${string}` }>;
 
   /** Newest first (FR-DSH-040). */
   listSubscriptions(mode: Mode, filter: { status?: Subscription["status"]; product?: string; customer?: string } & PageOptions): Promise<Page<Subscription>>;
@@ -810,8 +811,7 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         const { product } = findProduct(productId);
         if (product.status === "archived") throw new DashboardApiError("invalid_state", "Archived products cannot start new meters");
         const id = newId("cs") as `cs_${string}`;
-        const base = typeof window !== "undefined" ? window.location.origin : "https://elapse.finance";
-        return wait({ id, url: `${base}/c/${id}` });
+        return wait({ id });
       });
     },
 

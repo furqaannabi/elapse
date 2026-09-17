@@ -7,8 +7,7 @@
  * rest), BR-CHK-003.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildReceipt, createMockCheckoutApi, SEEDED_SESSION_IDS } from "./mock-api";
-import { deriveView } from "./view";
+import { buildReceipt, createMockCheckoutApi } from "./mock-api";
 
 const NOW = 1_756_800_000_000;
 
@@ -18,28 +17,6 @@ describe("mock checkout api", () => {
   beforeEach(() => {
     now = NOW;
     api = createMockCheckoutApi({ now: () => now, latencyMs: 0 });
-  });
-
-  it("seeds one session per screen (FR-CHK-015)", async () => {
-    const expected: Record<string, string> = {
-      cs_demo: "signin",
-      cs_ready: "ready",
-      cs_short: "cap",
-      cs_running: "running",
-      cs_lowbal: "low_balance",
-      cs_capped: "canceled",
-      cs_paused: "paused",
-      cs_done: "canceled",
-      cs_expired: "expired",
-      cs_used: "used",
-      cs_archived: "archived",
-      cs_held: "held",
-    };
-    expect(Object.keys(expected).sort()).toEqual([...SEEDED_SESSION_IDS].sort());
-    for (const [id, view] of Object.entries(expected)) {
-      const s = await api.getSession(id);
-      expect(deriveView(s, now), id).toBe(view);
-    }
   });
 
   it("FR_CHK_031_cs_short_holds_fifty_cents_that_become_twenty_dollars_after_six_seconds_and_start_is_refused_meanwhile", async () => {
@@ -62,7 +39,6 @@ describe("mock checkout api", () => {
     const s = await api.signIn("cs_demo", { email: "ada@example.com" });
     expect(s.customer?.id).toMatch(/^cus_/);
     expect(s.customer?.email).toBe("ada@example.com");
-    expect(deriveView(s, now)).toBe("cap");
   });
 
   it("setCap escrows rate x duration; start records started_at (FR-CHK-003/004)", async () => {
@@ -70,11 +46,9 @@ describe("mock checkout api", () => {
     let s = await api.setCap("cs_demo", 3600);
     expect(s.subscription?.maxDurationSeconds).toBe(3600);
     expect(s.subscription?.fundedUsd).toBe("14.4"); // 3600 x $0.004
-    expect(deriveView(s, now)).toBe("ready");
     s = await api.start("cs_demo");
     expect(s.subscription?.status).toBe("active");
     expect(s.subscription?.startedAt).toBe(now);
-    expect(deriveView(s, now)).toBe("running");
   });
 
   it("choosing a cap again replaces it; it never adds up (FR-CHK-007)", async () => {
@@ -102,7 +76,6 @@ describe("mock checkout api", () => {
     expect(s.subscription?.status).toBe("canceled");
     expect(s.subscription?.endedReason).toBe("cap_reached");
     expect(s.subscription?.canceledAt).toBe(started + 3_600_000);
-    expect(deriveView(s, now)).toBe("canceled");
   });
 
   it("a cap-ended session settles exactly the cap and returns nothing", async () => {
@@ -128,7 +101,6 @@ describe("mock checkout api", () => {
     expect(next.id).not.toBe("cs_demo");
     expect(next.product.id).toBe("prod_gpu4090");
     expect(next.subscription).toBeNull();
-    expect(deriveView(next, now)).toBe("cap");
   });
 
   it("cancel settles whole seconds and reports the refund (FR-CHK-008, BR-CHK-003)", async () => {

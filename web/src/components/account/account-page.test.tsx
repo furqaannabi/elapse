@@ -171,34 +171,6 @@ describe("AccountPage", () => {
     vi.spyOn(api, "emailReceipt").mockRejectedValueOnce(Object.assign(new Error("Already sent. Check your inbox."), { code: "already_sent" }));
   });
 
-  it("FR_CHK_020_start_again_on_a_receipt_opens_the_follow_on_session_and_goes_there", async () => {
-    const user = userEvent.setup();
-    const api = createMockAccountApi({ latencyMs: 0, seed: "two-merchants", now: () => Date.now() });
-    const base = await api.getView();
-    if (base.status !== "signed_in") throw new Error("seed");
-    vi.spyOn(api, "getView").mockResolvedValue({ ...base, receipts: base.receipts.map((r) => ({ ...r, session: "cs_old" as const })) });
-    const startAgain = vi.spyOn(api, "startAgain").mockResolvedValue({ url: "http://localhost:3000/c/cs_new" });
-    const go = vi.fn();
-    render(<AccountPage api={api} navigate={go} />);
-    await user.click((await screen.findAllByRole("button", { name: /you paid/i }))[0]!);
-    const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("button", { name: /start again/i }));
-    await vi.waitFor(() => expect(startAgain).toHaveBeenCalledWith("cs_old"));
-    await vi.waitFor(() => expect(go).toHaveBeenCalledWith("http://localhost:3000/c/cs_new"));
-  });
-
-  it("FR_CHK_020_a_restarted_account_receipt_links_to_the_newer_session_instead_of_the_button", async () => {
-    const user = userEvent.setup();
-    const api = createMockAccountApi({ latencyMs: 0, seed: "two-merchants", now: () => Date.now() });
-    const base = await api.getView();
-    if (base.status !== "signed_in") throw new Error("seed");
-    vi.spyOn(api, "getView").mockResolvedValue({ ...base, receipts: base.receipts.map((r) => ({ ...r, session: "cs_old" as const, restartedAs: "cs_new" as const })) });
-    render(<AccountPage api={api} />);
-    await user.click((await screen.findAllByRole("button", { name: /you paid/i }))[0]!);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).queryByRole("button", { name: /start again/i })).toBeNull();
-    expect(within(dialog).getByRole("link", { name: /newer session followed/i })).toHaveAttribute("href", "/c/cs_new");
-  });
 });
 
 describe("AccountPage · FR-CHK-036 held money", () => {

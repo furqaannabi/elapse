@@ -19,7 +19,7 @@ const session = await elapse.checkout.sessions.create({
   successUrl: "https://merchant.example/ok",
   cancelUrl: "https://merchant.example/cancel",
 });
-// session.url → subscriber Face ID checkout
+// <Authorize session={session.id} /> in your app → Face ID, then <Meter />
 
 const event = elapse.webhooks.constructEvent(
   rawBody,                          // unparsed bytes
@@ -36,9 +36,9 @@ const steps = [
   },
   {
     n: "2",
-    title: "Send them to Checkout",
-    body: "Create a session, redirect to session.url. Face ID, a live counter, and a Cancel button. No chain words.",
-    code: `checkout.sessions.create({ product }) → session.url`,
+    title: "Authorise in your app",
+    body: "Create a session, render <Authorize> and <Meter> from @elapse/react. Face ID, a live counter, and Stop, without leaving your page. No chain words.",
+    code: `<Authorize session={session.id} />`,
   },
   {
     n: "3",

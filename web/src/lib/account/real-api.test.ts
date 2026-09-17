@@ -90,13 +90,6 @@ describe("real account api", () => {
     expect(v.status).toBe("signed_in");
   });
 
-  it("FR_CHK_020_startAgain_posts_to_the_sessions_again_route_and_returns_the_new_url", async () => {
-    responses = [{ id: "cs_new", url: "http://localhost:3000/c/cs_new" }];
-    expect(await api().startAgain("cs_3")).toEqual({ url: "http://localhost:3000/c/cs_new" });
-    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/checkout/sessions/cs_3/again` });
-    expect(calls[0]!.headers["x-privy-token"]).toBe("tok");
-  });
-
   it("FR_CHK_030_meters_carry_allowPause_and_pause_then_resume_relay_through_the_account_routes_and_poll_the_list", async () => {
     responses = [{ object: "list", data: [row({ product: { name: "GPU · 4090", rate_usd_per_second: "0.004", allow_pause: true } })] }];
     const v = await api().getView();

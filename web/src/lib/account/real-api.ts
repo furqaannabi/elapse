@@ -197,9 +197,5 @@ export function createRealAccountApi(o: RealAccountOptions): AccountApi {
     },
 
     // FR-API-126 through the checkout route: the identity token is the only pass it needs.
-    async startAgain(session) {
-      const next = await call<{ id: string; url: string }>("POST", `/v1/checkout/sessions/${session}/again`, {});
-      return { url: next.url };
-    },
   };
 }
