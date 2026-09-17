@@ -1,0 +1,84 @@
+/**
+ * `useAuthorize(session)` — the authorise flow without markup (FR-RCT-030). `<Authorize>` is built only
+ * from this hook. It reads the public session, and `authorise(cap)` opens the Elapse popup inside the
+ * caller's click (FR-RCT-011), then reports what came back (FR-RCT-013/014/031).
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+import { explorerUrl } from "./explorer";
+import { requestSignature, SignatureError } from "./popup";
+import { useElapseConfig } from "./provider";
+import { fetchPublicSession, type PublicSession } from "./session";
+
+export interface StepEvent {
+  subscription: string;
+  txHash: string;
+  explorerUrl: string;
+}
+
+export type AuthorizeState =
+  | { kind: "loading" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; session: PublicSession; notice: string | null }
+  | { kind: "authorising"; session: PublicSession }
+  | { kind: "held"; session: PublicSession; event: StepEvent }
+  | { kind: "started"; session: PublicSession; event: StepEvent };
+
+export function useAuthorize(
+  sessionId: string,
+  handlers: { onAuthorised?: (e: StepEvent) => void; onStarted?: (e: StepEvent) => void; onError?: (e: Error) => void } = {},
+) {
+  const config = useElapseConfig();
+  const [state, setState] = useState<AuthorizeState>({ kind: "loading" });
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+
+  useEffect(() => {
+    let alive = true;
+    fetchPublicSession(config, sessionId)
+      .then((session) => alive && setState({ kind: "ready", session, notice: null }))
+      .catch((e: Error) => {
+        if (!alive) return;
+        setState({ kind: "error", message: e.message });
+        handlersRef.current.onError?.(e);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [config, sessionId]);
+
+  const authorise = useCallback(
+    (capSeconds: number) => {
+      if (state.kind !== "ready") return;
+      const session = state.session;
+      // Synchronous: the popup must open inside the click that called this.
+      const { result } = requestSignature({
+        appOrigin: config.appOrigin,
+        session: sessionId,
+        action: "authorise",
+        capSeconds,
+        ...(config.popupHost ? { host: config.popupHost } : {}),
+      });
+      setState({ kind: "authorising", session });
+      result.then(
+        (r) => {
+          const event = { subscription: r.subscription, txHash: r.txHash, explorerUrl: explorerUrl(r.txHash) };
+          if (session.product.startMode === "merchant") {
+            setState({ kind: "held", session, event });
+            handlersRef.current.onAuthorised?.(event);
+          } else {
+            setState({ kind: "started", session, event });
+            handlersRef.current.onStarted?.(event);
+          }
+        },
+        (e: unknown) => {
+          const message = e instanceof SignatureError ? e.message : "Something went wrong. Nothing was charged.";
+          setState({ kind: "ready", session, notice: message });
+          if (!(e instanceof SignatureError && e.reason === "closed")) handlersRef.current.onError?.(e as Error);
+        },
+      );
+    },
+    [config, sessionId, state],
+  );
+
+  return { state, authorise };
+}

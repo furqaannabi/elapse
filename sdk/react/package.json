@@ -23,7 +23,7 @@
     "*.css"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --target es2022 --external react --external react-dom --external motion --no-external @elapse/meter-core",
+    "build": "tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

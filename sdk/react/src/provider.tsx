@@ -8,6 +8,7 @@
  * Maps to: FR-RCT-003; BR-RCT-002.
  */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
+import type { PopupHost } from "./popup";
 
 export interface ElapseConfig {
   publishableKey: string;
@@ -16,6 +17,9 @@ export interface ElapseConfig {
   /** Where the signing popup lives (FR-CHK-038); defaults to production. */
   appOrigin: string;
   sound: boolean;
+  /** Testing seams; merchants never set these. */
+  fetch: typeof fetch;
+  popupHost: PopupHost | undefined;
 }
 
 const ElapseContext = createContext<ElapseConfig | null>(null);
@@ -25,12 +29,18 @@ export function ElapseProvider({
   baseUrl = "https://api.elapse.finance",
   appOrigin = "https://elapse.finance",
   sound = true,
+  fetch: fetchFn,
+  popupHost,
   children,
 }: {
   publishableKey: string;
   baseUrl?: string;
   appOrigin?: string;
   sound?: boolean;
+  /** @internal Testing seam: the fetch used for API reads. */
+  fetch?: typeof fetch;
+  /** @internal Testing seam: the window the popup is opened from. */
+  popupHost?: PopupHost;
   children: ReactNode;
 }) {
   if (publishableKey.startsWith("sk_")) {
@@ -40,8 +50,15 @@ export function ElapseProvider({
     throw new Error("ElapseProvider needs a publishable key (pk_test_… or pk_live_…).");
   }
   const value = useMemo(
-    () => ({ publishableKey, baseUrl: baseUrl.replace(/\/+$/, ""), appOrigin: appOrigin.replace(/\/+$/, ""), sound }),
-    [publishableKey, baseUrl, appOrigin, sound],
+    () => ({
+      publishableKey,
+      baseUrl: baseUrl.replace(/\/+$/, ""),
+      appOrigin: appOrigin.replace(/\/+$/, ""),
+      sound,
+      fetch: fetchFn ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args)),
+      popupHost,
+    }),
+    [publishableKey, baseUrl, appOrigin, sound, fetchFn, popupHost],
   );
   return <ElapseContext.Provider value={value}>{children}</ElapseContext.Provider>;
 }
