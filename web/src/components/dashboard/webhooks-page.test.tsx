@@ -215,5 +215,5 @@ describe("EndpointDetail · FR-DSH-126 paging", () => {
     await user.click(screen.getByRole("button", { name: /load more/i }));
     await waitFor(() => expect(within(screen.getByRole("list", { name: /deliveries/i })).getAllByRole("listitem")).toHaveLength(120));
     expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
-  });
+  }, 15_000); // renders 120 rows through three rounds of user events: ~1 s locally, past 5 s on a busy CI runner
 });
