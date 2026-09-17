@@ -29,7 +29,7 @@ const event = elapse.webhooks.constructEvent(
 );
 ```
 
-Send the subscriber to `session.url`. They start a meter, watch the counter tick, and cancel whenever. Your server finds out through a signed webhook, not a cron job.
+Hand `session.id` to your front end and render `<Authorize session={session.id} />` and `<Meter session={session.id} />` from `@elapse/react`. The subscriber authorises with Face ID, watches the counter tick, and stops whenever, without leaving your app. Your server finds out through a signed webhook, not a cron job.
 
 ## Surface
 

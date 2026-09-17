@@ -208,7 +208,8 @@ export async function main(argv: string[], io: MainIO): Promise<0 | 1 | 2> {
         const key = needKey();
         const platform = new Platform(baseUrl, key, io.fetchImpl);
         const session = await platform.sdk.checkout.sessions.create({ product: v.product, successUrl: v["success-url"], cancelUrl: v["cancel-url"] });
-        out(session.url, session);
+        // API FR-API-140(a): no hosted page. The merchant's app authorises this id with @elapse/react.
+        out(`${session.id}\n<Authorize session="${session.id}" />`, session);
         return 0;
       }
       default:

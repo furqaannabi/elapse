@@ -38,8 +38,6 @@ export interface CheckoutSession {
   id: string;
   object: "checkout.session";
   status: "open" | "complete" | "expired";
-  /** Send the subscriber here. */
-  url: string;
   livemode: boolean;
   created: number;
   expires_at: number;

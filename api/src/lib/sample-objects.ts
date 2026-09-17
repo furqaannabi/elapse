@@ -14,7 +14,7 @@ export function sampleObject(type: EventType, livemode: boolean, now = Math.floo
     product: "prod_test0000000000",
     customer: "cus_test00000000000",
     checkout_session: "cs_test000000000000",
-    manage_url: `${config.checkoutBaseUrl}/c/cs_test000000000000`,
+    manage_url: `${config.dashboardOrigin}/account`,
     rate_usd_per_second: "0.004",
     started_at: now - 83,
     paused_at: null,

@@ -13,7 +13,7 @@ beforeEach(async () => {
 const good = () => ({ product: prod.id, success_url: "https://acme.test/ok", cancel_url: "https://acme.test/no" });
 
 describe("FR-API-030 checkout.sessions.create", () => {
-  test("returns cs_ id, hosted url, open, +24h expiry, product, merchant branding", async () => {
+  test("returns cs_ id, open, +24h expiry, product, merchant branding, and no hosted url (FR-API-140a)", async () => {
     const before = Math.floor(Date.now() / 1000);
     const r = await api("POST", "/v1/checkout/sessions", { key: f.skTest, body: good() });
     expect(r.status).toBe(200);
@@ -21,7 +21,6 @@ describe("FR-API-030 checkout.sessions.create", () => {
       id: expect.stringMatching(/^cs_[0-9A-Za-z]{14}$/),
       object: "checkout.session",
       status: "open",
-      url: `http://localhost:3000/c/${r.body.id}`,
       livemode: false,
       created: expect.any(Number),
       expires_at: expect.any(Number),

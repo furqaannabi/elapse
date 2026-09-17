@@ -1007,10 +1007,6 @@
               "expired"
             ]
           },
-          "url": {
-            "type": "string",
-            "description": "Send the subscriber here."
-          },
           "livemode": {
             "type": "boolean"
           },
@@ -1080,7 +1076,6 @@
           "id",
           "object",
           "status",
-          "url",
           "livemode",
           "created",
           "expires_at",
@@ -1464,8 +1459,8 @@
           },
           "manage_url": {
             "type": "string",
-            "description": "The hosted meter page. Link subscribers here to pause, resume or stop; it shows the receipt after.",
-            "example": "https://elapse.finance/c/cs_7Ha2mV9kLp3RxT"
+            "description": "Where the subscriber manages all their meters (FR-API-140b). Your app shows this meter with @elapse/react.",
+            "example": "https://elapse.finance/account"
           },
           "rate_usd_per_second": {
             "type": "string"

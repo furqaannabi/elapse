@@ -58,7 +58,7 @@ describe("FR-API-126 start again", () => {
     expect(r.status).toBe(201);
     expect(r.body.id).toMatch(/^cs_/);
     expect(r.body.id).not.toBe(sessionId);
-    expect(r.body.url).toContain(`/c/${r.body.id}`);
+    expect(r.body).not.toHaveProperty("url"); // FR-API-140(a): no hosted page to link to
     const pub = await api("GET", `/v1/checkout/sessions/${r.body.id}`, { key: m.pkTest });
     expect(pub.body).toMatchObject({ status: "open", product: { id: productId }, customer: { id: customerId }, subscription: null, max_duration_seconds: null, last_max_duration_seconds: 3600 });
     expect(pub.body.merchant).toMatchObject({ success_url: "https://x.test/ok?session_id={CHECKOUT_SESSION_ID}", cancel_url: "https://x.test/no" });

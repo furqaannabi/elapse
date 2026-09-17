@@ -78,11 +78,11 @@ describe("FR-SDK-002/003 products", () => {
 
 describe("FR-SDK-004 checkout sessions", () => {
   it("create sends product, success_url, cancel_url, optional max_duration_seconds", async () => {
-    const cs = { id: "cs_3fT8kLm2Qp9RxV", object: "checkout.session", status: "open", url: "http://localhost:3000/c/cs_3fT8kLm2Qp9RxV", success_url: "https://a/ok", cancel_url: "https://a/no", product };
+    const cs = { id: "cs_3fT8kLm2Qp9RxV", object: "checkout.session", status: "open", success_url: "https://a/ok", cancel_url: "https://a/no", product };
     mock.on(() => ({ status: 200, body: cs }));
     const s = await elapse.checkout.sessions.create({ product: "prod_9Xk2mQ1pL0vRsT", successUrl: "https://a/ok", cancelUrl: "https://a/no", maxDurationSeconds: 3600 });
     expect(JSON.parse(mock.seen[0]!.body)).toEqual({ product: "prod_9Xk2mQ1pL0vRsT", success_url: "https://a/ok", cancel_url: "https://a/no", max_duration_seconds: 3600 });
-    expect(s.url).toMatch(/\/c\/cs_/);
+    expect(s.id).toBe("cs_3fT8kLm2Qp9RxV"); // no hosted url since 0.2.0 (FR-SDK-043)
     expect(s.status).toBe("open");
     await expect(elapse.checkout.sessions.create({ product: "sub_1", successUrl: "https://a", cancelUrl: "https://b" })).rejects.toThrow(ElapseInvalidRequestError);
   });

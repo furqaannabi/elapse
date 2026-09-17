@@ -5,10 +5,17 @@ import type { Product } from "../src/resources";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
 
-describe("FR-SDK-042 release 0.1.4", () => {
-  it("FR_SDK_042_the_package_is_0_1_4", () => {
-    // The workspace build carries subscriptions.start and startMode; the published 0.1.3 has neither.
-    expect(pkg.version).toBe("0.1.4");
+describe("FR-SDK-042/043 releases", () => {
+  it("FR_SDK_043_the_package_is_0_2_0", () => {
+    // 0.2.0: the Checkout session has no hosted url (a breaking change after 0.1.4's subscriptions.start).
+    expect(pkg.version).toBe("0.2.0");
+  });
+
+  it("FR_SDK_043_a_checkout_session_has_no_url", () => {
+    const s = {} as import("../src/resources").CheckoutSession;
+    // @ts-expect-error: the hosted checkout is retired; pass s.id to <Authorize session> instead.
+    void s.url;
+    expect(true).toBe(true);
   });
 
   it("FR_SDK_042_the_user_agent_version_is_the_package_version", () => {

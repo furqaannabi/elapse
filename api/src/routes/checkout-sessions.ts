@@ -56,7 +56,7 @@ export const SubscriptionSchema = z
     product: z.string(),
     customer: z.string(),
     checkout_session: z.string().nullable(),
-    manage_url: z.string().openapi({ description: "The hosted meter page. Link subscribers here to pause, resume or stop; it shows the receipt after.", example: "https://elapse.finance/c/cs_7Ha2mV9kLp3RxT" }),
+    manage_url: z.string().openapi({ description: "Where the subscriber manages all their meters (FR-API-140b). Your app shows this meter with @elapse/react.", example: "https://elapse.finance/account" }),
     rate_usd_per_second: z.string(),
     started_at: z.number().int().nullable(),
     paused_at: z.number().int().nullable(),
@@ -82,7 +82,6 @@ export const CheckoutSessionSchema = z
     id: z.string().openapi({ example: "cs_3fT8kLm2Qp9RxV" }),
     object: z.literal("checkout.session"),
     status: z.enum(["open", "complete", "expired"]),
-    url: z.string().openapi({ description: "Send the subscriber here." }),
     livemode: z.boolean(),
     created: z.number().int(),
     expires_at: z.number().int().openapi({ description: "Unix seconds; 24 h after creation." }),
@@ -163,7 +162,6 @@ export function serializeSession(s: CheckoutSessionRow, product: ProductRow, mer
     id: s.id,
     object: "checkout.session" as const,
     status: s.status,
-    url: `${config.checkoutBaseUrl}/c/${s.id}`,
     livemode: s.livemode,
     created: unix(s.created_at),
     expires_at: unix(s.expires_at),
@@ -558,7 +556,8 @@ for (const action of ["pause", "resume"] as const) {
 
 // ─── Start again (FR-API-126, ADR 2026-09-07 start again) ───────────────────────────────
 
-const AgainResponse = z.object({ id: z.string(), url: z.string() }).openapi("CheckoutSessionAgain");
+// FR-API-140(a): no hosted page to link to; the merchant's app authorises the new id with @elapse/react.
+const AgainResponse = z.object({ id: z.string() }).openapi("CheckoutSessionAgain");
 const AGAIN_PER_HOUR = 10;
 
 checkoutSessions.openapi(
@@ -602,7 +601,7 @@ checkoutSessions.openapi(
       againOf: session.id,
     });
     await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${session.merchant_id}, 'checkout', 'checkout_session.again', ${`${session.id} -> ${row.id}`}, ${clientIp(c)})`;
-    return c.json({ id: row.id, url: `${config.checkoutBaseUrl}/c/${row.id}` }, 201);
+    return c.json({ id: row.id }, 201);
   },
 );
 
