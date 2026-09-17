@@ -1,0 +1,17 @@
+{
+  "name": "@elapse/meter-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Per-second meter math shared by web and @elapse/react (ADR 2026-09-17). Never published; bundled into its consumers.",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "types": "./src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.11"
+  }
+}

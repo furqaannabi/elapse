@@ -14,10 +14,16 @@
     },
     "./styles.css": "./styles.css"
   },
-  "files": ["dist", "styles.css", "README.md"],
-  "sideEffects": ["*.css"],
+  "files": [
+    "dist",
+    "styles.css",
+    "README.md"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --clean --target es2022 --external react --external react-dom --external motion",
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --target es2022 --external react --external react-dom --external motion --no-external @elapse/meter-core",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -27,6 +33,7 @@
     "react-dom": ">=18 <20"
   },
   "devDependencies": {
+    "@elapse/meter-core": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "@types/react": "^19",
     "@types/react-dom": "^19",

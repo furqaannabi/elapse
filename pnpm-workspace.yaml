@@ -1,6 +1,7 @@
 packages:
   - "sdk/ts"
   - "sdk/react"
+  - "sdk/meter-core"
   - "cli"
   - "api"
   - "web"
