@@ -306,3 +306,37 @@ describe("FR-CHK-035 the product's start mode from the wire", () => {
     expect(mapSession(wireSession() as never).product.startMode).toBeUndefined();
   });
 });
+
+describe("FR-CHK-038 the popup submits and returns the transaction hash without waiting", () => {
+  const prepResponse = { customer: "cus_1", subscription: "sub_1", chain_id: 10143, max_duration_seconds: 3600, max_escrow_usd: "14.4", permit: { domain: {}, types: { Permit: [] }, primaryType: "Permit", message: { owner: wallet.address, spender: "0xf", value: "14400000", nonce: "0", deadline: String(T0 + 700) } } };
+
+  it("FR_CHK_038_authorise_signs_the_permit_posts_start_and_returns_pending_tx", async () => {
+    const a = api();
+    await a.signIn("cs_abc", {});
+    responses = [
+      wireSession({ customer: { id: "cus_1", email: null }, subscription: wireSub() }),
+      prepResponse,
+      { subscription: "sub_1", pending_tx: "0x" + "11".repeat(32) },
+    ];
+    calls = [];
+    const r = await a.submit("cs_abc", "authorise");
+    expect(r).toEqual({ subscription: "sub_1", txHash: "0x" + "11".repeat(32) });
+    expect(calls.map((c) => `${c.method} ${c.url.replace(BASE, "")}`)).toEqual([
+      "GET /v1/checkout/sessions/cs_abc",
+      "POST /v1/checkout/sessions/cs_abc/prepare",
+      "POST /v1/checkout/sessions/cs_abc/start",
+    ]); // no polling afterwards
+  });
+
+  it("FR_CHK_038_cancel_signs_the_relay_message_and_returns_pending_tx", async () => {
+    const a = api();
+    await a.signIn("cs_abc", {});
+    responses = [
+      { subscription: "sub_1", stream_address: "0x1", chain_id: 10143, nonce: "0", deadline: String(T0 + 600), message: "0x" + "ee".repeat(32) },
+      { subscription: "sub_1", pending_tx: "0x" + "22".repeat(32) },
+    ];
+    calls = [];
+    expect(await a.submit("cs_abc", "cancel")).toEqual({ subscription: "sub_1", txHash: "0x" + "22".repeat(32) });
+    expect(calls).toHaveLength(2);
+  });
+});

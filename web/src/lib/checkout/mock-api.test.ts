@@ -190,3 +190,17 @@ describe("buildReceipt (BR-CHK-003)", () => {
     expect(buildReceipt(bare).secondsElapsed).toBe(105);
   });
 });
+
+describe("mock checkout api · FR-CHK-038 submit", () => {
+  it("FR_CHK_038_submit_applies_the_action_and_returns_the_subscription_and_a_hash", async () => {
+    const api = createMockCheckoutApi({ latencyMs: 0, now: () => Date.now() });
+    const a = await api.submit("cs_ready", "authorise");
+    expect(a.subscription).toMatch(/^sub_/);
+    expect(a.txHash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect((await api.getSession("cs_ready")).subscription?.status).toBe("active");
+
+    const c = await api.submit("cs_running", "cancel");
+    expect(c.txHash).not.toBe(a.txHash);
+    expect((await api.getSession("cs_running")).subscription?.status).toBe("canceled");
+  });
+});

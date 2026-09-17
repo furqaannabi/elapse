@@ -110,7 +110,14 @@ export interface CheckoutApi {
   startAgain(id: string): Promise<CheckoutSession>;
   emailReceipt(id: string, email: string): Promise<{ sent: true }>;
   getJudgeData(id: string): Promise<JudgeData>;
+  /**
+   * FR-CHK-038: sign and submit one action for the Elapse popup, then return straight away with the
+   * relayer's transaction hash. The merchant's `<Meter>` follows the status; the popup never waits.
+   */
+  submit(id: string, action: SubmitAction): Promise<{ subscription: string; txHash: string }>;
 }
+
+export type SubmitAction = "authorise" | "cancel" | "pause" | "resume";
 
 export const SEEDED_SESSION_IDS = [
   "cs_demo",
@@ -287,6 +294,7 @@ export function createMockCheckoutApi(
     store[s.id] = s;
     return structuredClone(s);
   };
+  let tx = 0;
   const record = (id: string, type: string) => {
     const list = deliveries.get(id) ?? [];
     evt += 1;
@@ -294,7 +302,7 @@ export function createMockCheckoutApi(
     deliveries.set(id, list.slice(0, 8));
   };
 
-  return {
+  const api: CheckoutApi = {
     async getSession(id) {
       await wait();
       return structuredClone(get(id));
@@ -473,5 +481,17 @@ export function createMockCheckoutApi(
         deliveries: list,
       };
     },
+    // FR-CHK-038: the popup's submit-only path, on the mock the demo ids use.
+    async submit(id, action) {
+      if (action === "authorise") await api.start(id);
+      else if (action === "cancel") await api.cancel(id);
+      else if (action === "pause") await api.pause(id);
+      else await api.resume(id);
+      const sub = get(id).subscription;
+      if (!sub) throw new CheckoutApiError("invalid_state", "Nothing to submit.");
+      tx += 1;
+      return { subscription: sub.id, txHash: `0x${tx.toString(16).padStart(64, "0")}` };
+    },
   };
+  return api;
 }

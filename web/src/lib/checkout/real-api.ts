@@ -227,11 +227,26 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
 
   /** Poll until `done(sub)`; returns the last wire session. */
   /** Prepare → sign (EIP-191 over the 32 bytes) → submit, for cancel, pause and resume (FR-CON-017/018). */
-  async function relay(id: string, action: "cancel" | "pause" | "resume"): Promise<void> {
+  type Submitted = { subscription: string; pending_tx: string };
+
+  async function relay(id: string, action: "cancel" | "pause" | "resume"): Promise<Submitted> {
     const w = wallet();
     const auth = await bindingCall<{ message: `0x${string}`; deadline: string }>(`/v1/checkout/sessions/${id}/${action}/prepare`, {});
     const signature = await w.signMessage(auth.message);
-    await call("POST", `/v1/checkout/sessions/${id}/${action}`, { signature, deadline: auth.deadline });
+    return call<Submitted>("POST", `/v1/checkout/sessions/${id}/${action}`, { signature, deadline: auth.deadline });
+  }
+
+  /** Prepare, sign the permit, submit start. Shared by `start` (which then waits) and `submit` (which does not). */
+  async function authoriseStart(id: string): Promise<{ wire: WireSession; submitted: Submitted }> {
+    const w = wallet();
+    const wire = await getWire(id);
+    const cap = wire.subscription?.max_duration_seconds ?? wire.max_duration_seconds;
+    if (!cap) throw new CheckoutApiError("invalid_state", "Choose how long first.");
+    // Re-prepare right before signing so the permit nonce and deadline are fresh.
+    const prep = await bindingCall<{ permit: PermitPayload }>(`/v1/checkout/sessions/${id}/prepare`, { max_duration_seconds: cap });
+    const signature = await w.signTypedData(prep.permit);
+    const submitted = await call<Submitted>("POST", `/v1/checkout/sessions/${id}/start`, { signature });
+    return { wire, submitted };
   }
 
   async function waitFor(id: string, done: (w: WireSession) => boolean): Promise<WireSession> {
@@ -263,14 +278,7 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
     },
 
     async start(id) {
-      const w = wallet();
-      const wire = await getWire(id);
-      const cap = wire.subscription?.max_duration_seconds ?? wire.max_duration_seconds;
-      if (!cap) throw new CheckoutApiError("invalid_state", "Choose how long first.");
-      // Re-prepare right before signing so the permit nonce and deadline are fresh.
-      const prep = await bindingCall<{ permit: PermitPayload }>(`/v1/checkout/sessions/${id}/prepare`, { max_duration_seconds: cap });
-      const signature = await w.signTypedData(prep.permit);
-      await call("POST", `/v1/checkout/sessions/${id}/start`, { signature });
+      const { wire } = await authoriseStart(id);
       // FR-CHK-033: in merchant mode the meter never goes active from here; the page waits for the funding instead.
       if (wire.subscription?.start_mode === "merchant") return mapSession(await getWire(id), local);
       return mapSession(await waitFor(id, (s) => s.subscription?.status === "active" || s.subscription?.status === "canceled"), local);
@@ -296,6 +304,11 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
       await relay(id, "cancel");
       const done = await waitFor(id, (s) => s.subscription?.status === "canceled");
       return { session: mapSession(done, local), receipt: receiptFrom(done.subscription!) };
+    },
+
+    async submit(id, action) {
+      const submitted = action === "authorise" ? (await authoriseStart(id)).submitted : await relay(id, action);
+      return { subscription: submitted.subscription, txHash: submitted.pending_tx };
     },
 
     async getReceipt(id) {
