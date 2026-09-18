@@ -4,12 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm --filter @elapse/react build && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --filter @elapse/react build && tsc --noEmit",
     "test:e2e": "node scripts/dashboard-e2e.mjs",
     "shots:dashboard": "node scripts/dashboard-shots.mjs"
   },
