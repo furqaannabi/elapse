@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#383d42">
 <title>{{product}} · {{merchant}}</title>
 <link rel="stylesheet" href="/acme.css">
+<link rel="stylesheet" href="/web.css">
 </head>
 <body>
 <!--
@@ -36,9 +37,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 
     <p class="tape">Pay only what elapsed</p>
 
-    <a class="push" href="{{checkout_url}}">Start<span class="hint">Secure<br>checkout</span><span class="led post" aria-hidden="true"></span></a>
+    <!-- FR-EXM-032: authorised and metered in place with @elapse/react; Face ID happens in the Elapse window. -->
+    <div id="elapse" class="push-mount" data-session="{{session}}" data-publishable-key="{{publishable_key}}" data-api-url="{{api_url}}" data-app-url="{{app_url}}"></div>
+    <script type="module" src="/web.js"></script>
 
-    <p class="etched">Billed per second. Cancel whenever. You only pay what elapsed. Nothing is charged until you start.</p>
+    <p class="etched">Billed per second. Stop whenever. You only pay what elapsed. Nothing is charged until you authorise.</p>
 
     <footer class="tag">{{merchant}} · demo merchant</footer>
   </main>

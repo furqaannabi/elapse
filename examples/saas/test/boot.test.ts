@@ -9,7 +9,7 @@ async function run(existing?: Array<{ id: string; name: string; rate_usd_per_sec
   const api = await mockApi(existing ? { existingProducts: existing } : {});
   closers.push(api.close);
   const out: string[] = [];
-  const app = await boot({ secretKey: "sk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, port: 0, baseUrl: "http://localhost:3000" }, { out: (l) => out.push(l), log: () => {} });
+  const app = await boot({ secretKey: "sk_test_abc", publishableKey: "pk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, appUrl: "https://elapse.finance", port: 0, baseUrl: "http://localhost:3000" }, { out: (l) => out.push(l), log: () => {} });
   closers.push(app.close);
   return { api, out, app };
 }
@@ -23,7 +23,7 @@ describe("FR-EXM-003 npm start", () => {
     expect(api.requests[2]?.body).toEqual({ product: "prod_new1", success_url: "http://localhost:3000/ok", cancel_url: "http://localhost:3000/cancel" });
     expect(out).toEqual([
       "Product:  prod_new1  GPU · 4090  $0.004/s",
-      "Checkout: https://elapse.finance/c/cs_2",
+      "Session:  cs_2  (authorised on the product page with @elapse/react)",
       "Webhooks: POST http://localhost:3000/webhooks",
       expect.stringMatching(/^Listening on :\d+$/),
     ]);
@@ -41,9 +41,9 @@ describe("boot failure", () => {
   it("rejects with a readable message when the port is taken", async () => {
     const api = await mockApi();
     closers.push(api.close);
-    const first = await boot({ secretKey: "sk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, port: 0, baseUrl: "http://localhost:3000" }, { out: () => {}, log: () => {} });
+    const first = await boot({ secretKey: "sk_test_abc", publishableKey: "pk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, appUrl: "https://elapse.finance", port: 0, baseUrl: "http://localhost:3000" }, { out: () => {}, log: () => {} });
     closers.push(first.close);
-    await expect(boot({ secretKey: "sk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, port: first.port, baseUrl: "http://localhost:3000" }, { out: () => {}, log: () => {} })).rejects.toThrow(/EADDRINUSE/);
+    await expect(boot({ secretKey: "sk_test_abc", publishableKey: "pk_test_abc", webhookSecret: "whsec_abc", apiUrl: api.url, appUrl: "https://elapse.finance", port: first.port, baseUrl: "http://localhost:3000" }, { out: () => {}, log: () => {} })).rejects.toThrow(/EADDRINUSE/);
   });
 });
 
@@ -51,7 +51,9 @@ describe("FR-EXM-010 the printed session is the one on the page", () => {
   it("GET / after boot links to the printed session without creating another", async () => {
     const { api, out, app } = await run();
     const html = await (await fetch(`http://127.0.0.1:${app.port}/`)).text();
-    expect(html).toContain(`href="${out[1]?.replace("Checkout: ", "")}"`);
+    const printed = out[1]?.match(/^Session:\s+(cs_\w+)/)?.[1];
+    expect(printed).toMatch(/^cs_/);
+    expect(html).toContain(`data-session="${printed}"`);
     expect(api.requests.filter((r) => r.path === "/v1/checkout/sessions")).toHaveLength(1);
   });
 });

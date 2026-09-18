@@ -24,7 +24,7 @@ export async function mockApi(opts: { existingProducts?: Array<{ id: string; nam
     }
     if (req.method === "POST" && path === "/v1/checkout/sessions") {
       const b = JSON.parse(raw) as { product: string };
-      return json(200, { id: `cs_${++n}`, object: "checkout.session", status: "open", url: `https://elapse.finance/c/cs_${n}`, product: { id: b.product } });
+      return json(200, { id: `cs_${++n}`, object: "checkout.session", status: "open", product: { id: b.product } });
     }
     json(404, { error: { type: "not_found", message: "no route" } });
   });

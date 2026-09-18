@@ -34,13 +34,13 @@ export async function boot(config: Config, io: BootIO) {
   // region:session
   const createSession = async () => {
     const session = await elapse.checkout.sessions.create({ product: product.id, successUrl: `${baseUrl}/ok`, cancelUrl: `${baseUrl}/cancel` });
-    return { id: session.id, url: session.url };
+    return { id: session.id };
   };
   // endregion
 
   // The session printed at start is the one the product page hands out first.
   const first = await createSession();
-  let handout: { id: string; url: string } | undefined = first;
+  let handout: { id: string } | undefined = first;
   const nextSession = async () => {
     if (handout) {
       const s = handout;
@@ -51,7 +51,7 @@ export async function boot(config: Config, io: BootIO) {
   };
 
   const entitlements = new Entitlements();
-  const server = createServer({ entitlements, webhookSecret: config.webhookSecret, log: io.log, ...(io.logJson === undefined ? {} : { logJson: io.logJson }), createSession: nextSession, product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second } });
+  const server = createServer({ entitlements, webhookSecret: config.webhookSecret, log: io.log, ...(io.logJson === undefined ? {} : { logJson: io.logJson }), createSession: nextSession, product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second }, elapse: { publishableKey: config.publishableKey, apiUrl: config.apiUrl, appUrl: config.appUrl } });
   await new Promise<void>((resolve, reject) => {
     server.once("error", (err: NodeJS.ErrnoException) => reject(new Error(err.code === "EADDRINUSE" ? `EADDRINUSE: port ${config.port} is already in use. Set PORT in .env.` : err.message)));
     server.listen(config.port, resolve);
@@ -59,7 +59,7 @@ export async function boot(config: Config, io: BootIO) {
   const port = (server.address() as AddressInfo).port;
 
   io.out(`Product:  ${product.id}  ${product.name}  $${product.rate_usd_per_second}/s`);
-  io.out(`Checkout: ${first.url}`);
+  io.out(`Session:  ${first.id}  (authorised on the product page with @elapse/react)`);
   io.out(`Webhooks: POST ${config.baseUrl}/webhooks`);
   io.out(`Listening on :${port}`);
 

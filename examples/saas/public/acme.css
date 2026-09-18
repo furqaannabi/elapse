@@ -438,3 +438,34 @@ footer.tag {
   .bay { margin: 0 auto; }
   .plate h1.long { font-size: 34px; }
 }
+
+/*
+ * The Elapse island (FR-EXM-032). @elapse/react ships its own stylesheet; a merchant re-dresses it
+ * with variables, so here it becomes another engraved plate in the cage: black laminate, the rating
+ * label's yellow for the live amount, Martian Mono on the numerals.
+ */
+.push-mount .elapse {
+  --elapse-bg: var(--plate);
+  --elapse-surface: var(--plate);
+  --elapse-fg: var(--plate-ink);
+  --elapse-muted: var(--plate-dim);
+  --elapse-accent: var(--yellow);
+  --elapse-accent-soft: rgba(242, 193, 28, 0.14);
+  --elapse-border: rgba(255, 255, 255, 0.14);
+  --elapse-radius: 2px;
+  --elapse-font: var(--sans);
+  --elapse-font-mono: var(--mono);
+}
+
+.push-mount .elapse-card {
+  max-width: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+
+.push-mount .elapse-title,
+.push-mount .elapse-preset-cap,
+.push-mount .elapse-primary,
+.push-mount .elapse-outline {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

@@ -5,9 +5,9 @@ import { handleWebhook } from "./webhooks";
 
 /**
  * FR-EXM-010–012, FR-EXM-020: the merchant's HTTP server on Node's built-in
- * module (examples FRD Undecided 1). Five routes: the fake product page, the
- * success and cancel pages Checkout returns to, the access check, and the
- * webhook receiver. No framework, so the raw body is the default.
+ * module (examples FRD Undecided 1). Routes: the product page (which authorises and meters in place
+ * with @elapse/react, FR-EXM-032), its bundled script, the success and cancel pages, the access check,
+ * and the webhook receiver. No framework, so the raw body is the default.
  */
 
 export interface ServerDeps {
@@ -16,9 +16,17 @@ export interface ServerDeps {
   log: (line: string) => void;
   logJson?: boolean;
   /** `checkout.sessions.create` behind a function so tests need no API. */
-  createSession: () => Promise<{ id: string; url: string }>;
+  createSession: () => Promise<{ id: string }>;
   product: { name: string; rateUsdPerSecond: string };
+  /** What the product page hands to <ElapseProvider> (FR-EXM-032). */
+  elapse: { publishableKey: string; apiUrl: string; appUrl: string };
 }
+
+/** What `npm run build:web` writes into `dist/`, served from the page. */
+const BUNDLE: Record<string, { file: string; type: string } | undefined> = {
+  "/web.js": { file: "web.js", type: "text/javascript; charset=utf-8" },
+  "/web.css": { file: "web.css", type: "text/css; charset=utf-8" },
+};
 
 export function createServer(deps: ServerDeps) {
   const sessions = new SessionCache(deps.createSession, (id) => deps.entitlements.forSession(id) !== undefined);
@@ -37,9 +45,9 @@ export function createServer(deps: ServerDeps) {
  * session retrieve, and the webhook is the honest signal anyway.
  */
 class SessionCache {
-  #current: Promise<{ id: string; url: string }> | undefined;
+  #current: Promise<{ id: string }> | undefined;
   constructor(
-    private readonly create: () => Promise<{ id: string; url: string }>,
+    private readonly create: () => Promise<{ id: string }>,
     private readonly used: (id: string) => boolean,
   ) {}
   async current() {
@@ -67,7 +75,18 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   const vars = { merchant: MERCHANT, product: deps.product.name, price: `$${deps.product.rateUsdPerSecond} / second · ~$${hourly(deps.product.rateUsdPerSecond)} / hour` };
   if (req.method === "GET" && url.pathname === "/") {
     const s = await sessions.current();
-    return send(res, 200, "text/html; charset=utf-8", fill(PAGE, { ...vars, checkout_url: s.url }));
+    return send(res, 200, "text/html; charset=utf-8", fill(PAGE, { ...vars, session: s.id, publishable_key: deps.elapse.publishableKey, api_url: deps.elapse.apiUrl, app_url: deps.elapse.appUrl }));
+  }
+  // FR-EXM-032: the page's bundle (npm run build:web) — React, @elapse/react and its stylesheet.
+  const asset = BUNDLE[url.pathname];
+  if (req.method === "GET" && asset) {
+    let body: string;
+    try {
+      body = readFileSync(new URL(`../dist/${asset.file}`, import.meta.url), "utf8");
+    } catch {
+      return send(res, 503, "text/plain", "The page bundle is missing. Run: npm run build:web");
+    }
+    return send(res, 200, asset.type, body);
   }
   if (req.method === "GET" && url.pathname === "/acme.css") {
     return send(res, 200, "text/css; charset=utf-8", STYLE);

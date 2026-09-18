@@ -17,7 +17,8 @@ async function start(over: Partial<Parameters<typeof createServer>[0]> = {}) {
     webhookSecret: SECRET,
     log: (l) => lines.push(l),
     logJson: false,
-    createSession: async () => ({ id: `cs_${++n}`, url: `https://elapse.finance/c/cs_${n}` }),
+    createSession: async () => ({ id: `cs_${++n}` }),
+    elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     product: { name: "GPU · 4090", rateUsdPerSecond: "0.004" },
     ...over,
   });
@@ -61,21 +62,42 @@ describe("FR-EXM-012 GET /access/:sub", () => {
 });
 
 describe("FR-EXM-010/011 pages", () => {
-  it("GET / shows Acme GPU, the price, and a Start link to the current session", async () => {
+  it("GET / shows Acme GPU, the price, and mounts @elapse/react on the current session (FR-EXM-032)", async () => {
     const { base, entitlements } = await start();
     const html = await (await fetch(base)).text();
     expect(html).toContain("Acme GPU");
     expect(html).toContain("GPU · 4090");
     expect(html).toContain("$0.004 / second · ~$14.40 / hour");
-    expect(html).toMatch(/href="https:\/\/elapse\.finance\/c\/cs_1"[^>]*>\s*Start/);
+    // No hosted checkout: the page authorises in place with <Authorize> and <Meter>.
+    expect(html).not.toContain("/c/");
+    expect(html).toContain('data-session="cs_1"');
+    expect(html).toContain('data-publishable-key="pk_test_abc"');
+    expect(html).toContain('data-api-url="https://api.elapse.finance"');
+    expect(html).toContain('data-app-url="https://elapse.finance"');
+    expect(html).toContain('<script type="module" src="/web.js"></script>');
+    // The components' stylesheet rides along in the bundle (FR-RCT-001).
+    expect(html).toContain('<link rel="stylesheet" href="/web.css">');
     // Same open session on reload; a fresh one once it has been used.
-    expect(await (await fetch(base)).text()).toContain("/c/cs_1");
+    expect(await (await fetch(base)).text()).toContain('data-session="cs_1"');
     await fetch(`${base}/ok?session_id=cs_1`);
-    expect(await (await fetch(base)).text()).toContain("/c/cs_2");
+    expect(await (await fetch(base)).text()).toContain('data-session="cs_2"');
     // Used without ever visiting /ok (the subscriber stayed on the meter): the completed webhook is the signal (FR-EXM-010).
     entitlements.apply(JSON.parse(canceled().replace("subscription.canceled", "checkout.session.completed").replace('"id":"sub_4QeABC"', '"id":"cs_2","subscription":"sub_4QeABC"')));
-    expect(await (await fetch(base)).text()).toContain("/c/cs_3");
-    expect(await (await fetch(base)).text()).toContain("/c/cs_3");
+    expect(await (await fetch(base)).text()).toContain('data-session="cs_3"');
+    expect(await (await fetch(base)).text()).toContain('data-session="cs_3"');
+  });
+
+  it("serves the page bundle and its stylesheet, and says what to run when they are missing", async () => {
+    const { base } = await start();
+    for (const path of ["/web.js", "/web.css"]) {
+      const res = await fetch(`${base}${path}`);
+      // Built (npm run build:web) or not, the answer is never a silent 404.
+      if (res.status === 200) expect(res.headers.get("content-type")).toContain(path.endsWith(".js") ? "javascript" : "css");
+      else {
+        expect(res.status).toBe(503);
+        expect(await res.text()).toContain("npm run build:web");
+      }
+    }
   });
 
   it("GET /ok shows access granted and the entitlement state; GET /cancel says nothing was charged", async () => {

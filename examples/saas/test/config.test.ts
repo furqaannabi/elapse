@@ -3,6 +3,7 @@ import { ConfigError, loadConfig } from "../src/config";
 
 const full = {
   ELAPSE_SECRET_KEY: "sk_test_abc",
+  ELAPSE_PUBLISHABLE_KEY: "pk_test_abc",
   ELAPSE_WEBHOOK_SECRET: "whsec_abc",
   ELAPSE_API_URL: "http://localhost:4000",
 };
@@ -22,7 +23,13 @@ describe("FR-EXM-002 config, more", () => {
 
   it("defaults PORT and BASE_URL and strips trailing slashes", () => {
     const c = loadConfig({ ...full, ELAPSE_API_URL: "http://localhost:4000/" });
-    expect(c).toEqual({ secretKey: "sk_test_abc", webhookSecret: "whsec_abc", apiUrl: "http://localhost:4000", port: 3000, baseUrl: "http://localhost:3000" });
+    expect(c).toEqual({ secretKey: "sk_test_abc", publishableKey: "pk_test_abc", webhookSecret: "whsec_abc", apiUrl: "http://localhost:4000", appUrl: "https://elapse.finance", port: 3000, baseUrl: "http://localhost:3000" });
+  });
+
+  it("FR_EXM_032_needs_the_publishable_key_the_page_hands_to_ElapseProvider", () => {
+    const { ELAPSE_PUBLISHABLE_KEY: _, ...env } = full;
+    expect(() => loadConfig(env)).toThrow(/^ELAPSE_PUBLISHABLE_KEY is missing\./);
+    expect(loadConfig({ ...full, ELAPSE_APP_URL: "http://localhost:3001/" }).appUrl).toBe("http://localhost:3001");
   });
 });
 

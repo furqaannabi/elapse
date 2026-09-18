@@ -2,7 +2,7 @@
 
 ## What this is
 
-The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second, prints a Checkout URL, and when the subscriber cancels it receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
+The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second and serves one product page where the subscriber authorises and watches the meter **without leaving the page** — `<Authorize>` and `<Meter>` from [`@elapse/react`](../../sdk/react), with Face ID in a window Elapse opens. When the subscriber stops, the server receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
 
 It is the code the [Quickstart](https://docs.elapse.finance/quickstart) is built from, and the server in the demo video.
 
@@ -11,13 +11,14 @@ It is the code the [Quickstart](https://docs.elapse.finance/quickstart) is built
 - Node 20 or newer.
 - An Elapse dashboard account with a test secret key (Dashboard → Developers → API keys).
 - A payout address on that account (Dashboard → Settings). Without one, `npm start` stops at "Set a payout address in Settings before creating checkout links."
+- Nothing else: `npm start` bundles the page (esbuild) before it serves, so there is no CDN script and no build step to remember.
 
 ## Run it
 
 ```sh
 git clone https://github.com/furqaannabi/elapse
 cd elapse/examples/saas
-cp .env.example .env        # paste ELAPSE_SECRET_KEY
+cp .env.example .env        # paste ELAPSE_SECRET_KEY and ELAPSE_PUBLISHABLE_KEY
 npm install
 npm start
 ```
@@ -34,7 +35,7 @@ The CLI registers a `cli://` endpoint for you on the dashboard. In production yo
 
 ```
 Product:  prod_9f2…  GPU · 4090  $0.004/s
-Checkout: https://elapse.finance/c/cs_7Ha…
+Session:  cs_7Ha…  (authorised on the product page with @elapse/react)
 Webhooks: POST http://localhost:3000/webhooks
 Listening on :3000
 
@@ -43,7 +44,7 @@ Listening on :3000
 14:02:26  ↺ duplicate evt_1S2b…
 ```
 
-Open the Checkout URL on your phone, press Start, wait a few seconds, press Stop. The second line appears in your terminal with the seconds that elapsed and what was paid. `GET /access/sub_…` now answers `{"entitled":false,"reason":"canceled"}`.
+Open http://localhost:3000 on your phone, choose how long the meter may run, press Authorise, wait a few seconds, press Stop — all on Acme’s own page. The second line appears in your terminal with the seconds that elapsed and what was paid. `GET /access/sub_…` now answers `{"entitled":false,"reason":"canceled"}`.
 
 Before recording, `npm run demo:check` signs a canceled event with your own secret and confirms the server revokes access.
 
@@ -62,9 +63,11 @@ Six types, six actions: provision on `checkout.session.completed`, entitle on `s
 | File | What |
 | --- | --- |
 | `src/index.ts` | `npm start`: reads `.env`, boots, prints |
-| `src/boot.ts` | Product find-or-create, first Checkout session, server |
+| `src/boot.ts` | Product find-or-create, first checkout session, server |
 | `src/server.ts` | Node `http` routes: `/`, `/ok`, `/cancel`, `/access/:sub`, `/webhooks` |
 | `src/webhooks.ts` | Verify, respond, act |
 | `src/entitlements.ts` | In-memory dedupe set and entitlement map; replace with your database |
 | `src/demo-check.ts` | `npm run demo:check` |
-| `public/index.html` | The product page with the Start button; `ok.html` and `cancel.html` are where Checkout returns to; `acme.css` is Acme GPU's own look, not Elapse's |
+| `src/web/mount.tsx` | The page's island: `<ElapseProvider>`, then `<Authorize>` and `<Meter>` |
+| `scripts/build-web.mjs` | `npm run build:web`: esbuild bundles that island and the components' stylesheet into `dist/` |
+| `public/index.html` | The product page and its `#elapse` mount point; `ok.html` and `cancel.html` are where the success and cancel URLs land; `acme.css` is Acme GPU's own look — including the CSS variables that re-dress the Elapse components |
