@@ -12,13 +12,17 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     },
-    "./styles.css": "./styles.css",
-    "./math": "./src/math.ts"
+    "./browser": "./dist/elapse.browser.js",
+    "./math": {
+      "types": "./dist/math.d.ts",
+      "import": "./dist/math.js",
+      "require": "./dist/math.cjs"
+    },
+    "./styles.css": "./styles.css"
   },
   "files": [
     "README.md",
     "dist",
-    "src/math.ts",
     "styles.css"
   ],
   "sideEffects": [
@@ -36,6 +40,7 @@
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
+    "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.1",
@@ -47,5 +52,7 @@
     "typescript": "^5.9.0",
     "vitest": "^4.1.11"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "jsdelivr": "./dist/elapse.browser.js",
+  "unpkg": "./dist/elapse.browser.js"
 }

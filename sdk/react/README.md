@@ -1,0 +1,115 @@
+# @elapse/react
+
+Authorise, meter and receipt components for [Elapse](https://elapse.finance) — per-second billing.
+Your subscriber authorises, watches a live counter, and stops, **inside your own app**. Elapse never
+asks you to touch their wallet: every signature happens in a window Elapse opens.
+
+```
+npm install @elapse/react
+```
+
+Peers: `react` 18 or 19, `react-dom`, and `motion`.
+
+## Quickstart
+
+**1. Create a session on your server** with [`@elapse/sdk`](https://www.npmjs.com/package/@elapse/sdk)
+and your secret key. Never put a secret key in the browser.
+
+```ts
+const session = await elapse.checkout.sessions.create({
+  product: "prod_…",
+  successUrl: "https://acme.com/ok",
+  cancelUrl: "https://acme.com/cancel",
+});
+// send session.id to the page
+```
+
+**2. Render the components** with your publishable key (`pk_…`).
+
+```tsx
+import { Authorize, ElapseProvider, Meter } from "@elapse/react";
+import "@elapse/react/styles.css";
+
+function Billing({ session }: { session: string }) {
+  const [started, setStarted] = useState(false);
+  return (
+    <ElapseProvider publishableKey={process.env.NEXT_PUBLIC_ELAPSE_KEY!}>
+      {started ? (
+        <Meter session={session} onStopped={(e) => console.log("stopped", e.txHash)} />
+      ) : (
+        <Authorize session={session} onAuthorised={() => setStarted(true)} onStarted={() => setStarted(true)} />
+      )}
+    </ElapseProvider>
+  );
+}
+```
+
+That is the whole integration. `<Authorize>` shows how long the meter may run and what that can cost,
+then opens the Elapse window for Face ID. `<Meter>` ticks the elapsed time and the amount, shows the
+controls the product allows, and turns into the receipt when the meter ends.
+
+## No bundler? One script tag
+
+```html
+<div id="elapse"></div>
+<script type="module">
+  import { mount } from "https://cdn.jsdelivr.net/npm/@elapse/react/dist/elapse.browser.js";
+  mount("#elapse", {
+    publishableKey: "pk_test_…",
+    session: "cs_…",            // created on your server
+    onStopped: (e) => console.log("stopped", e.txHash),
+  });
+</script>
+```
+
+This build carries its own React (~65 KB gzipped), so the page needs nothing else. If your app already
+runs React, install the package instead and use the components — you keep one React.
+
+## Components
+
+| Component | What it renders |
+| --- | --- |
+| `<ElapseProvider publishableKey baseUrl? appOrigin? sound?>` | Configuration for everything below it. A key starting with `sk_` throws. |
+| `<Authorize session onAuthorised onStarted onError>` | The cap step, then the Elapse window. |
+| `<Meter session onStarted onStopped onPaused onResumed onError>` | The live meter, its controls, and the receipt. |
+
+Every event carries `{ subscription, txHash?, explorerUrl? }`.
+
+## Hooks
+
+`useAuthorize(session)` and `useMeter(session)` return the same state the components render, for when
+you want your own markup:
+
+```tsx
+const { elapsed, accrued, running, canStop, stop, receipt } = useMeter(session);
+```
+
+`@elapse/react/math` exports the meter's money math (`accruedNano`, `formatAmount`, …) on its own, for
+a server or a test.
+
+## Styling
+
+`@elapse/react/styles.css` is plain CSS scoped to `.elapse`; no Tailwind needed. Change what you want
+with CSS variables:
+
+```css
+.elapse {
+  --elapse-accent: #7c3aed;
+  --elapse-radius: 1rem;
+  --elapse-font: "Inter", sans-serif;
+  --elapse-bg: #ffffff;
+  --elapse-fg: #101010;
+  --elapse-muted: #6b7280;
+}
+```
+
+The components follow the system's colour scheme; `data-elapse-theme="light"` or `"dark"` on a wrapper
+pins one.
+
+## Two things this package will not do
+
+- It never takes a secret key. Sessions are created on your server.
+- It never shows your subscriber a hash, an address, or any other chain word. Those are yours, on the
+  merchant side, through the events.
+
+MIT © Elapse

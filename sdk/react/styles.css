@@ -1,0 +1,245 @@
+/*
+ * @elapse/react — the components' stylesheet (FR-RCT-001).
+ *
+ *   import "@elapse/react/styles.css";
+ *
+ * One file, no Tailwind, no build step required of the merchant. Everything a merchant is meant to
+ * change is a CSS variable on `.elapse` (FR-RCT-040); the rest is plain, scoped to `.elapse` so it
+ * cannot leak into their page. Dark by default with the Elapse world's materials (neutral near-black
+ * paper, off-white ink, one amber for the live meter, no red), light when the page or the system asks.
+ * Numerals are tabular so a ticking readout never shifts (design brief: the meter ticks, nothing blinks).
+ */
+
+.elapse {
+  /* Theme surface — override any of these on .elapse or a parent. */
+  --elapse-accent: #f5b74a;
+  --elapse-accent-soft: rgba(245, 183, 74, 0.16);
+  --elapse-bg: #0a0a0a;
+  --elapse-surface: #111111;
+  --elapse-fg: #ededed;
+  --elapse-muted: #a1a1a1;
+  --elapse-border: rgba(255, 255, 255, 0.12);
+  --elapse-radius: 0.5rem;
+  --elapse-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --elapse-font-mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  color: var(--elapse-fg);
+  font-family: var(--elapse-font);
+  font-size: 1rem;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-align: left;
+}
+
+/* Light: whichever the page asks for explicitly wins; otherwise follow the system. */
+@media (prefers-color-scheme: light) {
+  .elapse:not([data-elapse-theme="dark"]) {
+    --elapse-accent: #b45309;
+    --elapse-accent-soft: rgba(180, 83, 9, 0.12);
+    --elapse-bg: #fafafa;
+    --elapse-surface: #ffffff;
+    --elapse-fg: #171717;
+    --elapse-muted: #666666;
+    --elapse-border: rgba(0, 0, 0, 0.12);
+  }
+}
+
+.elapse[data-elapse-theme="light"] {
+  --elapse-accent: #b45309;
+  --elapse-accent-soft: rgba(180, 83, 9, 0.12);
+  --elapse-bg: #fafafa;
+  --elapse-surface: #ffffff;
+  --elapse-fg: #171717;
+  --elapse-muted: #666666;
+  --elapse-border: rgba(0, 0, 0, 0.12);
+}
+
+.elapse *,
+.elapse *::before,
+.elapse *::after {
+  box-sizing: border-box;
+}
+
+/* The one container every state renders into. Mobile first; it simply fills its column. */
+.elapse-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0;
+  padding: 1.25rem;
+  background: var(--elapse-surface);
+  border: 1px solid var(--elapse-border);
+  border-radius: calc(var(--elapse-radius) * 1.5);
+}
+
+.elapse-card[aria-busy="true"] {
+  min-height: 11rem;
+}
+
+.elapse-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.elapse-label {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--elapse-muted);
+}
+
+.elapse-muted {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--elapse-muted);
+}
+
+.elapse-notice {
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--elapse-fg);
+  background: var(--elapse-accent-soft);
+  border-radius: var(--elapse-radius);
+}
+
+/* Every number in the product: tabular, so nothing moves as it ticks. */
+.elapse-numerals {
+  font-family: var(--elapse-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Cap presets. One column on a phone, side by side once there is room. */
+.elapse-presets {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+@media (min-width: 30rem) {
+  .elapse-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.elapse-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-height: 44px;
+  padding: 0.625rem 0.875rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--elapse-border);
+  border-radius: var(--elapse-radius);
+  cursor: pointer;
+}
+
+.elapse-preset[aria-checked="true"] {
+  border-color: var(--elapse-accent);
+  background: var(--elapse-accent-soft);
+}
+
+.elapse-preset-cap {
+  font-weight: 600;
+}
+
+.elapse-preset .elapse-numerals {
+  font-size: 0.8125rem;
+  color: var(--elapse-muted);
+}
+
+/* Buttons. 44px minimum, because checkout is a phone surface. */
+.elapse-primary,
+.elapse-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.625rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: var(--elapse-radius);
+  cursor: pointer;
+}
+
+.elapse-primary {
+  color: var(--elapse-bg);
+  background: var(--elapse-fg);
+  border: 1px solid var(--elapse-fg);
+}
+
+.elapse-outline {
+  color: var(--elapse-fg);
+  background: transparent;
+  border: 1px solid var(--elapse-border);
+}
+
+.elapse-primary:disabled,
+.elapse-outline:disabled,
+.elapse-preset:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.elapse :is(button, [role="radio"]):focus-visible {
+  outline: 2px solid var(--elapse-accent);
+  outline-offset: 2px;
+}
+
+/* The readout: elapsed above, accrued large below, amber while it runs. */
+.elapse-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.elapse-elapsed {
+  font-size: 0.875rem;
+  color: var(--elapse-muted);
+}
+
+.elapse-accrued {
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.elapse-readout[data-running="true"] .elapse-accrued {
+  color: var(--elapse-accent);
+}
+
+.elapse-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.elapse-actions > * {
+  flex: 1 1 8rem;
+}
+
+/* The receipt's rows. */
+.elapse-receipt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.375rem 1rem;
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.elapse-receipt dt {
+  color: var(--elapse-muted);
+}
+
+.elapse-receipt dd {
+  margin: 0;
+  text-align: right;
+}

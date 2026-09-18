@@ -63,3 +63,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-17 | [Delete the hosted checkout now, and fix what depended on it in the same change](./2026-09-17-delete-hosted-checkout-now.md) | Furqaan |
 | 2026-09-17 | [Meter math lives inside `@elapse/react`; `@elapse/meter-core` is removed](./2026-09-17-meter-math-inside-react-sdk.md) | Furqaan |
 | 2026-09-17 | [The examples bundle their browser pages with esbuild instead of loading `@elapse/react` from a CDN](./2026-09-17-examples-bundle-react-sdk.md) | Furqaan |
+| 2026-09-18 | [The CDN build of `@elapse/react` carries its own React and exposes one `mount()`](./2026-09-18-react-cdn-mount-api.md) | Furqaan |

@@ -45,7 +45,8 @@ jobs:
       - name: SDK
         run: pnpm --filter @elapse/sdk build && pnpm --filter @elapse/sdk test
       - name: React SDK (FR-RCT-061)
-        run: pnpm --filter @elapse/react typecheck && pnpm --filter @elapse/react test && pnpm --filter @elapse/react build
+        # Build first: web imports @elapse/react/math, which resolves to dist (FR-RCT-001).
+        run: pnpm --filter @elapse/react build && pnpm --filter @elapse/react typecheck && pnpm --filter @elapse/react test
       - name: Example merchant
         run: pnpm --filter elapse-example-saas typecheck && pnpm --filter elapse-example-saas test
       - name: Example merchant (lambda, runner mocked — never calls AWS)
