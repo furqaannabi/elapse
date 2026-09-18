@@ -66,7 +66,7 @@ const run = (base: string, sub: string, code: string = CODE) =>
 describe("FR-EXM-114 first Run opens a session to authorise, in the page", () => {
   it("does not execute without a session; answers 409 with the session id for <Authorize>", async () => {
     const { base, executor } = await start();
-    const res = await run(base, "sub_none");
+    const res = await run(base, "none");
     expect(res.status).toBe(409);
     // No checkout URL: the console renders <Authorize session> in place (FR-EXM-152).
     expect(await res.json()).toEqual({ needs_start: true, session: "cs_1" });
@@ -135,6 +135,38 @@ describe("FR-EXM-125 the first Run starts the meter", () => {
   });
 });
 
+describe("FR-EXM-125 a Run that arrives before the webhook does", () => {
+  it("waits for subscription.created instead of calling it an unknown session", async () => {
+    // The subscriber authorises, the popup hands the page its sub_ id, and the page runs at once —
+    // often before `subscription.created` has been delivered. Answering 409 there tells the console
+    // to open *another* checkout session, which is how a subscriber ends up authorising twice.
+    const { base, sessions, executor, startedSubs } = await start({ knownTimeoutMs: 2_000, knownPollMs: 10 });
+    const pending = run(base, "sub_late");
+    setTimeout(() => sessions.applyAuthorised("sub_late", { nowMs: NOW }), 40);
+    setTimeout(() => sessions.applyActive("sub_late", { startedAt: NOW, nowMs: NOW }), 120);
+
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(startedSubs).toEqual(["sub_late"]);
+    expect(executor.calls).toEqual([CODE]);
+  });
+
+  it("still asks for a new session when that subscription never turns up", async () => {
+    const { base, executor } = await start({ knownTimeoutMs: 120, knownPollMs: 10 });
+    const res = await run(base, "sub_neverEver");
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ needs_start: true, session: "cs_1" });
+    expect(executor.calls).toEqual([]);
+  });
+
+  it("a Run with no session at all does not wait", async () => {
+    const { base } = await start({ knownTimeoutMs: 30_000, knownPollMs: 10 });
+    const started = Date.now();
+    expect((await run(base, "none")).status).toBe(409);
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});
+
 describe("FR-EXM-133 /access before the meter starts", () => {
   it("reports authorised, then starting, then running", async () => {
     const { base, sessions } = await start();
@@ -171,6 +203,23 @@ describe("FR-EXM-120 running code inside a live session", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, result: 4, ms: 1, logs: [] });
     expect(executor.calls).toEqual([CODE]);
+  });
+});
+
+describe("FR-EXM-120 the terminal shows each run", () => {
+  it("logs the code, the result, how long it took and the day's count", async () => {
+    const { base, sessions, lines } = await start();
+    sessions.applyOpen("sub_1", { startedAt: NOW, nowMs: NOW });
+    await run(base, "sub_1", "return 2+2");
+    expect(lines.at(-1)).toBe("▶ run sub_1  return 2+2  → 4  (1ms)   [1/20 today]");
+  });
+
+  it("logs a failed run as the error, not a result", async () => {
+    const executor = { calls: [] as string[], async run(code: string) { this.calls.push(code); return { ok: false as const, error: "boom", ms: 2, logs: [] }; } };
+    const { base, sessions, lines } = await start({ executor });
+    sessions.applyOpen("sub_1", { startedAt: NOW, nowMs: NOW });
+    await run(base, "sub_1", "throw new Error('boom')");
+    expect(lines.at(-1)).toBe("▶ run sub_1  throw new Error('boom')  → boom  (2ms)   [1/20 today]");
   });
 });
 
@@ -373,7 +422,7 @@ describe("FR-EXM-114 when the platform refuses to open a session", () => {
       },
     });
 
-    const res = await run(base, "sub_none");
+    const res = await run(base, "none");
     expect(res.status).toBe(502);
     expect(res.headers.get("content-type")).toContain("application/json");
     expect(await res.json()).toEqual({ error: reason });

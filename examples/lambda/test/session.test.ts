@@ -112,17 +112,43 @@ describe("FR-EXM-133 the session's state follows the webhooks", () => {
   });
 });
 
+describe("FR-EXM-126 a session the console has not reached yet", () => {
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+
+  it("is not swept before the console has ever said it is here", () => {
+    // `subscription.created` arrives from the webhook, not from the page: the console cannot
+    // heartbeat until it has resolved the sub_ id, and sweeping on the webhook's clock kills the
+    // session out from under a subscriber who is still mid-flow. The platform's unstarted sweep
+    // (worker FR-WRK-075) is the backstop for one that really was abandoned.
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { nowMs: t0 });
+    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([]);
+
+    // Once the console has been heard from, the stale window applies as before.
+    s.touch("sub_1", t0 + 1_000);
+    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "left" }]);
+  });
+
+  it("a running meter is always swept: it is accruing whether or not a console ever appeared", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "left" }]);
+  });
+});
+
 describe("FR-EXM-126 leaving before the meter starts", () => {
   const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
   const now = t0 + 70_000;
 
   it("a vanished viewer is due even before start; an idle one is not, because editing costs nothing", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
-    s.applyAuthorised("sub_gone", { nowMs: t0 });          // never heartbeat again
+    s.applyAuthorised("sub_gone", { nowMs: t0 });
+    s.touch("sub_gone", t0);                                // the console was here, then vanished
     s.applyAuthorised("sub_here", { nowMs: t0 });          // still here, still editing
     s.touch("sub_here", now);
     s.markStarting("sub_starting", t0);                     // unknown session: nothing to start
     s.applyAuthorised("sub_starting", { nowMs: t0 });
+    s.touch("sub_starting", t0);
     s.markStarting("sub_starting", t0);
 
     const due = s.dueForAutoEnd(now, windows);

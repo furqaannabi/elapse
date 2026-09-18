@@ -24,6 +24,10 @@ export interface ServerDeps {
   startSubscription: (sub: string) => Promise<void>;
   /** FR-EXM-125: how long the first Run waits for the chain before refunding. Default 30 s. */
   startTimeoutMs?: number;
+  /** How long a Run waits for `subscription.created` to arrive for a subscription it does not know. Default 15 s. */
+  knownTimeoutMs?: number;
+  /** How often that wait re-reads the store. Default 250 ms. */
+  knownPollMs?: number;
   /** How often that wait re-reads the session state. Default 250 ms. */
   startPollMs?: number;
   /** `subscriptions.cancel`, behind a function (BR-EXM-110). */
@@ -69,7 +73,10 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   // FR-EXM-120: run code, but only inside a session that is actually running.
   if (req.method === "POST" && url.pathname === "/run") {
     const sub = url.searchParams.get("sub") ?? "";
-    const state = deps.sessions.state(sub);
+    // FR-EXM-125: the popup hands the page its `sub_` id the moment the permit is signed, so a Run
+    // can easily arrive before `subscription.created` has been delivered. Answering "unknown
+    // session" there would send the subscriber back to authorise a second one, so wait for it.
+    const state = (await knownState(sub, deps)) ?? deps.sessions.state(sub);
     if (state === undefined || state === "ended") {
       // FR-EXM-114 (amended): no session yet — open one and hand back its id. The console renders
       // <Authorize session> in place (FR-EXM-152); nobody leaves this page.
@@ -105,6 +112,10 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     }
     deps.sessions.touch(sub, now, { run: true });
     const result = await deps.executor.run(code);
+    // FR-EXM-120: one line per run, so the terminal shows what the meter is being paid for.
+    const outcome = result.ok ? JSON.stringify(result.result) : result.error;
+    const { used, limit } = deps.sessions.runsToday(now);
+    deps.log(`▶ run ${sub}  ${oneLine(code)}  → ${outcome}  (${result.ms}ms)   [${used}/${limit} today]`);
     return send(res, 200, "application/json", JSON.stringify(result));
   }
 
@@ -223,6 +234,24 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
 }
 
 /**
+ * The state of a subscription this server may not have heard about yet. A well-formed `sub_` id that
+ * is simply unknown is waited on until `subscription.created` lands (FR-EXM-133); anything else —
+ * `none` from a page with no session, or an id that never turns up — falls through at once.
+ */
+async function knownState(sub: string, deps: ServerDeps) {
+  const known = deps.sessions.state(sub);
+  if (known !== undefined || !/^sub_[A-Za-z0-9]+$/.test(sub)) return known;
+  const deadline = Date.now() + (deps.knownTimeoutMs ?? 15_000);
+  const pollMs = deps.knownPollMs ?? 250;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+    const state = deps.sessions.state(sub);
+    if (state !== undefined) return state;
+  }
+  return undefined;
+}
+
+/**
  * FR-EXM-125: start the meter for an authorised session and wait for the chain to confirm it.
  *
  * The session is marked `starting` **before** `subscriptions.start` is awaited, so a second Run
@@ -255,6 +284,12 @@ async function ensureStarted(sub: string, state: "authorised" | "starting", deps
   if (deps.sessions.isActive(sub)) return true;
   await endSession(sub, "left", deps);
   return false;
+}
+
+/** The submitted code on one line, short enough to read in a terminal. */
+function oneLine(code: string, max = 40): string {
+  const flat = code.replace(/\s+/g, " ").trim();
+  return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
 
 /** The exact bytes the platform signed; never JSON-parse before verifying (BR-SDK-003). */

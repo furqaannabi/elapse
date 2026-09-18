@@ -15,6 +15,12 @@ export type SessionState = "authorised" | "starting" | "active" | "ended";
 
 export interface Session {
   state: SessionState;
+  /**
+   * Whether a console has ever said it is here for this session. `subscription.created` arrives from
+   * the webhook, not the page, so before the first heartbeat there is nothing to measure presence
+   * against (FR-EXM-126).
+   */
+  seen: boolean;
   /** `state === "active"`, kept as a field so the routes and tests read the same word as before. */
   active: boolean;
   canceling: boolean;
@@ -48,6 +54,11 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       if (runCount >= opts.dailyRunLimit) return false;
       runCount += 1;
       return true;
+    },
+
+    /** FR-EXM-140: how many runs today's cap has taken, for the terminal's `[n/20 today]`. */
+    runsToday(nowMs: number): { used: number; limit: number } {
+      return { used: utcDay(nowMs) === runDay ? runCount : 0, limit: opts.dailyRunLimit };
     },
 
     /** FR-EXM-130: true when this Event id was already handled (redelivery). Marks it seen. */
@@ -91,6 +102,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       sessions.set(sub, {
         ...prev,
         state: "authorised",
+        seen: prev?.seen ?? false,
         active: false,
         canceling: false,
         cancelAttempts: 0,
@@ -115,6 +127,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       sessions.set(sub, {
         ...prev,
         state: "active",
+        seen: true,
         active: true,
         canceling: false,
         startedAt: info.startedAt,
@@ -130,6 +143,8 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       sessions.set(sub, {
         ...prev,
         state: "active",
+        // A running meter accrues whether or not a console ever appeared, so it is always sweepable.
+        seen: true,
         active: true,
         canceling: false,
         cancelAttempts: 0,
@@ -150,6 +165,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       if (!prev) return;
       sessions.set(sub, {
         ...prev,
+        seen: true,
         lastSeen: nowMs,
         lastRun: opts?.run ? nowMs : prev.lastRun,
         updatedAt: nowMs,
@@ -166,6 +182,8 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       const due: Array<{ sub: string; reason: "left" | "idle" }> = [];
       for (const [sub, s] of sessions) {
         if (s.state === "ended" || s.canceling) continue;
+        // FR-EXM-126: nothing to measure until the console has been heard from at least once.
+        if (!s.seen) continue;
         if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, reason: "left" });
         // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
         else if (s.state === "active" && nowMs - s.lastRun > windows.idleTimeoutMs) due.push({ sub, reason: "idle" });
@@ -194,7 +212,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
 
     /** FR-EXM-131: `subscription.canceled` / `invoice.payment_failed` — the meter has stopped. */
     applyClosed(sub: string, info: { secondsElapsed?: number; paidUsd?: string; nowMs: number }): void {
-      const prev = sessions.get(sub) ?? { lastSeen: info.nowMs, lastRun: info.nowMs };
+      const prev = sessions.get(sub) ?? { seen: false, lastSeen: info.nowMs, lastRun: info.nowMs };
       sessions.set(sub, {
         ...prev,
         state: "ended",

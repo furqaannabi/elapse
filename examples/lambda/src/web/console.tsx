@@ -81,11 +81,15 @@ export function Console({ merchant }: { merchant: string }) {
     [],
   );
 
-  /** FR-EXM-125: authorised. Find the subscription, then run the code they already pressed Run on. */
+  /**
+   * FR-EXM-125: authorised. The signature event already carries the `sub_` id, so there is nothing
+   * to look up; `/session/:cs` is only the fallback for an event without one. Then run the code they
+   * already pressed Run on — that run is what starts the meter.
+   */
   const authorised = useCallback(
-    async (session: string) => {
+    async (session: string, subscription?: string) => {
       setStatus("Opening your session…");
-      const found = await resolveSub(fetch, session);
+      const found = subscription ?? (await resolveSub(fetch, session));
       if (!found) {
         setPhase({ k: "idle" });
         setStatus(IDLE_STATUS);
@@ -117,8 +121,8 @@ export function Console({ merchant }: { merchant: string }) {
         <div className="screen">
           <Authorize
             session={phase.session}
-            onAuthorised={() => void authorised(phase.session)}
-            onStarted={() => void authorised(phase.session)}
+            onAuthorised={(e) => void authorised(phase.session, e.subscription)}
+            onStarted={(e) => void authorised(phase.session, e.subscription)}
             onError={(e) => {
               setPhase({ k: "idle" });
               setStatus(IDLE_STATUS);
