@@ -6,7 +6,16 @@
  * tests without the SDK or a clock.
  */
 
+/**
+ * FR-EXM-133: where a session is in its life. `authorised` means the subscriber signed the permit
+ * and the money is escrowed but nothing is accruing; `starting` means the merchant asked the
+ * platform to start the meter and the chain has not confirmed yet; `active` means it is accruing.
+ */
+export type SessionState = "authorised" | "starting" | "active" | "ended";
+
 export interface Session {
+  state: SessionState;
+  /** `state === "active"`, kept as a field so the routes and tests read the same word as before. */
   active: boolean;
   canceling: boolean;
   customer?: string;
@@ -65,7 +74,54 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     },
 
     isActive(sub: string): boolean {
-      return sessions.get(sub)?.active === true;
+      return sessions.get(sub)?.state === "active";
+    },
+
+    /** FR-EXM-133: the session's state, or `undefined` for a subscription this server never saw. */
+    state(sub: string): SessionState | undefined {
+      return sessions.get(sub)?.state;
+    },
+
+    /**
+     * FR-EXM-133: `subscription.created` for a `merchant`-mode product. The subscriber has paid
+     * into escrow and nothing is accruing; the first Run starts the meter (FR-EXM-125).
+     */
+    applyAuthorised(sub: string, info: { customer?: string; nowMs: number }): void {
+      const prev = sessions.get(sub);
+      sessions.set(sub, {
+        ...prev,
+        state: "authorised",
+        active: false,
+        canceling: false,
+        cancelAttempts: 0,
+        ...(info.customer === undefined ? {} : { customer: info.customer }),
+        lastSeen: info.nowMs,
+        lastRun: info.nowMs,
+        updatedAt: info.nowMs,
+      });
+    },
+
+    /** FR-EXM-125: `subscriptions.start` was accepted; wait for the chain, start nothing twice. */
+    markStarting(sub: string, nowMs: number): void {
+      const prev = sessions.get(sub);
+      if (!prev) return;
+      sessions.set(sub, { ...prev, state: "starting", active: false, lastSeen: nowMs, updatedAt: nowMs });
+    },
+
+    /** FR-EXM-133: `subscription.updated` with `status: "active"` — the meter is running now. */
+    applyActive(sub: string, info: { startedAt: number; nowMs: number }): void {
+      const prev = sessions.get(sub);
+      if (!prev) return;
+      sessions.set(sub, {
+        ...prev,
+        state: "active",
+        active: true,
+        canceling: false,
+        startedAt: info.startedAt,
+        lastSeen: info.nowMs,
+        lastRun: info.nowMs,
+        updatedAt: info.nowMs,
+      });
     },
 
     /** FR-EXM-131: `subscription.created` — the meter is running. */
@@ -73,6 +129,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       const prev = sessions.get(sub);
       sessions.set(sub, {
         ...prev,
+        state: "active",
         active: true,
         canceling: false,
         cancelAttempts: 0,
@@ -100,7 +157,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     },
 
     /**
-     * FR-EXM-117: which active sessions should be auto-ended now, and why. `left` means the
+     * FR-EXM-117/126: which sessions should be auto-ended now, and why. `left` means the
      * console stopped heartbeating (tab closed, network gone); `idle` means it is still there
      * but nothing has run. A session already `canceling` is skipped so `subscriptions.cancel`
      * is issued once per session while the chain confirms (BR-EXM-110).
@@ -108,9 +165,10 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     dueForAutoEnd(nowMs: number, windows: { idleTimeoutMs: number; heartbeatStaleMs: number }): Array<{ sub: string; reason: "left" | "idle" }> {
       const due: Array<{ sub: string; reason: "left" | "idle" }> = [];
       for (const [sub, s] of sessions) {
-        if (!s.active || s.canceling) continue;
+        if (s.state === "ended" || s.canceling) continue;
         if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, reason: "left" });
-        else if (nowMs - s.lastRun > windows.idleTimeoutMs) due.push({ sub, reason: "idle" });
+        // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
+        else if (s.state === "active" && nowMs - s.lastRun > windows.idleTimeoutMs) due.push({ sub, reason: "idle" });
       }
       return due;
     },
@@ -139,6 +197,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       const prev = sessions.get(sub) ?? { lastSeen: info.nowMs, lastRun: info.nowMs };
       sessions.set(sub, {
         ...prev,
+        state: "ended",
         active: false,
         canceling: false,
         ...(info.secondsElapsed === undefined ? {} : { secondsElapsed: info.secondsElapsed }),

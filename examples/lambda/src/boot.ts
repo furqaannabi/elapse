@@ -32,8 +32,14 @@ export async function boot(config: Config, io: BootIO) {
   const elapse = new Elapse({ secretKey: config.secretKey, baseUrl: config.apiUrl });
 
   // region:product
-  const existing = (await elapse.products.list({ limit: 100 })).data.find((p) => p.name === PRODUCT.name && p.active);
-  const product = existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond }));
+  // FR-EXM-102 (amended): the Product is merchant-started, so authorising does not start the
+  // meter — the first Run does (FR-EXM-125). A same-named checkout-mode Product is not reused:
+  // its meter would start the moment the subscriber authorised, and editing code would be billed.
+  const existing = (await elapse.products.list({ limit: 100 })).data.find(
+    (p) => p.name === PRODUCT.name && p.active && p.start_mode === "merchant",
+  );
+  const product =
+    existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond, startMode: "merchant" }));
   // endregion
 
   let executor: Executor;
@@ -62,7 +68,14 @@ export async function boot(config: Config, io: BootIO) {
         cancelUrl: `${config.baseUrl}/cancel`,
         maxDurationSeconds: config.maxDurationSeconds,
       });
-      return { id: session.id, url: session.url };
+      return { id: session.id };
+    },
+    // endregion
+    // region:start
+    // FR-EXM-125: the first Run starts the meter. Until this call the subscriber's money sits in
+    // escrow and nothing accrues; `active` arrives by webhook once the chain confirms.
+    startSubscription: async (sub) => {
+      await elapse.subscriptions.start(sub);
     },
     // endregion
     // region:end
@@ -72,6 +85,8 @@ export async function boot(config: Config, io: BootIO) {
     },
     // endregion
     product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second },
+    // FR-EXM-152: what the console page hands to <ElapseProvider>.
+    elapse: { publishableKey: config.publishableKey, apiUrl: config.apiUrl, appUrl: config.appUrl },
     now: () => Date.now(),
   };
 

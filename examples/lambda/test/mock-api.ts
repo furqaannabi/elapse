@@ -3,9 +3,9 @@ import type { AddressInfo } from "node:net";
 
 /**
  * A tiny Elapse API double: records every request and answers products.list/create,
- * checkout.sessions.create (echoing the session cap) and subscriptions.cancel.
+ * checkout.sessions.create (echoing the session cap), subscriptions.start and subscriptions.cancel.
  */
-export async function mockApi(opts: { existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string }> } = {}) {
+export async function mockApi(opts: { existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string; start_mode?: string }> } = {}) {
   const requests: Array<{ method: string; path: string; auth: string | undefined; body: unknown }> = [];
   let n = 0;
   const server: Server = createServer(async (req, res) => {
@@ -19,15 +19,20 @@ export async function mockApi(opts: { existingProducts?: Array<{ id: string; nam
       res.end(JSON.stringify(body));
     };
     if (req.method === "GET" && path.startsWith("/v1/products")) {
-      return json(200, { object: "list", data: (opts.existingProducts ?? []).map((p) => ({ object: "product", active: true, ...p })), has_more: false, url: "/v1/products" });
+      return json(200, { object: "list", data: (opts.existingProducts ?? []).map((p) => ({ object: "product", active: true, start_mode: "checkout", ...p })), has_more: false, url: "/v1/products" });
     }
     if (req.method === "POST" && path === "/v1/products") {
-      const b = JSON.parse(raw) as { name: string; rate_usd_per_second: string };
-      return json(200, { id: `prod_new${++n}`, object: "product", name: b.name, rate_usd_per_second: b.rate_usd_per_second, active: true });
+      const b = JSON.parse(raw) as { name: string; rate_usd_per_second: string; start_mode?: string };
+      return json(200, { id: `prod_new${++n}`, object: "product", name: b.name, rate_usd_per_second: b.rate_usd_per_second, start_mode: b.start_mode ?? "checkout", active: true });
     }
     if (req.method === "POST" && path === "/v1/checkout/sessions") {
       const b = JSON.parse(raw) as { product: string };
-      return json(200, { id: `cs_${++n}`, object: "checkout.session", status: "open", url: `https://elapse.finance/c/cs_${n}`, product: { id: b.product } });
+      // No `url`: the hosted checkout is gone; the page authorises in place (FR-API-140, FR-EXM-152).
+      return json(200, { id: `cs_${++n}`, object: "checkout.session", status: "open", product: { id: b.product } });
+    }
+    const start = path.match(/^\/v1\/subscriptions\/([\w-]+)\/start$/);
+    if (req.method === "POST" && start) {
+      return json(202, { id: start[1], object: "subscription", status: "incomplete" });
     }
     const cancel = path.match(/^\/v1\/subscriptions\/([\w-]+)\/cancel$/);
     if (req.method === "POST" && cancel) {

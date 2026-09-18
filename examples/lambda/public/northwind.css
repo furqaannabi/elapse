@@ -79,3 +79,41 @@ h1.long { font-size: clamp(20px, 6vw, 26px); }
 .tag { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; }
 
 @media (prefers-reduced-motion: reduce) { .key:active { transform: none; } }
+
+/*
+ * The Elapse components inside the console (FR-EXM-152). @elapse/react ships its own stylesheet;
+ * a merchant re-dresses it with CSS variables, so here they become part of the terminal: the
+ * phosphor screen, its green ink, and the amber key colour on the one primary action.
+ */
+.screen .elapse {
+  --elapse-bg: var(--screen);
+  --elapse-surface: transparent;
+  --elapse-fg: var(--screen-ink);
+  --elapse-muted: var(--screen-dim);
+  --elapse-accent: var(--key);
+  --elapse-accent-soft: rgba(232, 163, 61, 0.14);
+  --elapse-border: var(--rule);
+  --elapse-radius: 3px;
+  --elapse-font: var(--sans);
+  --elapse-font-mono: var(--mono);
+}
+
+.screen .elapse-card {
+  max-width: none;
+  padding: 2px;
+  border: 0;
+}
+
+.screen .elapse-primary {
+  color: var(--key-ink);
+  background: linear-gradient(180deg, var(--key), var(--key-lo));
+  border-color: var(--key-lo);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.screen .elapse-title,
+.screen .elapse-preset-cap {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

@@ -19,10 +19,18 @@ export interface ServerDeps {
   log: (line: string) => void;
   logJson?: boolean;
   /** `checkout.sessions.create` with the session cap, behind a function (FR-EXM-114). */
-  createCheckoutSession: () => Promise<{ id: string; url: string }>;
+  createCheckoutSession: () => Promise<{ id: string }>;
+  /** `subscriptions.start`, behind a function (FR-EXM-125). */
+  startSubscription: (sub: string) => Promise<void>;
+  /** FR-EXM-125: how long the first Run waits for the chain before refunding. Default 30 s. */
+  startTimeoutMs?: number;
+  /** How often that wait re-reads the session state. Default 250 ms. */
+  startPollMs?: number;
   /** `subscriptions.cancel`, behind a function (BR-EXM-110). */
   cancelSubscription: (sub: string) => Promise<void>;
   product: { name: string; rateUsdPerSecond: string };
+  /** What the console page hands to <ElapseProvider> (FR-EXM-152). */
+  elapse: { publishableKey: string; apiUrl: string; appUrl: string };
   now: () => number;
 }
 
@@ -35,6 +43,12 @@ const STYLE = asset("northwind.css");
 const RUNNER_SOURCE = readFileSync(new URL("../runner/index.mjs", import.meta.url), "utf8");
 
 const MERCHANT = "Northwind Compute";
+
+/** What `npm run build:web` writes into `dist/`, served to the console page (FR-EXM-152). */
+const BUNDLE: Record<string, { file: string; type: string } | undefined> = {
+  "/web.js": { file: "web.js", type: "text/javascript; charset=utf-8" },
+  "/web.css": { file: "web.css", type: "text/css; charset=utf-8" },
+};
 const escapeHtml = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k: string) => escapeHtml(vars[k] ?? ""));
 /** Display only; the money that matters is settled on the platform (BR-EXM-106). */
@@ -55,9 +69,10 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   // FR-EXM-120: run code, but only inside a session that is actually running.
   if (req.method === "POST" && url.pathname === "/run") {
     const sub = url.searchParams.get("sub") ?? "";
-    if (!deps.sessions.isActive(sub)) {
-      // FR-EXM-114: no session yet — hand back a Checkout URL; the console redirects,
-      // the subscriber authorises once, and the stashed code runs on return.
+    const state = deps.sessions.state(sub);
+    if (state === undefined || state === "ended") {
+      // FR-EXM-114 (amended): no session yet — open one and hand back its id. The console renders
+      // <Authorize session> in place (FR-EXM-152); nobody leaves this page.
       let session;
       try {
         session = await deps.createCheckoutSession();
@@ -68,7 +83,15 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
         deps.log(`✗ checkout.sessions.create: ${message}`);
         return send(res, 502, "application/json", JSON.stringify({ error: message }));
       }
-      return send(res, 409, "application/json", JSON.stringify({ needs_start: true, checkout_url: session.url }));
+      return send(res, 409, "application/json", JSON.stringify({ needs_start: true, session: session.id }));
+    }
+    // FR-EXM-125: the subscriber authorised; this Run is what starts the meter. Nothing is
+    // invoked until the chain confirms, so every second of compute is paid for and no more.
+    if (state === "authorised" || state === "starting") {
+      const started = await ensureStarted(sub, state, deps);
+      if (!started) {
+        return send(res, 503, "application/json", JSON.stringify({ error: "The meter didn't start, so nothing ran and nothing was charged." }));
+      }
     }
     const { code } = JSON.parse(await readRaw(req)) as { code?: string };
     // Reject rubbish before it costs a daily run.
@@ -95,7 +118,23 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     return send(res, 200, "text/html; charset=utf-8", fill(LANDING, vars));
   }
   if (req.method === "GET" && url.pathname === "/console") {
-    return send(res, 200, "text/html; charset=utf-8", fill(CONSOLE, vars));
+    return send(
+      res,
+      200,
+      "text/html; charset=utf-8",
+      fill(CONSOLE, { ...vars, publishable_key: deps.elapse.publishableKey, api_url: deps.elapse.apiUrl, app_url: deps.elapse.appUrl }),
+    );
+  }
+  // FR-EXM-152: the console's bundle, with React and @elapse/react inside it.
+  const asset_ = BUNDLE[url.pathname];
+  if (req.method === "GET" && asset_) {
+    let body: string;
+    try {
+      body = readFileSync(new URL(`../dist/${asset_.file}`, import.meta.url), "utf8");
+    } catch {
+      return send(res, 503, "text/plain", "The console bundle is missing. Run: npm run build:web");
+    }
+    return send(res, 200, asset_.type, body);
   }
   if (req.method === "GET" && url.pathname === "/cancel") {
     return send(res, 200, "text/html; charset=utf-8", fill(CANCEL, vars));
@@ -128,6 +167,9 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   if (req.method === "GET" && access) {
     const session = deps.sessions.get(access[1] as string);
     if (!session) return send(res, 200, "application/json", JSON.stringify({ active: false, reason: "unknown session" }));
+    // FR-EXM-133: before the meter starts the console is told which side of the start it is on.
+    if (session.state === "authorised" || session.state === "starting")
+      return send(res, 200, "application/json", JSON.stringify({ active: false, reason: session.state }));
     if (session.active)
       return send(
         res,
@@ -180,6 +222,41 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   send(res, 404, "text/plain", "Not found");
 }
 
+/**
+ * FR-EXM-125: start the meter for an authorised session and wait for the chain to confirm it.
+ *
+ * The session is marked `starting` **before** `subscriptions.start` is awaited, so a second Run
+ * arriving in the meantime waits on this same start instead of issuing another. `active` only ever
+ * arrives from `subscription.updated` (FR-EXM-133), so this polls the store the webhook writes to.
+ * If it does not arrive in time the session is cancelled — nothing accrued, so the subscriber is
+ * refunded in full — and the caller answers 503.
+ */
+async function ensureStarted(sub: string, state: "authorised" | "starting", deps: ServerDeps): Promise<boolean> {
+  if (state === "authorised") {
+    deps.sessions.markStarting(sub, deps.now());
+    try {
+      await deps.startSubscription(sub);
+      deps.log(`▶ starting meter ${sub}`);
+    } catch (err) {
+      // The start never happened: put the session back so the next Run can try again.
+      deps.sessions.applyAuthorised(sub, { nowMs: deps.now() });
+      deps.log(`✗ start ${sub}: ${(err as Error).message}`);
+      return false;
+    }
+  }
+  const timeoutMs = deps.startTimeoutMs ?? 30_000;
+  const pollMs = deps.startPollMs ?? 250;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (deps.sessions.isActive(sub)) return true;
+    if (deps.sessions.state(sub) === "ended") return false;
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  if (deps.sessions.isActive(sub)) return true;
+  await endSession(sub, "left", deps);
+  return false;
+}
+
 /** The exact bytes the platform signed; never JSON-parse before verifying (BR-SDK-003). */
 function readRaw(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -210,7 +287,9 @@ const MAX_CANCEL_ATTEMPTS = 5;
  */
 export async function endSession(sub: string, reason: "left" | "idle", deps: ServerDeps): Promise<void> {
   const session = deps.sessions.get(sub);
-  if (!session?.active || session.canceling) return;
+  // FR-EXM-126: an authorised or starting session is cancelled too — a full refund, since
+  // nothing has accrued yet.
+  if (!session || session.state === "ended" || session.canceling) return;
   deps.sessions.markCanceling(sub);
   deps.log(`⏹ auto-ended (${reason}) ${sub}`);
   try {

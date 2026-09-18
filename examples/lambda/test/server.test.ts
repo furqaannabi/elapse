@@ -31,17 +31,24 @@ async function start(over: Record<string, unknown> = {}) {
   const executor = spyExecutor();
   const lines: string[] = [];
   const canceled: string[] = [];
+  const startedSubs: string[] = [];
   const deps = {
     sessions,
     executor,
     webhookSecret: SECRET,
     log: (l: string) => lines.push(l),
     logJson: false,
-    createCheckoutSession: async () => ({ id: "cs_1", url: "https://elapse.finance/c/cs_1" }),
+    createCheckoutSession: async () => ({ id: "cs_1" }),
+    startSubscription: async (sub: string) => {
+      startedSubs.push(sub);
+    },
+    startTimeoutMs: 300,
+    startPollMs: 10,
     cancelSubscription: async (sub: string) => {
       canceled.push(sub);
     },
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
+    elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     now: () => NOW,
     ...over,
   } as Parameters<typeof createServer>[0];
@@ -49,20 +56,109 @@ async function start(over: Record<string, unknown> = {}) {
   await new Promise<void>((r) => server.listen(0, r));
   close = () => new Promise((r) => server.close(() => r()));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { base, sessions, executor, lines, canceled, deps };
+  return { base, sessions, executor, lines, canceled, startedSubs, deps };
 }
 
 const CODE = "return 2+2";
 const run = (base: string, sub: string, code: string = CODE) =>
   fetch(`${base}/run?sub=${sub}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code }) });
 
-describe("FR-EXM-114 first Run starts the session", () => {
-  it("does not execute when there is no active session; answers 409 with a checkout url", async () => {
+describe("FR-EXM-114 first Run opens a session to authorise, in the page", () => {
+  it("does not execute without a session; answers 409 with the session id for <Authorize>", async () => {
     const { base, executor } = await start();
     const res = await run(base, "sub_none");
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ needs_start: true, checkout_url: "https://elapse.finance/c/cs_1" });
+    // No checkout URL: the console renders <Authorize session> in place (FR-EXM-152).
+    expect(await res.json()).toEqual({ needs_start: true, session: "cs_1" });
     expect(executor.calls).toEqual([]);
+  });
+});
+
+describe("FR-EXM-125 the first Run starts the meter", () => {
+  /** Answers the Run, then plays the platform: the start webhook lands `after` ms later. */
+  const startAndConfirm = async (
+    o: { base: string; sessions: ReturnType<typeof createSessionStore>; sub: string; after: number | null },
+  ) => {
+    const pending = run(o.base, o.sub);
+    if (o.after !== null) {
+      setTimeout(() => o.sessions.applyActive(o.sub, { startedAt: NOW, nowMs: NOW }), o.after);
+    }
+    return pending;
+  };
+
+  it("starts the meter once, waits for the chain, then runs the stashed code", async () => {
+    const { base, sessions, executor, startedSubs } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const res = await startAndConfirm({ base, sessions, sub: "sub_1", after: 30 });
+    expect(res.status).toBe(200);
+    expect(startedSubs).toEqual(["sub_1"]);
+    expect(executor.calls).toEqual([CODE]);
+    expect(sessions.state("sub_1")).toBe("active");
+  });
+
+  it("a second Run while starting waits on the same start instead of starting again", async () => {
+    const { base, sessions, executor, startedSubs } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const first = startAndConfirm({ base, sessions, sub: "sub_1", after: 60 });
+    const second = startAndConfirm({ base, sessions, sub: "sub_1", after: null });
+    const [a, b] = await Promise.all([first, second]);
+    expect([a.status, b.status]).toEqual([200, 200]);
+    expect(startedSubs).toEqual(["sub_1"]);
+    expect(executor.calls).toEqual([CODE, CODE]);
+  });
+
+  it("no active in time: cancels for a full refund, 503, nothing ran, no daily run spent", async () => {
+    const sessions = createSessionStore({ dailyRunLimit: 2 });
+    const { base, executor, canceled } = await start({ sessions });
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const res = await run(base, "sub_1");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "The meter didn't start, so nothing ran and nothing was charged." });
+    expect(executor.calls).toEqual([]);
+    expect(canceled).toEqual(["sub_1"]);
+    expect(sessions.tryConsumeRun(NOW)).toBe(true);
+    expect(sessions.tryConsumeRun(NOW)).toBe(true); // both of the day's runs are still there
+  });
+
+  it("a later Run inside a running session invokes at once, with no second start", async () => {
+    const { base, sessions, executor, startedSubs } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    await startAndConfirm({ base, sessions, sub: "sub_1", after: 10 });
+
+    const res = await run(base, "sub_1", "return 1");
+    expect(res.status).toBe(200);
+    expect(startedSubs).toEqual(["sub_1"]);
+    expect(executor.calls).toEqual([CODE, "return 1"]);
+  });
+});
+
+describe("FR-EXM-133 /access before the meter starts", () => {
+  it("reports authorised, then starting, then running", async () => {
+    const { base, sessions } = await start();
+    const access = async () => (await fetch(`${base}/access/sub_1`)).json();
+
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    expect(await access()).toEqual({ active: false, reason: "authorised" });
+
+    sessions.markStarting("sub_1", NOW);
+    expect(await access()).toEqual({ active: false, reason: "starting" });
+
+    sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW });
+    expect(await access()).toEqual({ active: true, reason: "running", started_at: Math.floor(NOW / 1000) });
+  });
+});
+
+describe("FR-EXM-126 leaving before the meter starts", () => {
+  it("the tab-close beacon cancels an authorised session for a full refund", async () => {
+    const { base, sessions, canceled } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const res = await fetch(`${base}/end?sub=sub_1`, { method: "POST" });
+    expect(res.status).toBe(204);
+    expect(canceled).toEqual(["sub_1"]);
   });
 });
 
@@ -201,23 +297,40 @@ describe("FR-EXM-110/111/112 the pages", () => {
     expect(html).not.toContain("/c/cs_");
   });
 
-  it("GET /console mounts the React + Monaco editor, Run, output and a meter — and no Start or Stop control", async () => {
+  it("GET /console loads the bundled console with the publishable key, and no UMD React", async () => {
     const { base } = await start();
     const html = await (await fetch(`${base}/console`)).text();
 
-    // Pinned CDN assets, no bundler (FR-EXM-100). React 18 because 19 ships no UMD build.
-    expect(html).toMatch(/react[/@]18\.3\.1/);
+    // FR-EXM-152: React and @elapse/react are bundled (npm run build:web), not loaded as UMD.
+    expect(html).not.toMatch(/react[/@]18\.3\.1/);
+    expect(html).toContain('<script type="module" src="/web.js"></script>');
+    expect(html).toContain('<link rel="stylesheet" href="/web.css">');
+    // Monaco may stay on its own CDN (FR-EXM-152).
     expect(html).toMatch(/monaco-editor\/0\.52\.2/);
 
-    // The editor mount, the runner's source read-only beside it, and the usual controls.
-    expect(html).toContain('id="editor"');
-    expect(html).toContain('id="source"');
-    expect(html).toMatch(/id="run"/);
-    expect(html).toContain('id="out"');
-    expect(html).toContain('id="meter"');
+    // What the bundle needs to configure <ElapseProvider>; never a secret key (BR-RCT-002).
+    expect(html).toContain('id="root"');
+    expect(html).toContain('data-publishable-key="pk_test_abc"');
+    expect(html).toContain('data-api-url="https://api.elapse.finance"');
+    expect(html).toContain('data-app-url="https://elapse.finance"');
+    expect(html).not.toContain("sk_test");
 
+    // No hosted checkout anywhere, and no Start or Stop for the subscriber (FR-CHK-037).
+    expect(html).not.toContain("/c/");
     expect(html).not.toMatch(/>\s*Start\s*</);
     expect(html).not.toMatch(/>\s*Stop\s*</);
+  });
+
+  it("serves the console bundle and its stylesheet, and says what to run when they are missing", async () => {
+    const { base } = await start();
+    for (const path of ["/web.js", "/web.css"]) {
+      const res = await fetch(`${base}${path}`);
+      if (res.status === 200) expect(res.headers.get("content-type")).toContain(path.endsWith(".js") ? "javascript" : "css");
+      else {
+        expect(res.status).toBe(503);
+        expect(await res.text()).toContain("npm run build:web");
+      }
+    }
   });
 
   it("GET /cancel says nothing was charged", async () => {

@@ -3,6 +3,7 @@ import { ConfigError, loadConfig } from "../src/config";
 
 const full = {
   ELAPSE_SECRET_KEY: "sk_test_abc",
+  ELAPSE_PUBLISHABLE_KEY: "pk_test_abc",
   ELAPSE_WEBHOOK_SECRET: "whsec_abc",
   ELAPSE_API_URL: "http://localhost:4000",
   LAMBDA_FN: "elapse-lambda-runner",
@@ -12,6 +13,11 @@ describe("FR-EXM-101 config", () => {
   it("names LAMBDA_FN when it is missing", () => {
     const { LAMBDA_FN: _, ...env } = full;
     expect(() => loadConfig(env)).toThrow(/^LAMBDA_FN is missing\./);
+  });
+
+  it("names ELAPSE_PUBLISHABLE_KEY when missing: the console cannot authorise without it", () => {
+    const { ELAPSE_PUBLISHABLE_KEY: _, ...env } = full;
+    expect(() => loadConfig(env)).toThrow(/^ELAPSE_PUBLISHABLE_KEY is missing\./);
   });
 
   it("names ELAPSE_SECRET_KEY and ELAPSE_API_URL when missing", () => {
@@ -25,7 +31,9 @@ describe("FR-EXM-101 config", () => {
     const c = loadConfig({ ...full, ELAPSE_API_URL: "http://localhost:4000/", BASE_URL: "http://localhost:3000/" });
     expect(c).toEqual({
       secretKey: "sk_test_abc",
+      publishableKey: "pk_test_abc",
       webhookSecret: "whsec_abc",
+      appUrl: "https://elapse.finance",
       apiUrl: "http://localhost:4000",
       lambdaFn: "elapse-lambda-runner",
       awsRegion: "us-east-1",

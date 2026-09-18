@@ -94,12 +94,24 @@ function apply(event: { type: string; data: { object: unknown } }, deps: Webhook
       return "provision session";
     }
     case "subscription.created": {
+      // FR-EXM-133: a merchant-mode Product creates the Subscription `incomplete` — the subscriber
+      // has paid into escrow and nothing accrues until the first Run starts the meter (FR-EXM-125).
+      if (o.status !== "active") {
+        deps.sessions.applyAuthorised(sub, { ...(o.customer ? { customer: o.customer } : {}), nowMs });
+        return `session authorised ${sub}`;
+      }
       const startedAt = o.started_at ? o.started_at * 1000 : nowMs;
       deps.sessions.applyOpen(sub, { ...(o.customer ? { customer: o.customer } : {}), startedAt, nowMs });
       return `session open ${sub}`;
     }
-    case "subscription.updated":
+    case "subscription.updated": {
+      // FR-EXM-133: this is the event the first Run waits for — the chain confirmed the start.
+      if (o.status === "active") {
+        deps.sessions.applyActive(sub, { startedAt: o.started_at ? o.started_at * 1000 : nowMs, nowMs });
+        return `meter started ${sub}`;
+      }
       return `sync session (${o.status ?? "unknown"})`;
+    }
     case "subscription.canceled": {
       const seconds = o.seconds_elapsed ?? 0;
       const paid = o.rate_usd_per_second ? grossUsd(o.rate_usd_per_second, seconds) : (o.amount_settled ?? "0");

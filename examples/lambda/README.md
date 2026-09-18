@@ -91,7 +91,7 @@ useful to watch during a demo. Nothing in the billing path depends on CloudWatch
 ## Run it
 
 ```sh
-cp .env.example .env      # paste ELAPSE_SECRET_KEY, set LAMBDA_FN and AWS_REGION
+cp .env.example .env      # paste ELAPSE_SECRET_KEY and ELAPSE_PUBLISHABLE_KEY, set LAMBDA_FN and AWS_REGION
 npm install
 npm start
 ```
@@ -112,7 +112,10 @@ Product:  prod_…  Serverless runtime  $0.002/s
 Webhooks: POST http://localhost:3000/webhooks
 Runner:   elapse-lambda-runner @ us-east-1
 
-14:02:11  evt_…  subscription.created   → session open sub_…
+14:02:09  evt_…  checkout.session.completed → provision session
+14:02:11  evt_…  subscription.created   → session authorised sub_…
+14:02:12  ▶ starting meter sub_…
+14:02:13  evt_…  subscription.updated   → meter started sub_…
 14:02:19  ▶ run sub_…  return 2 + 2  → 4  (9ms)   [1/20 today]
 14:03:20  ⏹ auto-ended (idle) sub_…
 14:03:21  evt_…  subscription.canceled  → session closed · 62s · $0.12
@@ -121,25 +124,27 @@ Runner:   elapse-lambda-runner @ us-east-1
 
 The console is a React page with the **VS Code editor** (Monaco) holding the JavaScript, the
 runner's own source read-only beneath it, and the result as output — rendered as an image when
-the code returns a `data:image` string, printed as a value otherwise. There is no Start
-button and no Stop button: press Run and the first one sends you through Elapse Checkout for a
-single Face ID authorisation, then the render runs and the meter starts. Close the tab and the
-session ends within seconds. React and Monaco load from a pinned CDN — there is no bundler, and
-if the CDN is unreachable the page still works with a plain textarea.
+the code returns a `data:image` string, printed as a value otherwise. There is no Start button
+and no Stop button: press Run, and the first one shows `<Authorize>` from
+[`@elapse/react`](../../sdk/react) **in this page** — one Face ID in a window Elapse opens — then
+your code runs and `<Meter>` ticks beside it. Nobody is sent to a hosted checkout. Close the tab
+and the session ends within seconds. `npm start` bundles the page with esbuild first; Monaco
+still loads from a pinned CDN, and if that CDN is unreachable the editor falls back to a plain
+textarea.
 
 ## How the session maps to Elapse
 
 | What happens | Elapse |
 | --- | --- |
-| First Run, no session | `checkout.sessions.create` with `max_duration_seconds`; the server answers `409 needs_start` |
-| Subscriber authorises once | the permit is signed for `rate × max_duration_seconds` — the most this session can ever cost |
-| Meter starts | `subscription.created` → the session opens, renders are accepted |
+| First Run, no session | `checkout.sessions.create` with `max_duration_seconds`; the server answers `409 needs_start` with the session id, and `<Authorize>` appears in the page |
+| Subscriber authorises once | the permit is signed for `rate × max_duration_seconds` — the most this session can ever cost. Nothing is accruing yet: the Product is **merchant-started** |
+| The meter starts | the first Run calls `subscriptions.start`; nothing is invoked until `subscription.updated` says `active`, so the seconds you spent editing are free. If the start does not confirm within 30 s the session is cancelled and refunded in full |
 | Tab closed, idle, or gone | the server calls `subscriptions.cancel` itself, retried a few times if it fails |
 | Meter stops | `subscription.canceled` → the session closes and the exact settled amount is recorded |
 | Next Run | `409 needs_start` again — a new session, because the webhook closed the old one |
 
-The meter on the console is an **estimate** while you work. The figure shown when the session
-ends is the **settled** amount from the webhook.
+`<Meter>` ticks from `rate × (now − started_at)` while you work; the figure it shows when the
+session ends is the **settled** amount, not the estimate.
 
 ## Security
 

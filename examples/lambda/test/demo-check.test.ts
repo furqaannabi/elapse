@@ -18,9 +18,11 @@ async function serve(secret: string) {
     webhookSecret: secret,
     log: () => {},
     logJson: false,
-    createCheckoutSession: async () => ({ id: "cs_1", url: "https://elapse.finance/c/cs_1" }),
+    createCheckoutSession: async () => ({ id: "cs_1" }),
+    startSubscription: async () => {},
     cancelSubscription: async () => {},
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
+    elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     now: () => Date.now(),
   });
   await new Promise<void>((r) => server.listen(0, r));

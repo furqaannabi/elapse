@@ -38,13 +38,34 @@ say "Platform: migrate, start API and worker"
 for _ in $(seq 1 30); do curl -sf "$API/v1/status" > /dev/null && break; sleep 1; done
 curl -sf "$API/v1/status" > /dev/null || { cat "$WORK/api.log"; echo "API did not start"; exit 1; }
 
-say "Step 1: a test secret key"
-SK="$(cd api && bun run seed-merchant "lambda-ci-$(date +%s)@example.com" | awk '/^sk_test/{print $2}')"
-[ -n "$SK" ] || { echo "no key from seed-merchant"; exit 1; }
+say "Step 1: a test secret key and its publishable key"
+SEED="$(cd api && bun run seed-merchant "lambda-ci-$(date +%s)@example.com")"
+SK="$(echo "$SEED" | awk '/^sk_test/{print $2}')"
+PK="$(echo "$SEED" | awk '/^pk_test/{print $2}')"
+[ -n "$SK" ] && [ -n "$PK" ] || { echo "no keys from seed-merchant: $SEED"; exit 1; }
 
-say "Step 2: a copy of examples/lambda outside the workspace, installed from npm"
+say "Step 2: a copy of examples/lambda outside the workspace, installed like a clone would"
+# @elapse/sdk 0.2.0 and @elapse/react 0.1.0 are not on npm yet, so the clone installs exactly what
+# `npm publish` would upload: a pack of each workspace package. Restore the npm ranges once both
+# versions are published.
+pack_workspace() {
+  local dir="$1"
+  (cd "$ROOT/$dir" && pnpm --silent build > /dev/null && npm pack --silent --pack-destination "$WORK" > /dev/null)
+}
+pack_workspace sdk/ts
+pack_workspace sdk/react
+SDK_TGZ="$(ls "$WORK"/elapse-sdk-*.tgz | head -1)"
+RCT_TGZ="$(ls "$WORK"/elapse-react-*.tgz | head -1)"
+[ -n "$SDK_TGZ" ] && [ -n "$RCT_TGZ" ] || { echo "npm pack produced no tarballs"; exit 1; }
 cp -R "$ROOT/examples/lambda" "$WORK/lambda"
-rm -rf "$WORK/lambda/node_modules" "$WORK/lambda/.env"
+rm -rf "$WORK/lambda/node_modules" "$WORK/lambda/.env" "$WORK/lambda/dist"
+node -e '
+  const fs = require("fs"), p = process.argv[1] + "/package.json";
+  const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+  pkg.dependencies["@elapse/sdk"] = "file:" + process.argv[2];
+  pkg.dependencies["@elapse/react"] = "file:" + process.argv[3];
+  fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+' "$WORK/lambda" "$SDK_TGZ" "$RCT_TGZ"
 (cd "$WORK/lambda" && npm install --silent --no-audit --no-fund)
 
 say "Step 2b: a webhook endpoint pointing at the example"
@@ -54,8 +75,8 @@ EP_ID="$(node -e "console.log(JSON.parse(process.argv[1]).id)" "$EP")"
 WHSEC="$(node -e "console.log(JSON.parse(process.argv[1]).secret)" "$EP")"
 [ -n "$EP_ID" ] && [ -n "$WHSEC" ] || { echo "endpoint create failed: $EP"; exit 1; }
 
-say "Step 3: npm start creates the Product and names the runner"
-(cd "$WORK/lambda" && ELAPSE_SECRET_KEY="$SK" ELAPSE_WEBHOOK_SECRET="$WHSEC" ELAPSE_API_URL="$API" \
+say "Step 3: npm start bundles the console, creates the Product and names the runner"
+(cd "$WORK/lambda" && ELAPSE_SECRET_KEY="$SK" ELAPSE_PUBLISHABLE_KEY="$PK" ELAPSE_WEBHOOK_SECRET="$WHSEC" ELAPSE_API_URL="$API" \
   PORT=$EX_PORT BASE_URL="http://localhost:$EX_PORT" LAMBDA_FN=ci-mock-runner AWS_REGION=us-east-1 \
   LAMBDA_RUNNER_MODE=mock LOG_JSON=0 \
   exec npm start > "$WORK/lambda.log" 2>&1) & PIDS+=($!)
@@ -65,6 +86,14 @@ grep -q "^Runner:   ci-mock-runner @ us-east-1" "$WORK/lambda.log" || { dump; ec
 # FR-EXM-114: nothing is handed out at boot, because there is no Start button.
 ! grep -q "^Checkout:" "$WORK/lambda.log" || { dump; echo "boot opened a checkout session; it should not"; exit 1; }
 grep "^Product:\|^Runner:" "$WORK/lambda.log"
+
+# FR-EXM-152: the console is bundled and served, authorises in place, and carries no secret key.
+CONSOLE="$(curl -sf "http://localhost:$EX_PORT/console")"
+echo "$CONSOLE" | grep -q 'src="/web.js"' || { dump; echo "the console does not load its bundle"; exit 1; }
+echo "$CONSOLE" | grep -q "data-publishable-key=\"pk_test" || { dump; echo "the console has no publishable key"; exit 1; }
+! echo "$CONSOLE" | grep -q "sk_test" || { dump; echo "a secret key reached the page"; exit 1; }
+! echo "$CONSOLE" | grep -q "/c/" || { dump; echo "the console still links to a hosted checkout"; exit 1; }
+curl -sf "http://localhost:$EX_PORT/web.js" > /dev/null || { dump; echo "the console bundle is not served"; exit 1; }
 
 say "Step 4: a delivered subscription.created opens the session"
 curl -sf -X POST "$API/v1/webhook_endpoints/$EP_ID/test" -H "Authorization: Bearer $SK" -H "Content-Type: application/json" \

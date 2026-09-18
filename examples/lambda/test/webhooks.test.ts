@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { grossUsd, handleWebhook } from "../src/webhooks";
 import { createSessionStore } from "../src/session";
-import { canceled, created, sign } from "./sign";
+import { authorised, canceled, created, sign, started } from "./sign";
 
 const SECRET = "whsec_test";
 const deps = (sessions = createSessionStore({ dailyRunLimit: 20 })) => ({
@@ -34,6 +34,36 @@ describe("FR-EXM-131 session lifecycle", () => {
     res.work!();
     expect(sessions.isActive("sub_4QeABC")).toBe(true);
     expect(lines[0]).toContain("session open sub_4QeABC");
+  });
+});
+
+describe("FR-EXM-133 merchant-started sessions follow the webhooks", () => {
+  const post = (body: string, sessions: ReturnType<typeof createSessionStore>, lines: string[] = []) => {
+    const res = handleWebhook(body, sign(body, SECRET), { ...deps(sessions), log: (l) => lines.push(l) });
+    res.work!();
+    return lines;
+  };
+
+  it("created opens it authorised with no started_at; updated active starts the meter", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const lines = post(authorised(), sessions);
+    expect(sessions.state("sub_4QeABC")).toBe("authorised");
+    expect(sessions.isActive("sub_4QeABC")).toBe(false);
+    expect(sessions.get("sub_4QeABC")?.startedAt).toBeUndefined();
+    expect(lines[0]).toContain("session authorised sub_4QeABC");
+
+    post(started(), sessions, lines);
+    expect(sessions.state("sub_4QeABC")).toBe("active");
+    expect(sessions.get("sub_4QeABC")?.startedAt).toBe(1_700_000_040_000);
+    expect(lines[1]).toContain("meter started sub_4QeABC");
+  });
+
+  it("an update that is not the start is only synced", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    post(authorised(), sessions);
+    const lines = post(started({ status: "paused" }, "evt_paused"), sessions);
+    expect(sessions.state("sub_4QeABC")).toBe("authorised");
+    expect(lines[0]).toContain("sync session (paused)");
   });
 });
 

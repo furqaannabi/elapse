@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#23262a">
 <title>Console · {{merchant}}</title>
 <link rel="stylesheet" href="/northwind.css">
-<!-- Pinned CDN assets, no bundler (FR-EXM-100). React 18.3.1 because React 19 ships no UMD build. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<!-- The console's own bundle: React, @elapse/react and its styles (npm run build:web, FR-EXM-152). -->
+<link rel="stylesheet" href="/web.css">
+<!-- Monaco stays on its pinned CDN; the console falls back to a textarea if it is unreachable. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js" crossorigin></script>
 </head>
 <body>
@@ -18,216 +18,18 @@
     <span class="loc">Field terminal<br>Unit 07</span>
   </header>
 
-  <div class="label">
-    <span class="k">Session</span>
-    <span class="meter" id="meter"><span id="clock">00:00</span> · <span class="amt" id="amount">$0.00</span></span>
-  </div>
+  <!-- FR-EXM-152: authorised and metered in place with @elapse/react. The publishable key belongs
+       in the page; the secret key never leaves the server (BR-RCT-002). -->
+  <div id="root"
+       data-publishable-key="{{publishable_key}}"
+       data-api-url="{{api_url}}"
+       data-app-url="{{app_url}}"
+       data-merchant="{{merchant}}"></div>
+  <script type="module" src="/web.js"></script>
 
-  <div id="root"></div>
-
-  <p class="note" id="note">The meter above is an estimate while you work. When the session closes you are shown the exact amount settled.</p>
+  <p class="note">The meter above is the session itself. When it closes you are shown the exact amount settled.</p>
 
   <footer class="tag">{{merchant}} · demo merchant</footer>
 </main>
-
-<script>
-(function () {
-  var RATE_MICRO = (function (r) {          // "0.002" -> 2000 micro-dollars, never parseFloat
-    var p = String(r).split("."), whole = p[0] || "0", frac = (p[1] || "").slice(0, 6);
-    while (frac.length < 6) frac += "0";
-    return parseInt(whole, 10) * 1000000 + parseInt(frac, 10);
-  })("{{rate}}");
-
-  var DEFAULT_SNIPPET = "// loading the example snippet…";
-  var SNIPPET_URL = "/default-snippet";
-  var SOURCE_URL = "/runner-source";
-
-  var clock = document.getElementById("clock");
-  var amount = document.getElementById("amount");
-  var note = document.getElementById("note");
-
-  var sub = null, startedAt = null, timer = null, beat = null, watch = null;
-  var setStatus = function () {}, setOutput = function () {}, getRequest = function () { return DEFAULT_REQUEST; }, setRequest = function () {};
-
-  function money(micro) { return "$" + (Math.floor(micro / 10000) / 100).toFixed(2); }
-  function twoDp(a) { var p = String(a == null ? "0" : a).split("."); return (p[0] || "0") + "." + ((p[1] || "") + "00").slice(0, 2); }
-  function mmss(s) { var m = Math.floor(s / 60), ss = s % 60; return (m < 10 ? "0" : "") + m + ":" + (ss < 10 ? "0" : "") + ss; }
-
-  function paint() {
-    if (startedAt == null) return;
-    var secs = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
-    clock.textContent = mmss(secs);
-    amount.textContent = money(secs * RATE_MICRO);
-  }
-
-  function running(on) {
-    setStatus(on ? "Running — walk away and it closes itself" : "Not running — your first run opens the session");
-    if (on && !timer) timer = setInterval(paint, 100);
-    if (!on && timer) { clearInterval(timer); timer = null; }
-    if (on && !beat) beat = setInterval(function () {
-      if (sub) { navigator.sendBeacon ? navigator.sendBeacon("/heartbeat?sub=" + sub) : fetch("/heartbeat?sub=" + sub, { method: "POST" }); }
-    }, 5000);
-    if (!on && beat) { clearInterval(beat); beat = null; }
-  }
-
-  // The session is over. Stop everything and show what was actually settled, not the estimate.
-  function ended(a) {
-    running(false);
-    if (watch) { clearInterval(watch); watch = null; }
-    sub = null;
-    var secs = a.seconds_elapsed || 0;
-    clock.textContent = mmss(secs);
-    amount.textContent = "$" + twoDp(a.paid_usd);
-    setStatus("Session ended — paid " + secs + "s · $" + twoDp(a.paid_usd));
-    note.textContent = "That is the exact amount settled, not the estimate. Press Run to open a new session.";
-  }
-
-  async function poll() {
-    if (!sub) return;
-    try { var a = await (await fetch("/access/" + sub)).json(); if (!a.active) ended(a); } catch (e) { /* try again next tick */ }
-  }
-
-  async function adopt(id) {
-    sub = id;
-    var a = await (await fetch("/access/" + id)).json();
-    if (a.active) {
-      startedAt = a.started_at ? a.started_at * 1000 : Date.now();
-      running(true); paint();
-      if (!watch) watch = setInterval(poll, 3000);
-    } else if (a.reason === "ended") {
-      ended(a);
-    }
-    return a;
-  }
-
-  async function resume() {
-    var qs = new URLSearchParams(window.location.search);
-    var cs = qs.get("session_id") || qs.get("session");
-    if (!cs) return;
-    for (var i = 0; i < 40; i++) {
-      var r = await fetch("/session/" + cs);
-      if (r.ok) {
-        var link = await r.json();
-        await adopt(link.sub);
-        var stashed = sessionStorage.getItem("nw_req");
-        sessionStorage.removeItem("nw_req");
-        if (stashed) { setRequest(stashed); await execute(); }
-        return;
-      }
-      await new Promise(function (rr) { setTimeout(rr, 500); });
-    }
-  }
-
-  async function execute() {
-    var code = getRequest();
-    if (!code || !code.trim()) { setOutput({ error: "Write some code first." }); return; }
-    setOutput({ pending: true });
-    try {
-      var res = await fetch("/run?sub=" + (sub || "none"), {
-        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code: code })
-      });
-      var body = await res.json();
-      if (res.status === 409) {                      // no session yet: authorise once, then come back
-        sessionStorage.setItem("nw_req", code);
-        window.location.href = body.checkout_url;
-        return;
-      }
-      if (!res.ok) { setOutput({ error: body.error || ("request failed (" + res.status + ")") }); return; }
-      setOutput(body.ok ? { value: body.result, ms: body.ms, logs: body.logs } : { error: body.error });
-    } catch (e) {
-      setOutput({ error: e.message });
-    }
-  }
-
-  function isImage(v) { return typeof v === "string" && v.indexOf("data:image/") === 0; }
-  function resultLine(o) {
-    var head = isImage(o.value) ? "image" : (typeof o.value === "string" ? o.value : JSON.stringify(o.value));
-    return String(head) + "  (" + o.ms + "ms on Lambda)" + (o.logs && o.logs.length ? "\n" + o.logs.join("\n") : "");
-  }
-
-  // ---- React view -------------------------------------------------------
-  var e = window.React && window.React.createElement;
-
-  function Console() {
-    var R = window.React;
-    var status = R.useState("Not running — your first run opens the session");
-    var out = R.useState({});
-    var source = R.useState("");
-    var busy = R.useState(false);
-    var host = R.useRef(null), editor = R.useRef(null);
-
-    setStatus = status[1]; setOutput = out[1];
-
-    R.useEffect(function () {
-      fetch(SOURCE_URL).then(function (r) { return r.ok ? r.text() : ""; }).then(source[1]).catch(function () {});
-      fetch(SNIPPET_URL).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) {
-        if (t) { DEFAULT_SNIPPET = t; if (editor.current) editor.current.setValue(t); }
-      }).catch(function () {});
-      window.require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs" } });
-      window.require(["vs/editor/editor.main"], function () {
-        editor.current = window.monaco.editor.create(host.current, {
-          value: DEFAULT_SNIPPET, language: "javascript", theme: "vs-dark",
-          minimap: { enabled: false }, automaticLayout: true, fontSize: 13, scrollBeyondLastLine: false
-        });
-        getRequest = function () { return editor.current.getValue(); };
-        setRequest = function (v) { editor.current.setValue(v); };
-        void resume();
-      });
-      return function () { if (editor.current) editor.current.dispose(); };
-    }, []);
-
-    var o = out[0];
-    return e("div", null,
-      e("p", { className: "note" }, "Write JavaScript and Run it on real AWS Lambda. fetch, node builtins via require, anything you like — the longer it runs, the more seconds you pay for."),
-      e("div", { className: "screen", id: "editor", ref: host, style: { height: "190px", padding: 0 } }),
-      e("div", { className: "row" },
-        e("button", { className: "key", id: "run", type: "button", disabled: busy[0],
-          onClick: function () { busy[1](true); execute().finally(function () { busy[1](false); }); } }, "Run"),
-        e("span", { className: "meter" }, e("small", { id: "state" }, status[0]))
-      ),
-      e("div", { className: "screen" },
-        isImage(o.value)
-          ? e("div", null,
-              e("img", { src: o.value, alt: "result",
-                style: { maxWidth: "100%", height: "auto", imageRendering: "pixelated", display: "block" } }),
-              e("pre", { id: "out", className: "has" }, resultLine(o))
-            )
-          : e("pre", { id: "out", className: o.error || o.value !== undefined ? "has" : "" },
-              o.pending ? "Running on Lambda…" : (o.error || (o.value !== undefined ? resultLine(o) : "The result appears here.")))
-      ),
-      e("details", null,
-        e("summary", { className: "note" }, "What the runner does (read-only)"),
-        e("pre", { id: "source", className: "screen" }, source[0] || "loading…")
-      )
-    );
-  }
-
-  if (window.React && window.ReactDOM) {
-    window.ReactDOM.createRoot(document.getElementById("root")).render(e(Console));
-  } else {
-    // CDN unreachable: plain textarea fallback, same contract (FR-EXM-111).
-    var root = document.getElementById("root");
-    root.innerHTML =
-      '<div class="screen"><textarea id="editor" spellcheck="false" aria-label="JavaScript to run"></textarea></div>' +
-      '<div class="row"><button class="key" id="run" type="button">Run</button>' +
-      '<span class="meter"><small id="state">Not running — your first run opens the session</small></span></div>' +
-      '<div class="screen"><pre id="out">The rendered tile appears here.</pre></div>' +
-      '<pre id="source" class="screen" hidden></pre>';
-    var ta = document.getElementById("editor"), st = document.getElementById("state"), ou = document.getElementById("out");
-    fetch(SNIPPET_URL).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { if (t) ta.value = t; }).catch(function () {});
-    getRequest = function () { return ta.value; };
-    setRequest = function (v) { ta.value = v; };
-    setStatus = function (t) { st.textContent = t; };
-    setOutput = function (o) {
-      if (o.value !== undefined) { ou.textContent = resultLine(o); ou.className = "has"; }
-      else ou.textContent = o.pending ? "Running on Lambda…" : (o.error || "");
-    };
-    document.getElementById("run").addEventListener("click", function () { void execute(); });
-    void resume();
-  }
-
-  window.addEventListener("pagehide", function () { if (sub && navigator.sendBeacon) navigator.sendBeacon("/end?sub=" + sub); });
-})();
-</script>
 </body>
 </html>

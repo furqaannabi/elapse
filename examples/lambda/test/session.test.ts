@@ -85,3 +85,56 @@ describe("FR-EXM-117 auto-end sweep", () => {
     expect(s.dueForAutoEnd(now, windows).map((d) => d.sub)).not.toContain("sub_idle");
   });
 });
+
+describe("FR-EXM-133 the session's state follows the webhooks", () => {
+  it("authorised on created, active on updated, with the event's started_at", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { customer: "cus_1", nowMs: t0 });
+    expect(s.state("sub_1")).toBe("authorised");
+    expect(s.isActive("sub_1")).toBe(false);
+    expect(s.get("sub_1")?.startedAt).toBeUndefined();
+
+    s.markStarting("sub_1", t0 + 1_000);
+    expect(s.state("sub_1")).toBe("starting");
+    expect(s.isActive("sub_1")).toBe(false);
+
+    s.applyActive("sub_1", { startedAt: t0 + 4_000, nowMs: t0 + 4_000 });
+    expect(s.state("sub_1")).toBe("active");
+    expect(s.isActive("sub_1")).toBe(true);
+    expect(s.get("sub_1")?.startedAt).toBe(t0 + 4_000);
+
+    s.applyClosed("sub_1", { secondsElapsed: 9, paidUsd: "0.018", nowMs: t0 + 13_000 });
+    expect(s.state("sub_1")).toBe("ended");
+  });
+
+  it("an unknown subscription has no state", () => {
+    expect(createSessionStore({ dailyRunLimit: 20 }).state("sub_nope")).toBeUndefined();
+  });
+});
+
+describe("FR-EXM-126 leaving before the meter starts", () => {
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+  const now = t0 + 70_000;
+
+  it("a vanished viewer is due even before start; an idle one is not, because editing costs nothing", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_gone", { nowMs: t0 });          // never heartbeat again
+    s.applyAuthorised("sub_here", { nowMs: t0 });          // still here, still editing
+    s.touch("sub_here", now);
+    s.markStarting("sub_starting", t0);                     // unknown session: nothing to start
+    s.applyAuthorised("sub_starting", { nowMs: t0 });
+    s.markStarting("sub_starting", t0);
+
+    const due = s.dueForAutoEnd(now, windows);
+    expect(due).toContainEqual({ sub: "sub_gone", reason: "left" });
+    expect(due).toContainEqual({ sub: "sub_starting", reason: "left" });
+    expect(due.map((d) => d.sub)).not.toContain("sub_here");
+  });
+
+  it("an ended session is never due again", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { nowMs: t0 });
+    s.applyClosed("sub_1", { nowMs: t0 });
+    expect(s.dueForAutoEnd(now, windows)).toEqual([]);
+  });
+});
