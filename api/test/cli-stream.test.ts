@@ -80,6 +80,19 @@ describe("FR-API-131 GET /v1/cli/sessions/:id/stream", () => {
     expect(hb.data).toEqual({ at: expect.any(Number) });
   });
 
+  test("FR-API-131: the response tells a buffering proxy to stream it, or nothing reaches the CLI", async () => {
+    // A reverse proxy in front of the API (nginx buffers responses by default) holds a streamed
+    // response — headers included — until it ends. An SSE stream never ends, so `elapse listen`
+    // sees nothing at all: no deliveries, not even the heartbeat. `X-Accel-Buffering: no` is how a
+    // response opts out, and it costs nothing where there is no proxy.
+    const s = await session();
+    const res = await app.request(s.stream_url, { headers: { authorization: `Bearer ${f.skTest}` } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    expect(res.headers.get("cache-control")).toContain("no-cache");
+    await res.body?.cancel();
+  });
+
   test("another merchant's session, the other mode, or pk_ → 404 / 401", async () => {
     const s = await session();
     expect((await app.request(s.stream_url, { headers: { authorization: `Bearer ${f.skLive}` } })).status).toBe(404);

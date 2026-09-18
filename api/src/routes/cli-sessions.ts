@@ -77,6 +77,11 @@ cliSessions.openapi(
     if (!s) throw notFound("cli session", id);
     await touchConnected(s.endpointId);
     await sql`UPDATE cli_sessions SET last_seen_at = now() WHERE id = ${s.id}`;
+    // A reverse proxy in front of the API buffers responses by default (nginx does), and a stream
+    // that never ends is then never flushed — `elapse listen` connects and receives nothing at all,
+    // not even the heartbeat. This header is how a response opts out; it is ignored where there is
+    // no proxy. Found on the deployed API, 2026-09-18.
+    c.header("X-Accel-Buffering", "no");
     return streamSSE(c, async (stream) => {
       const sent = new Set<string>();
       let lastBeat = 0; // first pass: expire, send what is queued, then the opening heartbeat
