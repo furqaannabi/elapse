@@ -218,14 +218,12 @@ async function runningSubscription(session: CheckoutSessionRow): Promise<Subscri
  */
 async function actionableSubscription(session: CheckoutSessionRow, action: RelayAction): Promise<SubscriptionRow> {
   const current = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
-  if (current && isMerchantControlled(current)) {
+  // FR-API-137 (amended 2026-09-19): a merchant-mode subscription is the merchant's to stop in every
+  // state, held included (contracts FR-CON-057). The subscriber's way out of a held session is the
+  // unstarted sweep (worker FR-WRK-075) or the merchant itself, and `start_by` tells them when.
+  if (current && (isMerchantControlled(current) || isHeld(current))) {
     const merchant = (await getMerchantBranding(session.merchant_id))?.name ?? "the merchant";
     throw new CheckoutStateError("merchant_controlled", `Only ${merchant} can stop this meter.`);
-  }
-  if (action === "cancel") {
-    // FR-API-137: Stop also works before the merchant starts, refunding the whole deposit (contracts FR-CON-056).
-    const held = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
-    if (held && isHeld(held)) return held;
   }
   const sub = await runningSubscription(session);
   if (action === "pause") {
@@ -291,9 +289,9 @@ export async function submitRelay(action: RelayAction, input: { session: Checkou
   }
   const submit = action === "cancel" ? chain.cancelFor : action === "pause" ? chain.pauseFor : chain.resumeFor;
   const pendingTx = await submit.call(chain, sub.chain_id, stream, deadline, input.signature as Hex);
-  // A held stream stays `incomplete` until StreamCanceled ingests; the stamp keeps the FR-WRK-075 sweep from cancelling it again.
-  const heldCancel = action === "cancel" && isHeld(sub);
-  await sql`UPDATE subscriptions SET updated_at = now(), cancel_submitted_at = CASE WHEN ${heldCancel} THEN now() ELSE cancel_submitted_at END WHERE id = ${sub.id}`;
+  // Since FR-API-137's 2026-09-19 amendment a subscriber never reaches here with a held session —
+  // `actionableSubscription` refuses one — so there is no held cancel to stamp against the sweep.
+  await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;
   if (action !== "cancel") {
     await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${sub.merchant_id}, 'checkout', ${`subscription.${action}`}, ${sub.id}, ${input.ip ?? null})`;
   }

@@ -58,22 +58,39 @@ describe("FR-API-137 start mode and refund-by time for the subscriber", () => {
     // The same window the FR-WRK-075 sweep refunds on: min(max_duration_seconds, UNSTARTED_WINDOW_S).
     expect(pub.body.subscription.start_by).toBe(created + Math.min(3600, UNSTARTED_WINDOW_S));
   });
-  it("FR_API_137_the_subscriber_can_stop_a_held_session_and_the_sweep_never_cancels_it_again", async () => {
-    const { sessionId, subId } = await heldSession();
+  it("FR_API_137_the_subscriber_cannot_stop_a_held_session_amended_2026_09_19", async () => {
+    // The merchant's meter is the merchant's to stop, before it starts as well as after
+    // (contracts FR-CON-057, ADR 2026-09-19). The sweep and the merchant are the ways out.
+    const { sessionId } = await heldSession();
     chain.setRelayNonce(STREAM, 0n);
 
     const prep = await api("POST", `/v1/checkout/sessions/${sessionId}/cancel/prepare`, { key: m.pkTest, body: {}, headers: await identity() });
-    expect(prep.status).toBe(200);
-    expect(prep.body).toMatchObject({ subscription: subId, stream_address: STREAM });
-    const signature = await subscriber.signMessage({ message: { raw: prep.body.message } });
-    const res = await api("POST", `/v1/checkout/sessions/${sessionId}/cancel`, { key: m.pkTest, body: { signature, deadline: prep.body.deadline } });
-    expect(res.status).toBe(202);
-    expect(chain.cancels.map((c) => c.stream)).toEqual([STREAM]);
+    expect(prep.status).toBe(409);
+    expect(prep.body.error.code).toBe("merchant_controlled");
+    expect(chain.cancels).toEqual([]);
+  });
 
-    // Long past the window: the sweep would refund it, but the subscriber's cancel is already in flight.
+  it("FR_API_137_the_unstarted_sweep_still_refunds_a_held_session_in_full", async () => {
+    const { subId } = await heldSession();
     const swept = await runUnstartedSweepOnce({ now: Math.floor(Date.now() / 1000) + 86_400, log: () => {} });
-    expect(swept.canceled).toEqual([]);
-    expect(chain.keeperCancels).toEqual([]);
+    expect(swept.canceled).toEqual([STREAM]);
+    expect(chain.keeperCancels).toEqual([STREAM]);
+    expect(subId).toMatch(/^sub_/);
+  });
+
+  it("FR_API_137_the_merchant_can_still_release_a_held_session", async () => {
+    const { subId } = await heldSession();
+    const res = await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest });
+    expect(res.status).toBe(202);
+    expect(chain.keeperCancels).toEqual([STREAM]);
+  });
+
+  it("FR_API_137_a_checkout_mode_subscriber_keeps_stop", async () => {
+    // Nothing changes for a meter the subscriber started themselves.
+    const { sessionId } = await heldSession({ startMode: "checkout" });
+    chain.setRelayNonce(STREAM, 0n);
+    const prep = await api("POST", `/v1/checkout/sessions/${sessionId}/cancel/prepare`, { key: m.pkTest, body: {}, headers: await identity() });
+    expect(prep.status).not.toBe(409);
   });
 });
 

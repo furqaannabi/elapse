@@ -185,20 +185,14 @@ describe("AccountPage · FR-CHK-036 held money", () => {
     expect(screen.getByText(/^1 meter running/)).toBeInTheDocument();
   });
 
-  it("FR_CHK_036_stop_on_a_held_session_says_nothing_has_been_charged_and_ends_as_a_past_session", async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+  it("FR_CHK_034_a_held_session_offers_no_stop_and_says_when_the_money_returns_amended_2026_09_19", async () => {
+    // The merchant's meter is the merchant's to stop, before it starts as well as after
+    // (contracts FR-CON-057, ADR 2026-09-19). The refund-by line is the subscriber's only answer
+    // now, so it is the thing this row must always carry.
     mount("held");
     const row = await screen.findByRole("group", { name: "Northwind Compute · Serverless runtime" });
-    await user.click(within(row).getByRole("button", { name: /stop/i }));
-    expect(await screen.findByText(/You haven.t been charged\. All of it comes back\./)).toBeInTheDocument();
-    expect(screen.queryByText(/you.ll pay/i)).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Stop the meter" }));
-    expect(await screen.findByText("Past sessions")).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Northwind Compute · Serverless runtime" })).toBeNull();
-
-    // Its receipt: nothing charged, everything back, and no start time for a meter that never started.
-    await user.click(screen.getByRole("button", { name: /northwind compute/i }));
-    expect(await screen.findByText("Returned to you")).toBeInTheDocument();
-    expect(screen.queryByText("Started")).toBeNull();
+    expect(within(row).queryByRole("button", { name: /stop/i })).toBeNull();
+    expect(within(row).getByText(/held/)).toBeInTheDocument();
+    expect(within(row).getByText(/Comes back at/)).toBeInTheDocument();
   });
 });

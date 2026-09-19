@@ -108,7 +108,10 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   const capMs = sub ? sub.maxDurationSeconds * 1000 : 0;
   const ms = sub?.startedAt ? Math.min(elapsedMs({ startedAt: sub.startedAt, now, pausedAt: sub.pausedAt }), capMs) : 0;
 
-  const canStop = view === "held" || ((view === "running" || view === "paused") && !!sub?.subscriberCanStop);
+  // FR-RCT-020 (amended 2026-09-19): the platform decides, in every state. A merchant-started
+  // meter is the merchant's to stop before it starts as well as after (contracts FR-CON-057), and
+  // `subscriber_can_stop` already carries that — the component does not keep its own rule.
+  const canStop = (view === "held" || view === "running" || view === "paused") && !!sub?.subscriberCanStop;
   const canPause = view === "running" && !!session?.product.allowPause && !!sub?.subscriberCanStop;
   const canResume = view === "paused" && !!sub?.subscriberCanStop;
 

@@ -175,7 +175,7 @@ export function AccountPage({
           {held.length > 0 && (
             <section className="grid grid-cols-1 gap-2 lg:grid-cols-2">
               {held.map((h) => (
-                <HeldRow key={h.subscription} held={h} busy={busy} onStop={() => setStopping(h)} />
+                <HeldRow key={h.subscription} held={h} />
               ))}
             </section>
           )}

@@ -194,6 +194,23 @@ describe("<Meter dock> · FR-RCT-042 the docked capsule", () => {
   });
 });
 
+describe("FR-RCT-020 the held state follows the platform", () => {
+  it("a merchant-started held meter offers no Stop, even without controls={false}", async () => {
+    // Amended 2026-09-19: the merchant's meter is the merchant's to stop in every state, so the
+    // API says subscriber_can_stop: false and the component simply follows it.
+    mount(wire(sub({ status: "incomplete", start_mode: "merchant", started_at: null, funded_usd: "7.2", subscriber_can_stop: false }), { start_mode: "merchant" }));
+    await settle();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(screen.getByText(/held/)).toBeTruthy();
+  });
+
+  it("a checkout-mode meter still stops", async () => {
+    mount(wire(sub()));
+    await settle();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
+  });
+});
+
 describe("FR-RCT-042 controls={false}", () => {
   it("hides Stop while held, where a merchant does not want the subscriber to have one", async () => {
     mount(wire(sub({ status: "incomplete", start_mode: "merchant", started_at: null, funded_usd: "7.2" }), { start_mode: "merchant" }), {
