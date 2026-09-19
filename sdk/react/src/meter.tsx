@@ -8,8 +8,61 @@ import { useMeter, type MeterHandlers } from "./use-meter";
 
 const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-export function Meter({ session, ...handlers }: { session: string } & MeterHandlers) {
+/** Where a docked meter sits. Omit it and the meter renders inline, as it always has. */
+export type MeterDock = "bottom-right" | "bottom-left";
+
+export function Meter({ session, dock, ...handlers }: { session: string; dock?: MeterDock } & MeterHandlers) {
   const m = useMeter(session, handlers);
+
+  /**
+   * FR-RCT-042: the docked capsule. One pill in the corner — a live dot, the elapsed clock, the
+   * amount — because a subscriber watching their own money spend needs to read it at a glance, not
+   * study a card. Controls, when the product allows any, are a second pill beneath it. The dot
+   * marks running or paused; nothing here animates per second (BR-CHK-002).
+   */
+  if (dock) {
+    if (m.view === "loading" || m.view === "error") return null;
+    const running = m.view === "running";
+    const r = m.receipt;
+    return (
+      <div className={`elapse elapse-dock`} data-corner={dock} data-running={running} aria-live="polite">
+        <div className="elapse-capsule">
+          <span className="elapse-dot" aria-hidden="true" />
+          {m.view === "ended" && r ? (
+            <span className="elapse-numerals elapse-capsule-amount">
+              You paid for {r.seconds} {r.seconds === 1 ? "second" : "seconds"} · {r.paid}
+            </span>
+          ) : m.view === "held" && m.held ? (
+            <span className="elapse-numerals elapse-capsule-amount">{m.held.amount} held</span>
+          ) : (
+            <>
+              <span className="elapse-numerals elapse-capsule-elapsed">{m.elapsed}</span>
+              <span className="elapse-numerals elapse-capsule-amount">{m.accrued}</span>
+            </>
+          )}
+        </div>
+        {(m.canStop || m.canPause || m.canResume) && (
+          <div className="elapse-capsule elapse-capsule-actions">
+            {m.canResume && (
+              <button type="button" className="elapse-capsule-button" onClick={m.resume} disabled={m.busy !== null}>
+                {m.busy === "resume" ? "Resuming…" : "Resume"}
+              </button>
+            )}
+            {m.canPause && (
+              <button type="button" className="elapse-capsule-button" onClick={m.pause} disabled={m.busy !== null}>
+                {m.busy === "pause" ? "Pausing…" : "Pause"}
+              </button>
+            )}
+            {m.canStop && (
+              <button type="button" className="elapse-capsule-button" onClick={m.stop} disabled={m.busy !== null}>
+                {m.busy === "cancel" ? "Stopping…" : "Stop"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (m.view === "loading") return <div className="elapse elapse-card" aria-busy="true" />;
   if (m.view === "error") return <div className="elapse elapse-card" role="alert">{m.error}</div>;

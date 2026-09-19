@@ -135,13 +135,14 @@ export function Console({ merchant }: { merchant: string }) {
       )}
 
       {phase.k === "session" && (
-        <div className="screen">
-          <Meter
-            session={phase.session}
-            onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
-            onError={(e) => setOut({ error: e.message })}
-          />
-        </div>
+        // FR-RCT-042: docked bottom-right, out of the terminal's flow — the subscriber watches the
+        // amount in the corner while their code and its output keep the page.
+        <Meter
+          session={phase.session}
+          dock="bottom-right"
+          onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
+          onError={(e) => setOut({ error: e.message })}
+        />
       )}
 
       <p className="note">

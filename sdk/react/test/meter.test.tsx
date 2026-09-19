@@ -25,7 +25,7 @@ const wire = (subscription: Sub | null, product: Sub = {}) => ({
 });
 
 let server: ReturnType<typeof wire>;
-function mount(initial: ReturnType<typeof wire>) {
+function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> = {}) {
   server = initial;
   const fetchFn = vi.fn(async () => new Response(JSON.stringify(server), { status: 200 }));
   const target = new EventTarget();
@@ -44,7 +44,7 @@ function mount(initial: ReturnType<typeof wire>) {
   const onStopped = vi.fn();
   render(
     <ElapseProvider publishableKey="pk_test_1" baseUrl="https://api.test" fetch={fetchFn as unknown as typeof fetch} popupHost={host} sound={false}>
-      <Meter session="cs_1" onStopped={onStopped} />
+      <Meter session="cs_1" onStopped={onStopped} {...props} />
     </ElapseProvider>,
   );
   return { fetchFn, open, post, onStopped };
@@ -113,5 +113,62 @@ describe("<Meter> · FR-RCT-022 receipt", () => {
     await settle();
     expect(screen.getByText(/You paid for 0 seconds · \$0\.00/)).toBeTruthy();
     expect(screen.queryByText("Started")).toBeNull();
+  });
+});
+
+describe("<Meter dock> · FR-RCT-042 the docked capsule", () => {
+  const capsule = () => document.querySelector(".elapse-dock");
+
+  it("FR_RCT_042_docks_bottom_right_as_one_small_capsule", async () => {
+    mount(wire(sub()), { dock: "bottom-right" });
+    await settle();
+    const el = capsule()!;
+    expect(el).toBeTruthy();
+    expect(el.getAttribute("data-corner")).toBe("bottom-right");
+    // The whole meter in one line: elapsed and amount, nothing else to read.
+    expect(screen.getByText("00:01:23")).toBeTruthy();
+    expect(screen.getByText("$0.333")).toBeTruthy();
+    expect(screen.queryByText("GPU")).toBeNull();
+    // A live region, because it is the only thing on screen that says what is being charged.
+    expect(el.getAttribute("aria-live")).toBe("polite");
+    expect(el.querySelector(".elapse-dot")).toBeTruthy();
+  });
+
+  it("FR_RCT_042_the_other_corner_is_a_value_not_another_component", async () => {
+    mount(wire(sub()), { dock: "bottom-left" });
+    await settle();
+    expect(capsule()!.getAttribute("data-corner")).toBe("bottom-left");
+  });
+
+  it("FR_RCT_042_inline_stays_the_default_so_no_merchant_layout_moves", async () => {
+    mount(wire(sub()));
+    await settle();
+    expect(capsule()).toBeNull();
+    expect(screen.getByText("GPU", { exact: false })).toBeTruthy();
+  });
+
+  it("FR_RCT_042_the_dot_says_running_or_paused_without_a_word", async () => {
+    mount(wire(sub()), { dock: "bottom-right" });
+    await settle();
+    expect(capsule()!.getAttribute("data-running")).toBe("true");
+    server = wire(sub({ status: "paused", paused_at: NOW / 1000 }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+    expect(capsule()!.getAttribute("data-running")).toBe("false");
+  });
+
+  it("FR_RCT_042_a_merchant_started_meter_docks_without_controls", async () => {
+    mount(wire(sub({ start_mode: "merchant", subscriber_can_stop: false }), { start_mode: "merchant" }), { dock: "bottom-right" });
+    await settle();
+    expect(capsule()).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+  });
+
+  it("FR_RCT_042_the_receipt_stays_in_the_corner_when_the_meter_ends", async () => {
+    mount(wire(sub()), { dock: "bottom-right" });
+    await settle();
+    server = wire(sub({ status: "canceled", canceled_at: NOW / 1000, ended_reason: "canceled", seconds_elapsed: 83, settled_usd: "0.332" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
+    expect(capsule()).toBeTruthy();
+    expect(screen.getByText(/You paid for 83 seconds/)).toBeTruthy();
   });
 });

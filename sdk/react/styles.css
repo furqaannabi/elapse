@@ -243,3 +243,130 @@
   margin: 0;
   text-align: right;
 }
+
+/*
+ * The docked meter (FR-RCT-042): one capsule in the corner of the merchant's page.
+ *
+ * It has to read at a glance from across a room — the subscriber is watching their own money — so
+ * it carries three things and nothing else: a dot that says running or paused, the elapsed clock,
+ * and the amount. The amount takes the accent while the meter runs and goes quiet when it does not.
+ * Nothing loops: the dot marks a transition once and then holds still (the meter ticks, the page
+ * does not blink).
+ */
+.elapse-dock {
+  position: fixed;
+  z-index: 2147483000; /* above a merchant's own chrome, below nothing that matters */
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  pointer-events: none; /* the page underneath stays usable; the pills opt back in */
+}
+
+.elapse-dock[data-corner="bottom-right"] {
+  right: calc(1rem + env(safe-area-inset-right, 0px));
+  align-items: flex-end;
+}
+
+.elapse-dock[data-corner="bottom-left"] {
+  left: calc(1rem + env(safe-area-inset-left, 0px));
+  align-items: flex-start;
+}
+
+.elapse-capsule {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 44px;
+  padding: 0 1rem;
+  background: var(--elapse-surface);
+  border: 1px solid var(--elapse-border);
+  border-radius: 999px;
+  /* Lifted, not floating: one soft shadow and a hairline of light along the top edge. */
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+
+.elapse-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--elapse-muted);
+  flex: none;
+}
+
+.elapse-dock[data-running="true"] .elapse-dot {
+  background: var(--elapse-accent);
+  box-shadow: 0 0 0 4px var(--elapse-accent-soft);
+  /* One pulse when the meter starts, then still. Never a heartbeat. */
+  animation: elapse-dot-in 420ms ease-out 1;
+}
+
+@keyframes elapse-dot-in {
+  from { transform: scale(0.4); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.elapse-capsule-elapsed {
+  font-size: 0.8125rem;
+  color: var(--elapse-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.elapse-capsule-amount {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.elapse-dock[data-running="true"] .elapse-capsule-amount {
+  color: var(--elapse-accent);
+}
+
+.elapse-capsule-actions {
+  gap: 0.25rem;
+  padding: 0 0.375rem;
+}
+
+.elapse-capsule-button {
+  min-height: 36px;
+  padding: 0 0.875rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--elapse-fg);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.elapse-capsule-button:hover:not(:disabled) {
+  background: var(--elapse-accent-soft);
+}
+
+.elapse-capsule-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* On a phone the capsule spans the gutter rather than crowding one corner. */
+@media (max-width: 29.99rem) {
+  .elapse-dock {
+    left: calc(1rem + env(safe-area-inset-left, 0px));
+    right: calc(1rem + env(safe-area-inset-right, 0px));
+    align-items: stretch;
+  }
+  .elapse-capsule {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .elapse-dock[data-running="true"] .elapse-dot {
+    animation: none;
+  }
+}
