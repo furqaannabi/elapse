@@ -230,20 +230,25 @@ contract AccrualStream is ReentrancyGuard {
 
     /// @notice Manual pause (reason 0). Paused time is never billed (FR-CON-022, BR-CON-003).
     ///         A pause that observes exhaustion ends the stream instead (FR-CON-041).
-    function pause() external nonReentrant onlyParty {
+    ///         FR-CON-074: the factory's keeper may pause too, as it may already cancel, so a
+    ///         merchant can bill only while its resource is working without holding a key. No
+    ///         money moves here, and `_refuseSubscriber` still applies (FR-CON-057).
+    function pause() external nonReentrant onlyPartyOrKeeper {
         _refuseSubscriber(msg.sender);
         _pause();
     }
 
     /// @notice Pause on behalf of a party who signed for it; the relayer submits and
-    ///         pays gas (FR-CON-018). No money moves. The keeper gets no such power.
+    ///         pays gas (FR-CON-018). No money moves. The keeper does not need this path:
+    ///         since FR-CON-074 it calls `pause()` directly.
     function pauseFor(uint256 deadline, bytes calldata signature) external nonReentrant {
         _refuseSubscriber(_consumeRelay(pauseDigest(relayNonce, deadline), deadline, signature));
         _pause();
     }
 
-    /// @notice Resume a manually paused meter (FR-CON-023).
-    function resume() external onlyParty {
+    /// @notice Resume a manually paused meter (FR-CON-023). The keeper may resume on the same
+    ///         terms as `pause()` (FR-CON-074).
+    function resume() external onlyPartyOrKeeper {
         _refuseSubscriber(msg.sender);
         _resume();
     }

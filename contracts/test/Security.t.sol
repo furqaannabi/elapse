@@ -47,9 +47,12 @@ contract SecurityTest is BaseTest {
     /// the merchant and refunds the rest, so the keeper cannot take anything. It still may not
     /// start, pause or resume.
     /// FR-CON-055 (signed 2026-09-14) widened `start` to the keeper so the relayer can start
-    /// a meter on a merchant's behalf; pause and resume stay party-only, and cancel can still
-    /// only pay elapsed seconds out and refund the rest.
-    function test_FR_CON_054_keeper_may_cancel_and_start_but_not_pause_or_resume() public {
+    /// a meter on a merchant's behalf, and FR-CON-074 (signed 2026-09-19) widened `pause` and
+    /// `resume` for the same reason: a merchant that bills only while its resource works holds
+    /// an API key, not the payout wallet. Cancel can still only pay elapsed seconds out and
+    /// refund the rest, and a stranger is still nobody. Keeper pause and resume have their own
+    /// suite in `KeeperPause.t.sol`.
+    function test_FR_CON_054_keeper_may_cancel_start_pause_and_resume_but_take_nothing() public {
         address keeper = makeAddr("keeper");
         factory.setKeeper(keeper);
         AccrualStream s = fundedStream();
@@ -60,12 +63,13 @@ contract SecurityTest is BaseTest {
 
         vm.warp(block.timestamp + 83);
 
+        // FR-CON-074: the keeper pauses and resumes, and the paused seconds are not billed.
         vm.prank(keeper);
-        vm.expectRevert(AccrualStream.NotParty.selector);
         s.pause();
+        vm.warp(block.timestamp + 500);
         vm.prank(keeper);
-        vm.expectRevert(AccrualStream.NotParty.selector);
         s.resume();
+        assertEq(s.accruedSeconds(), 83, "the 500s pause cost nothing");
 
         vm.prank(stranger);
         vm.expectRevert(AccrualStream.NotParty.selector);
@@ -361,7 +365,7 @@ contract SecurityTest is BaseTest {
         assertEq(s.accruedSeconds(), 15);
     }
 
-    function test_FR_CON_018_relayed_pause_rejects_cross_action_replay_expiry_strangers_and_keeper() public {
+    function test_FR_CON_018_relayed_pause_rejects_cross_action_replay_expiry_and_strangers() public {
         address sub = vm.addr(SUB_KEY);
         AccrualStream s = _startedStream(sub);
         uint256 deadline = block.timestamp + 300;
@@ -388,8 +392,9 @@ contract SecurityTest is BaseTest {
         vm.expectRevert(AccrualStream.BadSignature.selector);
         s.pauseFor(deadline, strangerSig);
 
-        // The keeper has no pause without a signature (unlike cancel, FR-CON-054).
-        vm.prank(factory.keeper());
+        // FR-CON-074: the keeper needs no signature to pause; a *stranger* still does, which is
+        // what this suite is about. (Left here so the contrast stays visible.)
+        vm.prank(stranger);
         vm.expectRevert(AccrualStream.NotParty.selector);
         s.pause();
 
