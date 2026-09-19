@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Run the Week 1 kill gate on Monad testnet with the `elapse-dev` keystore.
+# Run the Week 1 kill gate on Monad testnet from a cast keystore account.
+# The account is the last argument, or ACCOUNT in the environment; defaults to `elapse-dev`.
 # Usage: ./killgate-testnet.sh start [token]   then, after 83+ seconds:
 #        ./killgate-testnet.sh cancel
 # Without a token it runs on the deployment's MockUSD and mints. With one
@@ -13,4 +14,4 @@ if [ -n "${2:-}" ]; then export TOKEN="$2"; fi
 forge script script/KillGate.s.sol --sig "${STEP}()" \
   --rpc-url monad_testnet \
   --broadcast \
-  --account elapse-dev
+  --account "${ACCOUNT:-elapse-dev}"

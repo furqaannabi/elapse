@@ -76,7 +76,7 @@ Six-week plan in the detailed doc §12. The gates that matter:
 
 Every change to `contracts/src` means a fresh factory: clones read the implementation the factory was born with. Running meters on the old factory are orphaned, so stop them first (`select count(*) from subscriptions where status in ('active','paused')` should be 0).
 
-1. `cd contracts && ./deploy-testnet.sh <treasury> <relayer>` from the `elapse-dev` keystore. The relayer becomes the keeper in the same run; `deployments/10143.json` is rewritten with the receipt block.
+1. `cd contracts && ./deploy-testnet.sh <treasury> <relayer> [account]` — the account is the cast keystore that signs and becomes the factory's owner (`cast wallet list`), defaulting to `elapse-dev`; the testnet factory has been owned by `hackathons` since 2026-09-14. The relayer becomes the keeper in the same run; `deployments/10143.json` is rewritten with the receipt block.
 2. `cd api && pnpm sync-deployments` and `cd indexer && pnpm sync-abi` copy the record (and the ABIs) into the packages that build alone.
 3. In `indexer/config.yaml` set `start_block` to the new `deployedAtBlock` and the factory `address` to the new one.
 4. Restart the API, the worker and `pnpm envio dev -r` (the `-r` resets the local index to the new start block). `GET /v1/status` must show the new factory and zero indexer lag.
