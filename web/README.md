@@ -5,11 +5,14 @@ One Next.js 16 App Router app, deployed on Vercel at <https://elapse.finance>.
 | Route | What | Rendering | Spec |
 | --- | --- | --- | --- |
 | `/` | Landing for founders and finance owners | Server component, static | `docs/specs/landing-frd.md` |
-| `/c/[session]` | Hosted checkout: Privy sign-in, cap, Face ID permit, live USD ticker, pause, stop, receipt. No chain words outside judge mode. | Client | `docs/specs/checkout-frd.md` |
+| `/authorize` | The page `@elapse/react` frames over a merchant's own page for every signature: Privy sign-in, cap, Face ID permit, Add funds. Framed only by the origin of the session's `success_url`; falls back to a window when a passkey cannot be enrolled in a frame. | Client | `docs/specs/checkout-frd.md` (FR-CHK-038) |
+| `/c/[session]` | Retired. One sentence pointing an old link back to the merchant (FR-CHK-040) | Client | `docs/specs/checkout-frd.md` |
 | `/account` | The subscriber's meters and receipts across merchants | Client | `docs/specs/checkout-frd.md` (FR-CHK-016..030) |
 | `/login`, `/dashboard/*` | Merchant dashboard: home, products, subscriptions, customers, invoices, balance and payouts, developers (keys, webhooks, events), settings | Client, cookie session | `docs/specs/dashboard-frd.md` |
 
 Visual world: [`DESIGN.md`](../DESIGN.md) at the repo root. Every surface inherits it; no new direction is rolled per page.
+
+The subscriber's meter now lives in the merchant's page, not here: [`@elapse/react`](../sdk/react) renders it and frames `/authorize` for the signatures.
 
 ## Run
 

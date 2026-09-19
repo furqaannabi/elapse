@@ -25,7 +25,7 @@ forge test
 
 | File | Purpose |
 | --- | --- |
-| `src/AccrualStream.sol` | The meter: escrow with a hard cap, start / pause / resume / cancel, settle with fee split, cap end, relayed cancel by signature |
+| `src/AccrualStream.sol` | The meter: escrow with a hard cap, start / pause / resume / cancel, settle with fee split, cap end, relayed actions by signature. Who may do what: a checkout-mode subscriber controls their own meter; a merchant-started one is the merchant's or the keeper's in every state, held included (FR-CON-057), and the keeper may start, pause, resume and cancel so the platform can act for a merchant that holds no key (FR-CON-054/055/074) |
 | `src/StreamFactory.sol` | Clones, fee and treasury knobs (10 % ceiling; 2 % deployed), `createWithPermit` (one signature, one transaction), `settleBatch` |
 | `src/MockUSD.sol` | Foundry test double: six-decimal ERC-20 with `permit` and a public `mint`, same shape as AUSD. Never deployed (FR-CON-063, ADR 2026-09-13) |
 | `script/Deploy.s.sol` | Deploys the factory and writes `deployments/<chainId>.json` |

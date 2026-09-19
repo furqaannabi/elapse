@@ -37,7 +37,7 @@ Hand `session.id` to your front end and render `<Authorize session={session.id} 
 | --- | --- |
 | `products.create / retrieve / list` | `POST /v1/products`, `GET /v1/products/:id`, `GET /v1/products` |
 | `checkout.sessions.create` | `POST /v1/checkout/sessions` |
-| `subscriptions.retrieve / list / cancel / start` | `GET /v1/subscriptions/:id`, `GET /v1/subscriptions`, `POST /v1/subscriptions/:id/cancel`, `POST /v1/subscriptions/:id/start` |
+| `subscriptions.retrieve / list / cancel / start / pause / resume` | `GET /v1/subscriptions/:id`, `GET /v1/subscriptions`, `POST /v1/subscriptions/:id/cancel`, `/start`, `/pause`, `/resume` |
 | `customers.retrieve` | `GET /v1/customers/:id` |
 | `invoices.list` | `GET /v1/invoices` |
 | `webhooks.constructEvent(rawBody, header, secret)` | local |
@@ -45,6 +45,8 @@ Hand `session.id` to your front end and render `<Authorize session={session.id} 
 Requests take the camelCase keys shown above. Responses are the API's objects as they come, snake_case, identical to the cURL tab and to webhook bodies.
 
 ## Webhooks
+
+`start`, `pause` and `resume` are for a merchant whose meter should run only while its resource does: start when it is ready, pause the moment the work ends, resume for the next piece. Paused seconds are never billed, and each answers `202` — the status follows by webhook once the chain confirms.
 
 Six event types: `checkout.session.completed`, `subscription.created`, `subscription.updated`, `subscription.canceled`, `invoice.settled`, `invoice.payment_failed`. Never anything per second: compute a live meter from `rate_usd_per_second` and `started_at`.
 

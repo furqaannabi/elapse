@@ -76,6 +76,20 @@ Platform chore (Undecided 4): keep the relayer topped up from the testnet faucet
 ~100 gwei: a checkout (mint + `createWithPermit`) costs about 0.1 MON, so one 5 MON claim is ~50 checkouts.
 An empty relayer answers `503 relayer_unfunded`; the page says nothing was charged. `pnpm sync-deployments` refreshes `deployments/<chainId>.json`.
 
+### Merchant-driven meters
+
+`POST /v1/subscriptions/:id/start` starts a `merchant`-mode meter when the resource is ready;
+`/pause` and `/resume` stop and restart the clock around the work itself (contracts FR-CON-074 lets
+the relayer, as keeper, do both). `/cancel` ends it, and since 2026-09-19 also releases a *held*
+session — one authorised but never started — which the subscriber may no longer do themselves
+(FR-CON-057). If nobody releases it, the unstarted sweep refunds it in full after
+`min(cap, UNSTARTED_WINDOW_S)`. All four answer `202` with `pending_tx`; the status follows from
+ingest, never from the transaction receipt.
+
+The public session read carries `start_tx` and `end_tx` (FR-API-143) so `<Meter proof>` can show
+the two transactions that bracket a meter. They are written at ingest and are public chain data;
+`pending_tx` deliberately stays out of that read, because it holds whatever went out last.
+
 ## Proven live (2026-09-05, Monad testnet)
 
 Checkout `prepare` → permit signature → `start` → relayer tx

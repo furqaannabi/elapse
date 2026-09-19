@@ -35,7 +35,7 @@ Local `.env` values (`ENVIO_INGEST_URL=http://localhost:4000/internal/ingest`) p
 
 | Path | Purpose |
 | --- | --- |
-| `config.yaml` | Chain 10143, `start_block` = factory deployment block, `StreamFactory` fixed + `AccrualStream` dynamic, `address_format: lowercase`, `rollback_on_reorg: false` |
+| `config.yaml` | Chain 10143, `start_block` = factory deployment block, `StreamFactory` fixed + `AccrualStream` dynamic, `address_format: lowercase`, `rollback_on_reorg: false`. Both move on every contract redeploy, from `deployments/10143.json` — `deployment-sync.test.ts` fails if they drift, and the deployment must then be re-run on Envio Cloud so it re-syncs from the new block |
 | `schema.graphql` | `Stream`, `StreamEvent`, `Settlement`, `Factory`, `LedgerEntry` (FR-IDX-010..014) |
 | `src/handlers/StreamFactory.ts` | `StreamCreated` (register clone, create `Stream`, `Factory.streamCount++`), `FeeChanged` |
 | `src/handlers/AccrualStream.ts` | `Deposited`, `StreamStarted`, `StreamPaused`, `StreamResumed`, `Settled`, `StreamCanceled` — pure state transitions + ledger rows |
