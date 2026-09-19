@@ -21,10 +21,12 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
    * marks running or paused; nothing here animates per second (BR-CHK-002).
    */
   if (dock) {
-    if (m.view === "loading" || m.view === "error") return null;
+    if (m.view === "loading" || m.view === "error") return <>{m.modal}</>;
     const running = m.view === "running";
     const r = m.receipt;
     return (
+      <>
+      {m.modal}
       <div className={`elapse elapse-dock`} data-corner={dock} data-running={running} aria-live="polite">
         <div className="elapse-capsule">
           <span className="elapse-dot" aria-hidden="true" />
@@ -61,11 +63,12 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
           </div>
         )}
       </div>
+      </>
     );
   }
 
-  if (m.view === "loading") return <div className="elapse elapse-card" aria-busy="true" />;
-  if (m.view === "error") return <div className="elapse elapse-card" role="alert">{m.error}</div>;
+  if (m.view === "loading") return <>{m.modal}<div className="elapse elapse-card" aria-busy="true" /></>;
+  if (m.view === "error") return <>{m.modal}<div className="elapse elapse-card" role="alert">{m.error}</div></>;
   const s = m.session!;
   const sub = s.subscription;
 
@@ -77,14 +80,19 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
 
   if (m.view === "waiting") {
     return (
+      <>
+      {m.modal}
       <div className="elapse elapse-card" aria-live="polite">
         <p className="elapse-muted">Your meter hasn&rsquo;t started yet.</p>
       </div>
+      </>
     );
   }
 
   if (m.view === "held" && m.held) {
     return (
+      <>
+      {m.modal}
       <div className="elapse elapse-card" aria-live="polite">
         <h2 className="elapse-title">Waiting for {s.merchant.name} to start</h2>
         <p className="elapse-numerals">{m.held.amount} held · You haven&rsquo;t been charged.</p>
@@ -94,12 +102,15 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
           {m.busy === "cancel" ? "Stopping…" : "Stop"}
         </button>
       </div>
+      </>
     );
   }
 
   if (m.view === "ended" && m.receipt) {
     const r = m.receipt;
     return (
+      <>
+      {m.modal}
       <div className="elapse elapse-card" aria-live="polite">
         <h2 className="elapse-title">
           You paid for {r.seconds} {r.seconds === 1 ? "second" : "seconds"} · {r.paid}
@@ -117,11 +128,14 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
           <dd className="elapse-numerals">{r.returned}</dd>
         </dl>
       </div>
+      </>
     );
   }
 
   const paused = m.view === "paused";
   return (
+    <>
+    {m.modal}
     <div className="elapse elapse-card" aria-live="polite">
       <p className="elapse-label">
         {s.product.name} · <span className="elapse-numerals">${s.product.rateUsdPerSecond}/s</span>
@@ -155,5 +169,6 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
         )}
       </div>
     </div>
+    </>
   );
 }

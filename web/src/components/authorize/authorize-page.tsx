@@ -21,7 +21,7 @@ import { getCheckoutApi } from "@/lib/checkout/client";
 import { formatReceiptUsd, maxEscrowNano, parseUsd } from "@/lib/checkout/funding";
 import { CheckoutApiError, type SubmitAction } from "@/lib/checkout/mock-api";
 import type { CheckoutBalance, CheckoutSession } from "@/lib/checkout/types";
-import { postResult, type ResultStep } from "@/lib/authorize/result";
+import { postResult, resultTargetOrigin, type ResultStep } from "@/lib/authorize/result";
 import { parseRate } from "@/lib/meter/math";
 
 const STEP: Record<SubmitAction, ResultStep> = { authorise: "authorised", cancel: "stopped", pause: "paused", resume: "resumed" };
@@ -42,14 +42,20 @@ export function AuthorizePage({
   action: rawAction,
   cap,
   nonce,
-  opener = typeof window === "undefined" ? null : (window.opener as Opener),
+  mode,
+  signedIn: signedInProp,
+  opener = typeof window === "undefined" ? null : ((window.opener ?? window.parent) as Opener),
   close = () => window.close(),
 }: {
   session: string;
   action: string;
   cap?: string;
   nonce: string;
-  /** Injected in tests; the window that opened the popup. */
+  /** `frame` when `@elapse/react` renders this page in its modal (FR-RCT-043). */
+  mode?: string;
+  /** Injected in tests; otherwise read from the wallet flow. */
+  signedIn?: boolean;
+  /** Injected in tests; the window that opened this page — the opener, or the parent in a frame. */
   opener?: Opener;
   close?: () => void;
 }) {
@@ -97,6 +103,30 @@ export function AuthorizePage({
     silent.current = true;
     void Promise.resolve().then(() => signIn({}));
   }, [flow.signedInAlready, state.kind, signedIn, signIn]);
+
+  /**
+   * FR-CHK-038 (amended 2026-09-19): in a frame, Face ID is only half available. Browsers allow an
+   * existing passkey to be used inside a cross-origin frame but refuse to enrol a new one, so a
+   * subscriber without a session cannot get through here at all. Rather than let them meet a
+   * failure they cannot act on, the page says so and `@elapse/react` reopens the same attempt in a
+   * window (FR-RCT-043). Signed in, the frame is the better place and we stay.
+   */
+  const framed = mode === "frame";
+  // The session's own answer, unless a test says otherwise. A wallet this device already holds
+  // (`flow.signedInAlready`) counts too: it needs no enrolment.
+  const hasSession = signedInProp ?? (signedIn || !!flow.signedInAlready);
+  const askedForWindow = useRef(false);
+  const askForWindow = useCallback(() => {
+    if (askedForWindow.current || !session) return;
+    const target = resultTargetOrigin(session.merchant.successUrl);
+    if (!opener || !target) return;
+    askedForWindow.current = true;
+    opener.postMessage({ type: "elapse:needs-window", nonce }, target);
+  }, [opener, session, nonce]);
+
+  useEffect(() => {
+    if (framed && session && !hasSession) askForWindow();
+  }, [framed, session, hasSession, askForWindow]);
 
   const confirm = async () => {
     if (!action || !session) return;
@@ -160,6 +190,17 @@ export function AuthorizePage({
               {busy ? "Confirming…" : "Confirm with Face ID"}
             </Button>
           </>
+        )}
+
+        {/*
+          * FR-CHK-038: in a frame, a quiet way out. Face ID inside a cross-origin frame works only
+          * for a passkey this device already holds, and the subscriber cannot be expected to know
+          * that — so the escape is always one press away, not a thing they must discover.
+          */}
+        {framed && state.kind === "ready" && (
+          <button type="button" onClick={askForWindow} className="mx-auto min-h-11 text-sm text-ink-soft underline-offset-4 hover:underline">
+            Having trouble? Open a window
+          </button>
         )}
 
         {state.kind === "funds" && (

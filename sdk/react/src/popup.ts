@@ -47,6 +47,34 @@ function newNonce(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * The Elapse page for one signature attempt. `mode` tells the page whether it is in a frame
+ * (FR-RCT-043) and `pk` lets it resolve who may frame it from the session (checkout FR-CHK-038).
+ */
+export function signatureUrl(o: {
+  appOrigin: string;
+  session: string;
+  action: SignAction;
+  nonce: string;
+  capSeconds?: number;
+  mode?: "frame";
+  publishableKey?: string;
+}): string {
+  const url = new URL("/authorize", new URL(o.appOrigin).origin);
+  url.searchParams.set("session", o.session);
+  url.searchParams.set("action", o.action);
+  if (o.capSeconds !== undefined) url.searchParams.set("cap", String(o.capSeconds));
+  url.searchParams.set("nonce", o.nonce);
+  if (o.mode) url.searchParams.set("mode", o.mode);
+  if (o.publishableKey) url.searchParams.set("pk", o.publishableKey);
+  return url.toString();
+}
+
+/** A fresh nonce for one attempt; the frame and its fallback window share it (FR-RCT-043). */
+export function newSignatureNonce(): string {
+  return newNonce();
+}
+
 export function requestSignature(opts: {
   appOrigin: string;
   session: string;
@@ -62,11 +90,7 @@ export function requestSignature(opts: {
   const nonce = opts.nonce ?? newNonce();
   const appOrigin = new URL(opts.appOrigin).origin;
 
-  const url = new URL("/authorize", appOrigin);
-  url.searchParams.set("session", opts.session);
-  url.searchParams.set("action", opts.action);
-  if (opts.capSeconds !== undefined) url.searchParams.set("cap", String(opts.capSeconds));
-  url.searchParams.set("nonce", nonce);
+  const url = new URL(signatureUrl({ appOrigin, session: opts.session, action: opts.action, nonce, ...(opts.capSeconds === undefined ? {} : { capSeconds: opts.capSeconds }) }));
 
   const left = Math.round(host.screenX + (host.outerWidth - WIDTH) / 2);
   const top = Math.round(host.screenY + (host.outerHeight - HEIGHT) / 2);

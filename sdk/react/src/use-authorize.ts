@@ -1,11 +1,13 @@
 /**
  * `useAuthorize(session)` — the authorise flow without markup (FR-RCT-030). `<Authorize>` is built only
- * from this hook. It reads the public session, and `authorise(cap)` opens the Elapse popup inside the
- * caller's click (FR-RCT-011), then reports what came back (FR-RCT-013/014/031).
+ * from this hook. It reads the public session, and `authorise(cap)` asks for a signature — in a modal
+ * frame, or a window when the frame cannot do Face ID (FR-RCT-011/043) — then reports what came back
+ * (FR-RCT-013/014/031). `modal` is the element the component must render for the frame to exist.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explorerUrl } from "./explorer";
-import { requestSignature, SignatureError } from "./popup";
+import { SignatureError } from "./popup";
+import { useSignature } from "./signature";
 import { useElapseConfig } from "./provider";
 import { fetchPublicSession, type PublicSession } from "./session";
 
@@ -28,6 +30,8 @@ export function useAuthorize(
   handlers: { onAuthorised?: (e: StepEvent) => void; onStarted?: (e: StepEvent) => void; onError?: (e: Error) => void } = {},
 ) {
   const config = useElapseConfig();
+  // FR-RCT-043: the signature happens in a frame on this page, or in a window if it must.
+  const { request, modal } = useSignature(sessionId);
   const [state, setState] = useState<AuthorizeState>({ kind: "loading" });
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -50,14 +54,8 @@ export function useAuthorize(
     (capSeconds: number) => {
       if (state.kind !== "ready") return;
       const session = state.session;
-      // Synchronous: the popup must open inside the click that called this.
-      const { result } = requestSignature({
-        appOrigin: config.appOrigin,
-        session: sessionId,
-        action: "authorise",
-        capSeconds,
-        ...(config.popupHost ? { host: config.popupHost } : {}),
-      });
+      // Synchronous: a window, if this attempt needs one, must open inside the click that called this.
+      const result = request({ action: "authorise", capSeconds });
       setState({ kind: "authorising", session });
       result.then(
         (r) => {
@@ -77,8 +75,8 @@ export function useAuthorize(
         },
       );
     },
-    [config, sessionId, state],
+    [request, state],
   );
 
-  return { state, authorise };
+  return { state, authorise, modal };
 }

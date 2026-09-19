@@ -76,4 +76,37 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
     render(<AuthorizePage session="cs_ready" action="drain" nonce="n1" opener={null} close={vi.fn()} />);
     expect(await screen.findByText("This link is not valid.")).toBeInTheDocument();
   });
+
+  it("FR_CHK_038_framed_and_signed_out_it_asks_for_a_window_instead_of_failing_Face_ID", async () => {
+    // Browsers block passkey enrolment in a cross-origin frame, so a subscriber with no session
+    // cannot get through here. Saying so at once is what makes the fallback automatic (FR-RCT-043).
+    const parent = { postMessage: vi.fn() };
+    render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" mode="frame" signedIn={false} opener={parent} close={vi.fn()} />);
+    await waitFor(() => expect(parent.postMessage).toHaveBeenCalledTimes(1));
+    const [message, target] = parent.postMessage.mock.calls[0]!;
+    expect(message).toEqual({ type: "elapse:needs-window", nonce: "n1" });
+    expect(target).toBe("https://nimbus.example");
+  });
+
+  it("FR_CHK_038_framed_and_signed_in_it_stays_in_the_frame", async () => {
+    const parent = { postMessage: vi.fn() };
+    render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" mode="frame" signedIn opener={parent} close={vi.fn()} />);
+    expect(await screen.findByRole("heading", { name: "Authorise up to $14.40 for Nimbus" })).toBeInTheDocument();
+    expect(parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("FR_CHK_038_framed_it_offers_a_window_on_demand", async () => {
+    const parent = { postMessage: vi.fn() };
+    render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" mode="frame" signedIn opener={parent} close={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Open a window/i }));
+    expect(parent.postMessage).toHaveBeenCalledWith({ type: "elapse:needs-window", nonce: "n1" }, "https://nimbus.example");
+  });
+
+  it("FR_CHK_038_windowed_it_never_asks_for_a_window", async () => {
+    const opener = { postMessage: vi.fn() };
+    render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" signedIn={false} opener={opener} close={vi.fn()} />);
+    await screen.findByRole("heading", { name: "Authorise up to $14.40 for Nimbus" });
+    expect(screen.queryByRole("button", { name: /Open a window/i })).not.toBeInTheDocument();
+    expect(opener.postMessage).not.toHaveBeenCalled();
+  });
 });

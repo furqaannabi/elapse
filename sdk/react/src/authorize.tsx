@@ -20,30 +20,36 @@ export function Authorize({
   onStarted?: (e: StepEvent) => void;
   onError?: (e: Error) => void;
 }) {
-  const { state, authorise } = useAuthorize(session, {
+  const { state, authorise, modal } = useAuthorize(session, {
     ...(onAuthorised ? { onAuthorised } : {}),
     ...(onStarted ? { onStarted } : {}),
     ...(onError ? { onError } : {}),
   });
   const [cap, setCap] = useState<number>(CAP_PRESETS_SECONDS[0]);
 
-  if (state.kind === "loading") return <div className="elapse elapse-card" aria-busy="true" />;
-  if (state.kind === "error") return <div className="elapse elapse-card" role="alert">{state.message}</div>;
+  if (state.kind === "loading") return <>{modal}<div className="elapse elapse-card" aria-busy="true" /></>;
+  if (state.kind === "error") return <>{modal}<div className="elapse elapse-card" role="alert">{state.message}</div></>;
 
   const s = state.session;
   if (state.kind === "held") {
     return (
-      <div className="elapse elapse-card" aria-live="polite">
-        <h2 className="elapse-title">Waiting for {s.merchant.name} to start</h2>
-        <p className="elapse-muted">You haven&rsquo;t been charged.</p>
-      </div>
+      <>
+        {modal}
+        <div className="elapse elapse-card" aria-live="polite">
+          <h2 className="elapse-title">Waiting for {s.merchant.name} to start</h2>
+          <p className="elapse-muted">You haven&rsquo;t been charged.</p>
+        </div>
+      </>
     );
   }
   if (state.kind === "started") {
     return (
-      <div className="elapse elapse-card" aria-live="polite">
-        <h2 className="elapse-title">Your meter is running</h2>
-      </div>
+      <>
+        {modal}
+        <div className="elapse elapse-card" aria-live="polite">
+          <h2 className="elapse-title">Your meter is running</h2>
+        </div>
+      </>
     );
   }
 
@@ -53,7 +59,9 @@ export function Authorize({
   const blocked = notice !== null && notice.startsWith("Your browser blocked");
 
   return (
-    <div className="elapse elapse-card">
+    <>
+      {modal}
+      <div className="elapse elapse-card">
       <p className="elapse-label">How long may the meter run?</p>
       <div className="elapse-presets" role="radiogroup" aria-label="How long">
         {CAP_PRESETS_SECONDS.map((seconds) => (
@@ -88,6 +96,7 @@ export function Authorize({
       <button type="button" className="elapse-primary" onClick={() => authorise(cap)} disabled={busy}>
         {busy ? "Waiting for Face ID…" : blocked ? "Try again" : "Authorise"}
       </button>
-    </div>
+      </div>
+    </>
   );
 }

@@ -8,7 +8,7 @@ import { usesRealApi } from "@/lib/checkout/client";
 import { PrivyCheckout } from "@/lib/checkout/privy/privy-checkout";
 import { AuthorizePage } from "./authorize-page";
 
-export function AuthorizeRoot(props: { session: string; action: string; cap?: string; nonce: string }) {
+export function AuthorizeRoot(props: { session: string; action: string; cap?: string; nonce: string; mode?: string }) {
   const page = <AuthorizePage {...props} />;
   return usesRealApi(props.session) ? <PrivyCheckout>{page}</PrivyCheckout> : page;
 }

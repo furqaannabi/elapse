@@ -12,7 +12,8 @@ import { accruedNano, elapsedMs, formatElapsed, formatUsd, parseRate } from "./m
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explorerUrl } from "./explorer";
 import { formatAmount } from "./money";
-import { requestSignature, SignatureError, type SignAction } from "./popup";
+import { SignatureError, type SignAction } from "./popup";
+import { useSignature } from "./signature";
 import { useElapseConfig } from "./provider";
 import { fetchPublicSession, type PublicSession } from "./session";
 import type { StepEvent } from "./use-authorize";
@@ -40,6 +41,8 @@ export interface MeterReceipt {
 
 export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   const config = useElapseConfig();
+  // FR-RCT-043: every signature — stop, pause, resume — happens in the frame or its fallback window.
+  const { request, modal } = useSignature(sessionId);
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -113,8 +116,9 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
     (action: Exclude<SignAction, "authorise">) => {
       if (!sub) return;
       setNotice(null);
-      // Synchronous: the popup must open inside the click.
-      const { result } = requestSignature({ appOrigin: config.appOrigin, session: sessionId, action, ...(config.popupHost ? { host: config.popupHost } : {}) });
+      // FR-RCT-043: in the frame on this page, or a window if the frame cannot do Face ID.
+      // Synchronous, because a window must open inside the click that asked for it.
+      const result = request({ action });
       setBusy(action);
       result.then(
         (r) => {
@@ -132,7 +136,7 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
         },
       );
     },
-    [config, sessionId, sub, read],
+    [request, sub, read],
   );
 
   const receipt: MeterReceipt | null =
@@ -148,6 +152,7 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
       : null;
 
   return {
+    modal,
     view,
     session,
     error,

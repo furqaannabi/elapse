@@ -370,3 +370,118 @@
     animation: none;
   }
 }
+
+/*
+ * The signing modal (FR-RCT-043/044): Elapse's own page, in a frame, over the merchant's.
+ *
+ * It is a window's worth of content without being a window, so it keeps a window's proportions on
+ * a desktop and becomes a sheet on a phone, where a centred box with margins would be worse than
+ * either. The backdrop dims the merchant's page rather than hiding it: the subscriber should still
+ * see where they are. Nothing here is decorative — the only motion is the one that says "this
+ * arrived".
+ */
+.elapse-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483600; /* above the docked meter, which it may cover while open */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.elapse-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  animation: elapse-fade-in 160ms ease-out 1;
+}
+
+.elapse-modal-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 100%);
+  height: min(680px, 100%);
+  background: var(--elapse-surface);
+  border: 1px solid var(--elapse-border);
+  border-radius: calc(var(--elapse-radius) * 2);
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  outline: none;
+  animation: elapse-modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+
+.elapse-modal-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: var(--elapse-bg);
+}
+
+/* Two quiet exits: the window handoff a first-time subscriber will need, and cancel. */
+.elapse-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--elapse-border);
+}
+
+.elapse-modal-link {
+  min-height: 36px;
+  padding: 0 0.625rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--elapse-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--elapse-radius);
+  cursor: pointer;
+}
+
+.elapse-modal-link:hover {
+  color: var(--elapse-fg);
+}
+
+@keyframes elapse-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes elapse-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* On a phone it is a sheet: full width, anchored to the bottom, thumb on the exits. */
+@media (max-width: 29.99rem) {
+  .elapse-modal {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .elapse-modal-panel {
+    width: 100%;
+    height: 92%;
+    border-radius: calc(var(--elapse-radius) * 3) calc(var(--elapse-radius) * 3) 0 0;
+    border-bottom: 0;
+    animation-name: elapse-sheet-in;
+  }
+  .elapse-modal-link {
+    min-height: 44px;
+  }
+}
+
+@keyframes elapse-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .elapse-modal-panel,
+  .elapse-modal-backdrop {
+    animation: none;
+  }
+}

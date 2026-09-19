@@ -37,9 +37,11 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
     removeEventListener: target.removeEventListener.bind(target) as PopupHost["removeEventListener"],
     screenX: 0, screenY: 0, outerWidth: 1280, outerHeight: 800,
   };
+  const frame = () => document.querySelector("iframe.elapse-modal-frame") as HTMLIFrameElement | null;
+  /** A result as the framed Elapse page sends it (FR-RCT-043). */
   const post = (data: Record<string, unknown>) => {
-    const nonce = new URL((open.mock.calls.at(-1) as unknown as [string])[0]).searchParams.get("nonce");
-    target.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce, ...data }, origin: "https://elapse.finance", source: popup }));
+    const nonce = new URL(frame()!.src).searchParams.get("nonce");
+    window.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce, ...data }, origin: "https://elapse.finance", source: frame()!.contentWindow }));
   };
   const onStopped = vi.fn();
   render(
@@ -47,7 +49,7 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
       <Meter session="cs_1" onStopped={onStopped} {...props} />
     </ElapseProvider>,
   );
-  return { fetchFn, open, post, onStopped };
+  return { fetchFn, open, post, frame, onStopped };
 }
 
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -79,13 +81,16 @@ describe("<Meter> · FR-RCT-020 the live meter", () => {
 });
 
 describe("<Meter> · FR-RCT-021 controls follow the start mode", () => {
-  it("FR_RCT_021_checkout_mode_has_stop_and_pause_which_open_the_popup", async () => {
-    const { open, post, onStopped } = mount(wire(sub(), { allow_pause: true }));
+  it("FR_RCT_021_checkout_mode_has_stop_and_pause_which_open_elapse", async () => {
+    const { open, post, frame, onStopped } = mount(wire(sub(), { allow_pause: true }));
     await settle();
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    const url = new URL((open.mock.calls[0] as unknown as [string])[0]);
+    // FR-RCT-043: in the frame on the merchant's page, not a window.
+    expect(open).not.toHaveBeenCalled();
+    const url = new URL(frame()!.src);
     expect(url.searchParams.get("action")).toBe("cancel");
+    expect(url.searchParams.get("mode")).toBe("frame");
     await act(async () => { post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
     expect(onStopped).toHaveBeenCalledWith({ subscription: "sub_1", txHash: "0xabc", explorerUrl: "https://testnet.monadscan.com/tx/0xabc" });
   });
