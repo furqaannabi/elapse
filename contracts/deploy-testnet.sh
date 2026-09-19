@@ -35,3 +35,6 @@ for path in glob.glob('deployments/*.json'):
     json.dump(d, open(path, 'w'), indent=2); open(path, 'a').write('\n')
 PY
 
+# Verification is a separate step so a failed or rate-limited Sourcify run never leaves the
+# deployment record unwritten, and so it can be re-run on its own.
+./verify-testnet.sh "${CHAIN_ID:-10143}"

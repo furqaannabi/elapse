@@ -57,7 +57,21 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
-## Current testnet deployment (2026-09-17, only the merchant stops)
+## Current testnet deployment (2026-09-19, the keeper may pause)
+
+| | |
+| --- | --- |
+| Factory | [`0x6D6A5E80Fbe09552f2B604D23e207A76B85C8695`](https://testnet.monadscan.com/address/0x6D6A5E80Fbe09552f2B604D23e207A76B85C8695) · Sourcify exact match |
+| Implementation | `0x08066b4561065A8b132C9Ef6bF6749c98449195e` · Sourcify exact match |
+| Owner | `0x35134987bB541607Cd45e62Dd1feA4F587607817` (the `hackathons` keystore) |
+| Keeper (relayer) | `0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35`, set in the deploy run |
+| Fee | 200 bps from the constructor — no `setFee` needed, unlike every deployment before it |
+| Block | 63828958, tx `0x4cbee535…759143` |
+| Why | FR-CON-074: `pause()` and `resume()` accept the factory's keeper, so a merchant can bill only while its resource is working ([ADR 2026-09-19](../docs/decisions/2026-09-19-keeper-may-pause.md)) |
+
+Streams created on an earlier factory keep that factory's rules; nothing migrates.
+
+## Previous testnet deployment (2026-09-17, only the merchant stops)
 
 | | |
 | --- | --- |
