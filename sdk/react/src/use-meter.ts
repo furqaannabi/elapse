@@ -123,6 +123,7 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
       result.then(
         (r) => {
           const event = { subscription: r.subscription, txHash: r.txHash, explorerUrl: explorerUrl(r.txHash, sub.chainId) };
+          config.cues.play(r.step === "resumed" ? "started" : "stopped");
           if (r.step === "stopped") handlersRef.current.onStopped?.(event);
           if (r.step === "paused") handlersRef.current.onPaused?.(event);
           if (r.step === "resumed") handlersRef.current.onResumed?.(event);
@@ -136,7 +137,7 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
         },
       );
     },
-    [request, sub, read],
+    [request, sub, read, config],
   );
 
   const receipt: MeterReceipt | null =

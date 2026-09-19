@@ -9,6 +9,7 @@
  */
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import type { PopupHost } from "./popup";
+import { createCues, type Cues } from "./sound";
 
 export interface ElapseConfig {
   publishableKey: string;
@@ -17,6 +18,8 @@ export interface ElapseConfig {
   /** Where the signing popup lives (FR-CHK-038); defaults to production. */
   appOrigin: string;
   sound: boolean;
+  /** The meter's cues (FR-RCT-050); silent when `sound` is false or the subscriber muted. */
+  cues: Cues;
   /** Testing seams; merchants never set these. */
   fetch: typeof fetch;
   popupHost: PopupHost | undefined;
@@ -31,6 +34,7 @@ export function ElapseProvider({
   sound = true,
   fetch: fetchFn,
   popupHost,
+  audioContext,
   children,
 }: {
   publishableKey: string;
@@ -41,6 +45,8 @@ export function ElapseProvider({
   fetch?: typeof fetch;
   /** @internal Testing seam: the window the popup is opened from. */
   popupHost?: PopupHost;
+  /** @internal Testing seam: where the cues get their AudioContext. */
+  audioContext?: () => AudioContext;
   children: ReactNode;
 }) {
   if (publishableKey.startsWith("sk_")) {
@@ -55,10 +61,11 @@ export function ElapseProvider({
       baseUrl: baseUrl.replace(/\/+$/, ""),
       appOrigin: appOrigin.replace(/\/+$/, ""),
       sound,
+      cues: createCues({ enabled: sound, ...(audioContext ? { context: audioContext } : {}) }),
       fetch: fetchFn ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args)),
       popupHost,
     }),
-    [publishableKey, baseUrl, appOrigin, sound, fetchFn, popupHost],
+    [publishableKey, baseUrl, appOrigin, sound, fetchFn, popupHost, audioContext],
   );
   return <ElapseContext.Provider value={value}>{children}</ElapseContext.Provider>;
 }

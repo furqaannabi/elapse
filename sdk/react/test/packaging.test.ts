@@ -80,6 +80,22 @@ describe("FR-RCT-001 packaging", () => {
     expect(js).toContain("mount");
   });
 
+  it("FR-RCT-041: whatever moves stops moving under prefers-reduced-motion", () => {
+    const css = read("styles.css");
+    const cut = css.indexOf("@media (prefers-reduced-motion: reduce)");
+    expect(cut).toBeGreaterThan(-1);
+    // Every selector that starts an animation must be named again inside a reduced-motion block.
+    const moving = [...css.matchAll(/([^{}]+)\{([^}]*animation[^}]*)\}/g)]
+      .filter(([, , body]) => /animation(-name)?:\s*(?!none)/.test(body!))
+      .map(([, selector]) => selector!.trim())
+      .filter((sel) => !sel.startsWith("@") && !sel.startsWith("from") && !sel.startsWith("to"));
+    expect(moving.length).toBeGreaterThan(0);
+    const reduced = css.slice(cut);
+    for (const selector of new Set(moving)) {
+      expect(reduced, `${selector} keeps animating under reduced motion`).toContain(selector);
+    }
+  });
+
   it("has a README the npm page can show", () => {
     const readme = read("README.md");
     expect(readme).toContain("npm install @elapse/react");

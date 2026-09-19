@@ -25,6 +25,22 @@ const wire = (subscription: Sub | null, product: Sub = {}) => ({
 });
 
 let server: ReturnType<typeof wire>;
+const cuesPlayed: string[] = [];
+/** A context that records every note instead of making one. */
+function fakeAudioContext() {
+  return {
+    currentTime: 0,
+    destination: {},
+    resume: () => Promise.resolve(),
+    createGain: () => ({ gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }),
+    createOscillator: () => ({
+      type: "sine",
+      frequency: { setValueAtTime: (v: number) => cuesPlayed.push(String(v)) },
+      connect() {}, start() {}, stop() {},
+    }),
+  } as unknown as AudioContext;
+}
+
 function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> = {}) {
   server = initial;
   const fetchFn = vi.fn(async () => new Response(JSON.stringify(server), { status: 200 }));
@@ -45,7 +61,7 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
   };
   const onStopped = vi.fn();
   render(
-    <ElapseProvider publishableKey="pk_test_1" baseUrl="https://api.test" fetch={fetchFn as unknown as typeof fetch} popupHost={host} sound={false}>
+    <ElapseProvider publishableKey="pk_test_1" baseUrl="https://api.test" fetch={fetchFn as unknown as typeof fetch} popupHost={host} sound={(props.sound as boolean) ?? false} audioContext={fakeAudioContext}>
       <Meter session="cs_1" onStopped={onStopped} {...props} />
     </ElapseProvider>,
   );
@@ -175,5 +191,32 @@ describe("<Meter dock> · FR-RCT-042 the docked capsule", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
     expect(capsule()).toBeTruthy();
     expect(screen.getByText(/You paid for 83 seconds/)).toBeTruthy();
+  });
+});
+
+describe("FR-RCT-050 cues on the meter", () => {
+  beforeEach(() => { cuesPlayed.length = 0; try { localStorage.clear(); } catch { /* private mode */ } });
+
+  it("never makes a sound while the meter ticks", async () => {
+    mount(wire(sub()), { sound: true });
+    await settle();
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(cuesPlayed).toEqual([]);
+  });
+
+  it("plays once when the meter stops, and not at all once muted", async () => {
+    const { post } = mount(wire(sub()), { sound: true });
+    await settle();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await act(async () => { post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
+    expect(cuesPlayed.length).toBeGreaterThan(0);
+
+    cuesPlayed.length = 0;
+    const second = mount(wire(sub()), { sound: true });
+    await settle();
+    fireEvent.click(screen.getAllByRole("button", { name: /Turn meter sounds off/ })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Stop" })[0]!);
+    await act(async () => { second.post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
+    expect(cuesPlayed).toEqual([]);
   });
 });

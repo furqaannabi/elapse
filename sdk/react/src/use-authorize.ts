@@ -60,6 +60,8 @@ export function useAuthorize(
       result.then(
         (r) => {
           const event = { subscription: r.subscription, txHash: r.txHash, explorerUrl: explorerUrl(r.txHash) };
+          // FR-RCT-050: one cue, on the transition, never on a tick.
+          config.cues.play(session.product.startMode === "merchant" ? "authorised" : "started");
           if (session.product.startMode === "merchant") {
             setState({ kind: "held", session, event });
             handlersRef.current.onAuthorised?.(event);
