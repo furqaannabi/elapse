@@ -126,8 +126,11 @@ The console is a React page with the **VS Code editor** (Monaco) holding the Jav
 runner's own source read-only beneath it, and the result as output — rendered as an image when
 the code returns a `data:image` string, printed as a value otherwise. There is no Start button
 and no Stop button: press Run, and the first one shows `<Authorize>` from
-[`@elapse/react`](../../sdk/react) **in this page** — one Face ID in a window Elapse opens — then
-your code runs and `<Meter>` ticks beside it. Nobody is sent to a hosted checkout. Close the tab
+[`@elapse/react`](../../sdk/react) **in this page** — one Face ID in a frame Elapse opens over the
+console — then your code runs and `<Meter>` ticks in the corner as a capsule. The subscriber gets
+no Stop at all here (`controls={false}`): a merchant-started meter is Northwind's to stop, before
+it starts as well as after. When the meter starts and when it ends, a card drops in with that
+transaction (`proof`), since this console is read by developers. Nobody is sent to a hosted checkout. Close the tab
 and the session ends within seconds. `npm start` bundles the page with esbuild first; Monaco
 still loads from a pinned CDN, and if that CDN is unreachable the editor falls back to a plain
 textarea.

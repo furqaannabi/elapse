@@ -24,13 +24,15 @@ Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-
 |---|---|---|
 | Protocol | `contracts/` | Accrue AUSD per second; cancel; settle elapsed only |
 | API | `api/` | Products, checkout sessions, webhook endpoints, events; `src/worker/` delivers webhooks as a second process |
-| Web | `web/` | Landing, hosted checkout (Face ID, live USD ticker, no chain words), merchant dashboard |
-| SDK | `sdk/ts` | `@elapse/sdk` |
+| Web | `web/` | Landing, `/authorize` (the page `@elapse/react` frames for every signature), subscriber `/account`, merchant dashboard |
+| SDK | `sdk/ts` | `@elapse/sdk` — server: products, sessions, start, pause, resume, cancel, webhooks |
+| React SDK | `sdk/react` | `@elapse/react` — `<Authorize>` and `<Meter>` in the merchant's own page; the wallet stays on Elapse's origin |
 | CLI | `cli/` | `elapse listen --forward` |
 | Indexer | `indexer/` | Envio HyperIndex → platform ingest |
 | Docs | `docs/` | **Start here:** `docs/README.md` — product doc, architecture, glossary, specs, onboarding |
 | Docs site | `docs-site/` | Mintlify site in `docs-site/site/`: Quickstart, guides, generated API reference. `pnpm --filter docs-site dev`; snippets synced from code by `pnpm --filter docs-site sync-snippets` |
-| Example | `examples/saas/` | Merchant in the demo video |
+| Example | `examples/saas/` | Merchant in the demo video: authorise and meter in Acme's own page |
+| Example | `examples/lambda/` | Per-second serverless compute on real AWS Lambda; the meter runs only while code runs |
 
 ## System architecture
 
@@ -144,6 +146,22 @@ const event = elapse.webhooks.constructEvent(
 ```
 
 No per-second webhooks. Accrue onchain; notify on `subscription.created`, `subscription.canceled`, `invoice.settled`, `invoice.payment_failed`.
+
+In the browser, `@elapse/react` takes the session id and nothing else secret:
+
+```tsx
+import { Authorize, ElapseProvider, Meter } from "@elapse/react";
+import "@elapse/react/styles.css";
+
+<ElapseProvider publishableKey={process.env.NEXT_PUBLIC_ELAPSE_KEY!}>
+  {started ? <Meter session={id} dock="bottom-right" /> : <Authorize session={id} onStarted={() => setStarted(true)} />}
+</ElapseProvider>
+```
+
+Face ID happens in a frame on Elapse's origin over the merchant's page, so the merchant's code
+never touches the subscriber's wallet. `dock` floats the meter as a capsule, `proof` drops the
+start and end transactions in, and `controls={false}` hides Stop for a meter only the merchant
+stops. Full options in [`sdk/react/README.md`](sdk/react/README.md).
 
 ## Week 1 kill
 

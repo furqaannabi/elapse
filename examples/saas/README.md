@@ -2,7 +2,7 @@
 
 ## What this is
 
-The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second and serves one product page where the subscriber authorises and watches the meter **without leaving the page** — `<Authorize>` and `<Meter>` from [`@elapse/react`](../../sdk/react), with Face ID in a window Elapse opens. When the subscriber stops, the server receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
+The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second and serves one product page where the subscriber authorises and watches the meter **without leaving the page** — `<Authorize>` and `<Meter>` from [`@elapse/react`](../../sdk/react), with Face ID in a frame Elapse opens over the page. When the subscriber stops, the server receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
 
 It is the code the [Quickstart](https://docs.elapse.finance/quickstart) is built from, and the server in the demo video.
 
@@ -68,6 +68,6 @@ Six types, six actions: provision on `checkout.session.completed`, entitle on `s
 | `src/webhooks.ts` | Verify, respond, act |
 | `src/entitlements.ts` | In-memory dedupe set and entitlement map; replace with your database |
 | `src/demo-check.ts` | `npm run demo:check` |
-| `src/web/mount.tsx` | The page's island: `<ElapseProvider>`, then `<Authorize>` and `<Meter>` |
+| `src/web/mount.tsx` | The page's island: `<ElapseProvider>`, then `<Authorize>` and `<Meter dock="bottom-right" proof>` |
 | `scripts/build-web.mjs` | `npm run build:web`: esbuild bundles that island and the components' stylesheet into `dist/` |
 | `public/index.html` | The product page and its `#elapse` mount point; `ok.html` and `cancel.html` are where the success and cancel URLs land; `acme.css` is Acme GPU's own look — including the CSS variables that re-dress the Elapse components |

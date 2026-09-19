@@ -44,9 +44,14 @@ function Billing({ session }: { session: string }) {
 }
 ```
 
-That is the whole integration. `<Authorize>` shows how long the meter may run and what that can cost,
-then opens the Elapse window for Face ID. `<Meter>` ticks the elapsed time and the amount, shows the
-controls the product allows, and turns into the receipt when the meter ends.
+That is the whole integration. `<Authorize>` shows how long the meter may run and what that can
+cost, then opens Elapse in a frame over your page for Face ID — no new tab. `<Meter>` ticks the
+elapsed time and the amount, shows the controls the product allows, and turns into the receipt when
+the meter ends.
+
+Browsers refuse to enrol a passkey inside a cross-origin frame, so a subscriber who has never used
+Elapse is handed to a window automatically, mid-flow, carrying the same attempt. You do not have to
+handle that; it is why the frame is safe to use as the default.
 
 ## No bundler? One script tag
 
@@ -71,7 +76,20 @@ runs React, install the package instead and use the components — you keep one 
 | --- | --- |
 | `<ElapseProvider publishableKey baseUrl? appOrigin? sound?>` | Configuration for everything below it. A key starting with `sk_` throws. |
 | `<Authorize session onAuthorised onStarted onError>` | The cap step, then the Elapse window. |
-| `<Meter session onStarted onStopped onPaused onResumed onError>` | The live meter, its controls, and the receipt. |
+| `<Meter session dock? controls? proof? onStopped onPaused onResumed onError>` | The live meter, its controls, and the receipt. |
+| `<TxLink hash chainId?>` | A transaction as `0x4cbe…9143`, linked to the explorer. Nothing renders it for you. |
+
+### `<Meter>` options
+
+| Prop | Default | What it does |
+| --- | --- | --- |
+| `dock` | *(none)* | `"bottom-right"` or `"bottom-left"` floats the meter as a small capsule — a live dot, the clock, the amount — instead of a card in your layout. On a phone it spans the gutter. |
+| `controls` | `true` | `false` hides Stop, Pause and Resume entirely, for a meter only you stop. |
+| `proof` | `false` | Drops a card when the meter starts and when it ends, carrying that transaction. Off by default: most subscribers should never see a hash. |
+
+Sound is on by default: two short synthesised notes when a meter starts and when it stops, never
+one per second, with a mute the subscriber controls and the browser remembers. `sound={false}` on
+the provider turns it off for everyone.
 
 Every event carries `{ subscription, txHash?, explorerUrl? }`.
 
@@ -106,10 +124,12 @@ with CSS variables:
 The components follow the system's colour scheme; `data-elapse-theme="light"` or `"dark"` on a wrapper
 pins one.
 
+Every animation stops under `prefers-reduced-motion`, and the meter never animates per second.
+
 ## Two things this package will not do
 
 - It never takes a secret key. Sessions are created on your server.
-- It never shows your subscriber a hash, an address, or any other chain word. Those are yours, on the
-  merchant side, through the events.
+- It never shows your subscriber a hash, an address, or any other chain word unless you ask for it
+  with `proof` or place a `<TxLink>` yourself. Otherwise those stay on your side, in the events.
 
 MIT © Elapse
