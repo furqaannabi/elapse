@@ -299,14 +299,13 @@ contract AccrualStream is ReentrancyGuard {
         relayNonce += 1;
     }
 
-    /// FR-CON-057: on a running merchant-started stream the subscriber may not stop, pause or resume.
-    /// Before start (`Created`) and on checkout-mode streams nothing changes. A merchant who is also the
-    /// subscriber keeps control as merchant.
+    /// FR-CON-057 (amended 2026-09-19): on a merchant-started stream the subscriber may not stop,
+    /// pause or resume it in **any** state — held included. Checkout-mode streams are untouched, and a
+    /// merchant who is also the subscriber keeps control as merchant. Held money is released by the
+    /// merchant or by the factory's keeper, whose unstarted sweep refunds it in full
+    /// (ADR 2026-09-19 only the merchant stops a held meter).
     function _refuseSubscriber(address who) internal view {
-        if (
-            merchantStarted && who == subscriber && who != merchant
-                && (status == Status.Active || status == Status.Paused)
-        ) revert MerchantControlled();
+        if (merchantStarted && who == subscriber && who != merchant) revert MerchantControlled();
     }
 
     /// @notice Stop the meter: settle unsettled whole seconds, refund the rest

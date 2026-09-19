@@ -47,6 +47,39 @@ contract MerchantControlledTest is BaseTest {
         assertFalse(checkout.merchantStarted(), "createWithPermit");
     }
 
+    // ─── The subscriber cannot stop a held meter either (FR-CON-057, amended 2026-09-19) ───
+
+    function test_FR_CON_057_subscriber_cannot_cancel_before_start() public {
+        AccrualStream s = merchantStream(false);
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Created), "held, not started");
+
+        vm.prank(sub);
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
+        s.cancel();
+
+        uint256 deadline = block.timestamp + 300;
+        bytes memory sig = sign(SUB_KEY, s.cancelDigest(s.relayNonce(), deadline));
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
+        s.cancelFor(deadline, sig);
+    }
+
+    function test_FR_CON_057_the_merchant_and_the_keeper_still_release_a_held_meter() public {
+        uint256 before = usd.balanceOf(sub);
+        AccrualStream s = merchantStream(false);
+        assertEq(usd.balanceOf(sub), before - ESCROW, "escrowed");
+
+        vm.prank(keeper);
+        s.cancel(); // the platform's unstarted sweep, on the subscriber's behalf
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Canceled));
+        assertEq(usd.balanceOf(sub), before, "the whole deposit comes back");
+
+        // And the merchant can do it directly.
+        AccrualStream other = merchantStream(false);
+        vm.prank(mer);
+        other.cancel();
+        assertEq(uint8(other.status()), uint8(AccrualStream.Status.Canceled));
+    }
+
     // ─── The subscriber cannot stop a started meter ─────────────────────────
 
     function test_FR_CON_057_subscriber_cancel_and_cancelFor_revert_once_started() public {
@@ -132,14 +165,6 @@ contract MerchantControlledTest is BaseTest {
     }
 
     // ─── Unchanged: before start, and checkout mode ─────────────────────────
-
-    function test_FR_CON_057_before_start_the_subscriber_still_gets_everything_back() public {
-        AccrualStream s = merchantStream(false);
-        uint256 before = usd.balanceOf(sub);
-        vm.prank(sub);
-        s.cancel();
-        assertEq(usd.balanceOf(sub) - before, ESCROW, "held money comes back in full (FR-CON-056)");
-    }
 
     function test_FR_CON_057_a_checkout_mode_stream_keeps_subscriber_stop() public {
         vm.prank(sub);
