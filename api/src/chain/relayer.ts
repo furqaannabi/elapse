@@ -59,6 +59,10 @@ export interface ChainClient {
 
   /** FR-API-049: start a funded stream as keeper, on the merchant's behalf. */
   start(chainId: number, stream: Address): Promise<Hex>;
+  /** FR-API-141: pause as keeper, so a merchant can bill only while its resource works (FR-CON-074). */
+  pause(chainId: number, stream: Address): Promise<Hex>;
+  /** FR-API-142: resume as keeper (FR-CON-074). */
+  resume(chainId: number, stream: Address): Promise<Hex>;
   /** Submits `AccrualStream.cancelFor(deadline, signature)`; resolves with the tx hash at broadcast. */
   cancelFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
   /** Submits `AccrualStream.pauseFor(deadline, signature)` (FR-CON-018); no money moves. */
@@ -203,6 +207,14 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     async start(chainId, stream) {
       assertChain(chainId);
       return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "start", args: [] });
+    },
+    async pause(chainId, stream) {
+      assertChain(chainId);
+      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "pause", args: [] });
+    },
+    async resume(chainId, stream) {
+      assertChain(chainId);
+      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "resume", args: [] });
     },
     async cancelFor(chainId, stream, deadline, signature) {
       assertChain(chainId);

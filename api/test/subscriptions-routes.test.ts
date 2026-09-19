@@ -5,7 +5,7 @@ import { sql } from "../src/db/client";
 import { setChainClient } from "../src/chain/relayer";
 import { fakeChain } from "./fake-chain";
 import { privyFixture } from "./privy-fixture";
-import { STREAM, streamCreated, deposited, streamStarted, streamCanceled, settled, T0 } from "./ingest-fixtures";
+import { STREAM, streamCreated, deposited, streamStarted, streamCanceled, streamPaused, settled, T0 } from "./ingest-fixtures";
 
 let m: Fixture;
 let chain: ReturnType<typeof fakeChain>;
@@ -54,6 +54,56 @@ describe("FR-API-041 retrieve", () => {
     expect((await api("GET", `/v1/subscriptions/${subId}`, { key: other.skTest })).status).toBe(404);
     expect((await api("GET", `/v1/subscriptions/${subId}`, { key: m.skLive })).status).toBe(404);
     expect((await api("GET", `/v1/subscriptions/${subId}`, { key: m.pkTest })).status).toBe(401);
+  });
+});
+
+describe("FR-API-141/142 merchant pause and resume", () => {
+  it("FR_API_141_pause_submits_through_the_keeper_and_returns_202_with_the_unchanged_subscription", async () => {
+    const { subId } = await liveSubscription();
+    const r = await api("POST", `/v1/subscriptions/${subId}/pause`, { key: m.skTest });
+    expect(r.status).toBe(202);
+    expect(r.body).toMatchObject({ id: subId, object: "subscription", status: "active" });
+    expect(r.body.pending_tx).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(chain.keeperPauses).toEqual([STREAM]);
+    // Still active until StreamPaused is ingested (BR-API-005).
+    expect((await api("GET", `/v1/subscriptions/${subId}`, { key: m.skTest })).body.status).toBe("active");
+  });
+
+  it("FR_API_141_pause_of_a_subscription_that_is_not_running_is_409", async () => {
+    const { subId } = await liveSubscription();
+    const tx = "0x" + "cd".repeat(32);
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamCanceled(T0 + 10, 10, "40000", "14360000", tx) });
+    const r = await api("POST", `/v1/subscriptions/${subId}/pause`, { key: m.skTest });
+    expect(r.status).toBe(409);
+    expect(r.body.error.code).toBe("not_running");
+    expect(chain.keeperPauses).toEqual([]);
+  });
+
+  it("FR_API_142_resume_needs_a_paused_subscription", async () => {
+    const { subId } = await liveSubscription();
+    // Active: resume is refused and nothing is submitted.
+    const early = await api("POST", `/v1/subscriptions/${subId}/resume`, { key: m.skTest });
+    expect(early.status).toBe(409);
+    expect(early.body.error.code).toBe("not_running");
+    expect(chain.keeperResumes).toEqual([]);
+
+    await api("POST", `/v1/subscriptions/${subId}/pause`, { key: m.skTest });
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamPaused(T0 + 5) });
+    expect((await api("GET", `/v1/subscriptions/${subId}`, { key: m.skTest })).body.status).toBe("paused");
+
+    const r = await api("POST", `/v1/subscriptions/${subId}/resume`, { key: m.skTest });
+    expect(r.status).toBe(202);
+    expect(r.body).toMatchObject({ id: subId, status: "paused" });
+    expect(chain.keeperResumes).toEqual([STREAM]);
+  });
+
+  it("FR_API_141_another_merchant_the_other_mode_and_a_publishable_key_cannot_pause", async () => {
+    const { subId } = await liveSubscription();
+    const other = await seedMerchant();
+    expect((await api("POST", `/v1/subscriptions/${subId}/pause`, { key: other.skTest })).status).toBe(404);
+    expect((await api("POST", `/v1/subscriptions/${subId}/pause`, { key: m.skLive })).status).toBe(404);
+    expect((await api("POST", `/v1/subscriptions/${subId}/pause`, { key: m.pkTest })).status).toBe(401);
+    expect(chain.keeperPauses).toEqual([]);
   });
 });
 

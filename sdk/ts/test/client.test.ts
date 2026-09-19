@@ -109,6 +109,24 @@ describe("FR-SDK-005/008 subscriptions", () => {
     await expect(elapse.subscriptions.cancel("prod_1")).rejects.toThrow(ElapseInvalidRequestError);
   });
 
+  it("FR-SDK-044 pause and resume post to their routes and reject a non-sub id before any request", async () => {
+    mock.on(() => ({ status: 202, body: { ...sub, status: "active" } }));
+    const paused = await elapse.subscriptions.pause("sub_3kP9mL2qR8tVxY");
+    expect(mock.seen[0]!.path).toBe("/v1/subscriptions/sub_3kP9mL2qR8tVxY/pause");
+    expect(mock.seen[0]!.method).toBe("POST");
+    // BR-API-005: the row is unchanged until the chain event lands.
+    expect(paused.status).toBe("active");
+
+    mock.on(() => ({ status: 202, body: { ...sub, status: "paused" } }));
+    await elapse.subscriptions.resume("sub_3kP9mL2qR8tVxY");
+    expect(mock.seen[0]!.path).toBe("/v1/subscriptions/sub_3kP9mL2qR8tVxY/resume");
+
+    const before = mock.seen.length;
+    await expect(elapse.subscriptions.pause("prod_1")).rejects.toThrow(ElapseInvalidRequestError);
+    await expect(elapse.subscriptions.resume("cus_1")).rejects.toThrow(ElapseInvalidRequestError);
+    expect(mock.seen.length).toBe(before);
+  });
+
   it("FR-SDK-009 start posts to /start and rejects a non-sub id before any request", async () => {
     mock.on(() => ({ status: 202, body: { ...sub, status: "active", started_at: 1_756_800_000 } }));
     const started = await elapse.subscriptions.start("sub_3kP9mL2qR8tVxY");
@@ -167,12 +185,12 @@ describe("FR-SDK-007 frozen surface", () => {
     const methods = (o: object) => Object.keys(o).sort();
     expect(methods(elapse.products)).toEqual(["create", "list", "retrieve"]);
     expect(methods(elapse.checkout.sessions)).toEqual(["create"]);
-    // FR-SDK-009 (signed 2026-09-14) takes the frozen surface to eleven methods.
-    expect(methods(elapse.subscriptions)).toEqual(["cancel", "list", "retrieve", "start"]);
+    // FR-SDK-009 (signed 2026-09-14) took the frozen surface to eleven methods; FR-SDK-044
+    // (signed 2026-09-19) adds pause and resume for merchants that bill only while working.
+    expect(methods(elapse.subscriptions)).toEqual(["cancel", "list", "pause", "resume", "retrieve", "start"]);
     expect(methods(elapse.customers)).toEqual(["retrieve"]);
     expect(methods(elapse.invoices)).toEqual(["list"]);
     expect(methods(elapse.webhooks)).toEqual(["constructEvent"]);
-    expect("pause" in elapse.subscriptions).toBe(false);
   });
 });
 

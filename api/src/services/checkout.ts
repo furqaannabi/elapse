@@ -327,6 +327,26 @@ export async function startAsKeeper(sub: SubscriptionRow): Promise<Hex> {
   return pendingTx;
 }
 
+/**
+ * FR-API-141/142: pause or resume a merchant's meter as the factory's keeper (contracts
+ * FR-CON-074). No money moves either way and paused seconds are never billed, so the only state
+ * that matters is the one the chain will accept: pause needs `active`, resume needs `paused`.
+ * Like every other relayed action the row is left alone — the status arrives with the event.
+ */
+export async function pauseAsKeeper(sub: SubscriptionRow): Promise<Hex> {
+  if (!sub.stream_address || sub.status !== "active") {
+    throw new CheckoutStateError("not_running", "The subscription has no running meter.");
+  }
+  return chainClient().pause(sub.chain_id, sub.stream_address as Address);
+}
+
+export async function resumeAsKeeper(sub: SubscriptionRow): Promise<Hex> {
+  if (!sub.stream_address || sub.status !== "paused") {
+    throw new CheckoutStateError("not_running", "The subscription has no paused meter to resume.");
+  }
+  return chainClient().resume(sub.chain_id, sub.stream_address as Address);
+}
+
 export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
   if (!sub.stream_address || (sub.status !== "active" && sub.status !== "paused")) {
     throw new CheckoutStateError("not_running", "The subscription has no running meter.");

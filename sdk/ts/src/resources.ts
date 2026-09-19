@@ -170,6 +170,24 @@ export function subscriptions(t: Transport) {
         .then((v) => t.request<Subscription>("POST", `/subscriptions/${v}/start`, {}, opts));
     },
 
+    /**
+     * FR-SDK-044: pause the meter without ending the subscription, for merchants that bill only
+     * while their resource is working. `paused` arrives via webhook once the chain confirms
+     * (API FR-API-141); paused seconds are never billed.
+     */
+    pause(id: string, opts?: RequestOptions): Promise<Subscription> {
+      return Promise.resolve()
+        .then(() => assertId(id, "sub", "id"))
+        .then((v) => t.request<Subscription>("POST", `/subscriptions/${v}/pause`, {}, opts));
+    },
+
+    /** FR-SDK-044: resume a paused meter; `active` arrives via webhook (API FR-API-142). */
+    resume(id: string, opts?: RequestOptions): Promise<Subscription> {
+      return Promise.resolve()
+        .then(() => assertId(id, "sub", "id"))
+        .then((v) => t.request<Subscription>("POST", `/subscriptions/${v}/resume`, {}, opts));
+    },
+
     /** Asks the platform to end the meter; the `canceled` status arrives via webhook once the chain confirms (API FR-API-042). */
     cancel(id: string, opts?: RequestOptions): Promise<Subscription> {
       return Promise.resolve()

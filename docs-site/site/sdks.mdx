@@ -148,6 +148,39 @@ curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/start" \
 ```
 </CodeGroup>
 
+### `subscriptions.pause`
+
+Pauses the meter without ending the subscription, for merchants that bill only while their
+resource is working. Paused seconds are never billed; `paused` arrives by webhook once the chain
+confirms.
+
+<CodeGroup>
+```ts TypeScript
+await elapse.subscriptions.pause("sub_…");
+// 202: subscription.updated follows with status paused.
+```
+```bash cURL
+curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/pause" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
+### `subscriptions.resume`
+
+Resumes a paused meter. Billing starts again when the chain confirms, and the paused time costs
+the subscriber nothing.
+
+<CodeGroup>
+```ts TypeScript
+await elapse.subscriptions.resume("sub_…");
+// 202: subscription.updated follows with status active.
+```
+```bash cURL
+curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/resume" \
+  -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
+```
+</CodeGroup>
+
 ## Customers
 
 ### `customers.retrieve`

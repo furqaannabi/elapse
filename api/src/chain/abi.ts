@@ -66,6 +66,9 @@ export const streamAbi = [
   { type: "function", name: "cancel", stateMutability: "nonpayable", inputs: [], outputs: [] },
   // FR-CON-055: party or keeper, so the relayer can start on the merchant's behalf.
   { type: "function", name: "start", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  // FR-CON-074: party or keeper, so a merchant can bill only while its resource is working.
+  { type: "function", name: "pause", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "resume", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "settle", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "status", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
   { type: "function", name: "settledSeconds", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },

@@ -7,7 +7,7 @@ import { RelayerUnavailable } from "../chain/relayer";
 import { ApiError, notFound } from "../lib/errors";
 import { PUBLIC, router } from "../lib/openapi";
 import { merchantAuth, type AuthEnv } from "../middleware/auth";
-import { CheckoutStateError, cancelAsKeeper, startAsKeeper } from "../services/checkout";
+import { CheckoutStateError, cancelAsKeeper, pauseAsKeeper, resumeAsKeeper, startAsKeeper } from "../services/checkout";
 import { SubscriptionSchema } from "./checkout-sessions";
 
 /**
@@ -101,6 +101,51 @@ subscriptions.openapi(
     }
   },
 );
+
+/**
+ * FR-API-141/142: merchant pause and resume. The same shape as cancel — the relayer submits as the
+ * factory's keeper (contracts FR-CON-074), the answer is `202` with `pending_tx`, and the status
+ * only changes when the chain event is ingested (BR-API-005). Unlike the subscriber's pause
+ * (FR-API-044) no signature is involved: the keeper acts for the merchant, who holds an API key.
+ */
+for (const step of ["pause", "resume"] as const) {
+  subscriptions.openapi(
+    createRoute({
+      method: "post",
+      path: `/subscriptions/{id}/${step}`,
+      operationId: `subscriptions.${step}`,
+      summary: step === "pause" ? "Pause a subscription" : "Resume a subscription",
+      ...PUBLIC,
+      tags: ["Subscriptions"],
+      request: { params: z.object({ id: z.string() }) },
+      responses: {
+        202: {
+          description:
+            step === "pause"
+              ? "Pause submitted on chain. The object is unchanged until `subscription.updated` reports `paused`; `pending_tx` is the relayer's transaction."
+              : "Resume submitted on chain. The object is unchanged until `subscription.updated` reports `active`; `pending_tx` is the relayer's transaction.",
+          content: { "application/json": { schema: SubscriptionSchema.extend({ pending_tx: z.string() }) } },
+        },
+      },
+    }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const auth = c.get("auth");
+      const row = await findSubscription(auth.merchantId, auth.livemode, id);
+      if (!row) throw notFound("subscription", id);
+      try {
+        const pendingTx = step === "pause" ? await pauseAsKeeper(row) : await resumeAsKeeper(row);
+        return c.json({ ...serializeSubscription(row), pending_tx: pendingTx }, 202);
+      } catch (e) {
+        if (e instanceof CheckoutStateError) throw new ApiError(409, "invalid_request_error", e.message, undefined, e.code);
+        if (e instanceof RelayerUnavailable) {
+          throw new ApiError(503, "api_error", step === "pause" ? "Pausing is temporarily unavailable." : "Resuming is temporarily unavailable.");
+        }
+        throw e;
+      }
+    },
+  );
+}
 
 subscriptions.openapi(
   createRoute({

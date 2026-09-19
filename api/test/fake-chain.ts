@@ -12,6 +12,9 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   const resumes: Array<{ stream: string; deadline: bigint; signature: string }> = [];
   const keeperCancels: string[] = [];
   const keeperStarts: string[] = [];
+  /** FR-API-141/142: pauses and resumes the keeper submits with no signature (contracts FR-CON-074). */
+  const keeperPauses: string[] = [];
+  const keeperResumes: string[] = [];
   const settleBatches: Array<{ chainId: number; streams: string[]; gas: bigint }> = [];
   /** Per-stream direct settle estimate, or an Error to make the direct call revert (FR-WRK-072). Default 210_000. */
   const settleEstimates = new Map<string, bigint | Error>();
@@ -91,6 +94,14 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
       keeperStarts.push(stream.toLowerCase());
       return hash();
     },
+    async pause(_c: number, stream: string) {
+      keeperPauses.push(stream.toLowerCase());
+      return hash();
+    },
+    async resume(_c: number, stream: string) {
+      keeperResumes.push(stream.toLowerCase());
+      return hash();
+    },
     async cancelFor(_c, stream, deadline, signature) {
       cancels.push({ stream: stream.toLowerCase(), deadline, signature });
       cancelNonces.set(stream.toLowerCase(), (cancelNonces.get(stream.toLowerCase()) ?? 0n) + 1n);
@@ -109,7 +120,7 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
   };
   return {
     client, creates, cancels, pauses, resumes, keeperCancels,
-    keeperStarts, settleBatches, settleEstimates, streamStates, streamLogs, logQueries, balances, nonces, nativeBalances, state,
+    keeperStarts, keeperPauses, keeperResumes, settleBatches, settleEstimates, streamStates, streamLogs, logQueries, balances, nonces, nativeBalances, state,
     set failNextSettle(e: Error | null) {
       state.failNextSettle = e;
     },

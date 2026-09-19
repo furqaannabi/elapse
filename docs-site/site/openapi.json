@@ -580,6 +580,168 @@
         ]
       }
     },
+    "/v1/subscriptions/{id}/pause": {
+      "post": {
+        "operationId": "subscriptions.pause",
+        "summary": "Pause a subscription",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Pause submitted on chain. The object is unchanged until `subscription.updated` reports `paused`; `pending_tx` is the relayer's transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pending_tx": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pending_tx"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/subscriptions/{id}/resume": {
+      "post": {
+        "operationId": "subscriptions.resume",
+        "summary": "Resume a subscription",
+        "tags": [
+          "Subscriptions"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Resume submitted on chain. The object is unchanged until `subscription.updated` reports `active`; `pending_tx` is the relayer's transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Subscription"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "pending_tx": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "pending_tx"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such object in this mode.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/v1/subscriptions/{id}/cancel": {
       "post": {
         "operationId": "subscriptions.cancel",
