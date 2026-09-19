@@ -25,8 +25,14 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numer
 /** Where a docked meter sits. Omit it and the meter renders inline, as it always has. */
 export type MeterDock = "bottom-right" | "bottom-left";
 
-export function Meter({ session, dock, ...handlers }: { session: string; dock?: MeterDock } & MeterHandlers) {
+export function Meter({ session, dock, controls = true, ...handlers }: { session: string; dock?: MeterDock; controls?: boolean } & MeterHandlers) {
   const m = useMeter(session, handlers);
+  // FR-RCT-042 (amended 2026-09-19, Furqaan: "no stop button"): a merchant whose meter is its own
+  // to stop can turn the subscriber's controls off entirely. The escrow is untouched by this — the
+  // held session still refunds by itself (worker FR-WRK-075) and the merchant can still cancel.
+  const canStop = controls && m.canStop;
+  const canPause = controls && m.canPause;
+  const canResume = controls && m.canResume;
   const { cues } = useElapseConfig();
   const [muted, setMuted] = useState(() => cues.muted());
   // FR-RCT-050: the subscriber's own switch, remembered by the browser.
@@ -75,19 +81,19 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
             </>
           )}
         </div>
-        {(m.canStop || m.canPause || m.canResume) && (
+        {(canStop || canPause || canResume) && (
           <div className="elapse-capsule elapse-capsule-actions">
-            {m.canResume && (
+            {canResume && (
               <button type="button" className="elapse-capsule-button" onClick={m.resume} disabled={m.busy !== null}>
                 {m.busy === "resume" ? "Resuming…" : "Resume"}
               </button>
             )}
-            {m.canPause && (
+            {canPause && (
               <button type="button" className="elapse-capsule-button" onClick={m.pause} disabled={m.busy !== null}>
                 {m.busy === "pause" ? "Pausing…" : "Pause"}
               </button>
             )}
-            {m.canStop && (
+            {canStop && (
               <button type="button" className="elapse-capsule-button" onClick={m.stop} disabled={m.busy !== null}>
                 {m.busy === "cancel" ? "Stopping…" : "Stop"}
               </button>
@@ -130,9 +136,11 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
         <p className="elapse-numerals">{m.held.amount} held · You haven&rsquo;t been charged.</p>
         {m.held.startBy && <p className="elapse-muted">If it hasn&rsquo;t started by {clock(m.held.startBy)}, it all comes back to you.</p>}
         {notice}
-        <button type="button" className="elapse-outline" onClick={m.stop} disabled={m.busy !== null}>
-          {m.busy === "cancel" ? "Stopping…" : "Stop"}
-        </button>
+        {canStop && (
+          <button type="button" className="elapse-outline" onClick={m.stop} disabled={m.busy !== null}>
+            {m.busy === "cancel" ? "Stopping…" : "Stop"}
+          </button>
+        )}
       </div>
       </>
     );
@@ -185,17 +193,17 @@ export function Meter({ session, dock, ...handlers }: { session: string; dock?: 
       {notice}
       <div className="elapse-actions">
         {mute}
-        {m.canResume && (
+        {canResume && (
           <button type="button" className="elapse-primary" onClick={m.resume} disabled={m.busy !== null}>
             {m.busy === "resume" ? "Resuming…" : "Resume"}
           </button>
         )}
-        {m.canPause && (
+        {canPause && (
           <button type="button" className="elapse-outline" onClick={m.pause} disabled={m.busy !== null}>
             {m.busy === "pause" ? "Pausing…" : "Pause"}
           </button>
         )}
-        {m.canStop && (
+        {canStop && (
           <button type="button" className="elapse-outline" onClick={m.stop} disabled={m.busy !== null}>
             {m.busy === "cancel" ? "Stopping…" : "Stop"}
           </button>

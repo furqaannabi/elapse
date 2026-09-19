@@ -3,7 +3,7 @@
  * server, shows the controls the start mode allows (each signature in the Elapse popup), and ends on
  * a receipt with the server's totals.
  */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ElapseProvider, Meter, type PopupHost } from "../src";
 
@@ -191,6 +191,31 @@ describe("<Meter dock> · FR-RCT-042 the docked capsule", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
     expect(capsule()).toBeTruthy();
     expect(screen.getByText(/You paid for 83 seconds/)).toBeTruthy();
+  });
+});
+
+describe("FR-RCT-042 controls={false}", () => {
+  it("hides Stop while held, where a merchant does not want the subscriber to have one", async () => {
+    mount(wire(sub({ status: "incomplete", start_mode: "merchant", started_at: null, funded_usd: "7.2" }), { start_mode: "merchant" }), {
+      dock: "bottom-right",
+      controls: false,
+    });
+    await settle();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    // The money is still on screen, and the sound switch is not a money control.
+    expect(screen.getByText(/held/)).toBeTruthy();
+  });
+
+  it("hides every control inline too, and keeps them when the prop is absent", async () => {
+    mount(wire(sub(), { allow_pause: true }), { controls: false });
+    await settle();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+
+    cleanup();
+    mount(wire(sub(), { allow_pause: true }));
+    await settle();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy();
   });
 });
 

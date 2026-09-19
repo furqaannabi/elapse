@@ -140,6 +140,9 @@ export function Console({ merchant }: { merchant: string }) {
         <Meter
           session={phase.session}
           dock="bottom-right"
+          // Northwind's meter is Northwind's to stop (FR-CHK-037): the subscriber gets no Stop,
+          // not even in the held second before the first run starts it.
+          controls={false}
           onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
           onError={(e) => setOut({ error: e.message })}
         />
