@@ -106,9 +106,14 @@ function apply(event: { type: string; data: { object: unknown } }, deps: Webhook
     }
     case "subscription.updated": {
       // FR-EXM-133: this is the event the first Run waits for — the chain confirmed the start.
+      // FR-EXM-153: it is also how the meter going on and off between runs reaches this server.
       if (o.status === "active") {
         deps.sessions.applyActive(sub, { startedAt: o.started_at ? o.started_at * 1000 : nowMs, nowMs });
         return `meter started ${sub}`;
+      }
+      if (o.status === "paused") {
+        deps.sessions.applyPaused(sub, { nowMs });
+        return `meter paused ${sub}`;
       }
       return `sync session (${o.status ?? "unknown"})`;
     }

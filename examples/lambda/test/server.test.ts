@@ -27,11 +27,13 @@ function spyExecutor(): Executor & { calls: string[] } {
 }
 
 async function start(over: Record<string, unknown> = {}) {
-  const sessions = createSessionStore({ dailyRunLimit: 20 });
+  const sessions = (over.sessions as ReturnType<typeof createSessionStore>) ?? createSessionStore({ dailyRunLimit: 20 });
   const executor = spyExecutor();
   const lines: string[] = [];
   const canceled: string[] = [];
   const startedSubs: string[] = [];
+  const pausedSubs: string[] = [];
+  const resumedSubs: string[] = [];
   const deps = {
     sessions,
     executor,
@@ -41,6 +43,15 @@ async function start(over: Record<string, unknown> = {}) {
     createCheckoutSession: async () => ({ id: "cs_1" }),
     startSubscription: async (sub: string) => {
       startedSubs.push(sub);
+    },
+    pauseSubscription: async (sub: string) => {
+      pausedSubs.push(sub);
+      // The platform answers 202 and the webhook follows; the fake lands it immediately.
+      sessions.applyPaused(sub, { nowMs: NOW });
+    },
+    resumeSubscription: async (sub: string) => {
+      resumedSubs.push(sub);
+      sessions.applyActive(sub, { startedAt: NOW, nowMs: NOW });
     },
     startTimeoutMs: 300,
     startPollMs: 10,
@@ -56,7 +67,7 @@ async function start(over: Record<string, unknown> = {}) {
   await new Promise<void>((r) => server.listen(0, r));
   close = () => new Promise((r) => server.close(() => r()));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { base, sessions, executor, lines, canceled, startedSubs, deps };
+  return { base, sessions, executor, lines, canceled, startedSubs, pausedSubs, resumedSubs, deps };
 }
 
 const CODE = "return 2+2";
@@ -94,7 +105,8 @@ describe("FR-EXM-125 the first Run starts the meter", () => {
     expect(res.status).toBe(200);
     expect(startedSubs).toEqual(["sub_1"]);
     expect(executor.calls).toEqual([CODE]);
-    expect(sessions.state("sub_1")).toBe("active");
+    // FR-EXM-153: the meter is off again the moment the run finished.
+    expect(sessions.state("sub_1")).toBe("paused");
   });
 
   it("a second Run while starting waits on the same start instead of starting again", async () => {
@@ -164,6 +176,63 @@ describe("FR-EXM-125 a Run that arrives before the webhook does", () => {
     const started = Date.now();
     expect((await run(base, "none")).status).toBe(409);
     expect(Date.now() - started).toBeLessThan(2_000);
+  });
+});
+
+describe("FR-EXM-153 the meter runs only while code runs", () => {
+  it("the first Run starts, invokes, then pauses", async () => {
+    const { base, sessions, executor, startedSubs, pausedSubs } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    const pending = run(base, "sub_1");
+    setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
+    expect((await pending).status).toBe(200);
+
+    expect(startedSubs).toEqual(["sub_1"]);
+    expect(executor.calls).toEqual([CODE]);
+    expect(pausedSubs).toEqual(["sub_1"]);
+    expect(sessions.state("sub_1")).toBe("paused");
+  });
+
+  it("a later Run resumes first, and pauses again after", async () => {
+    const { base, sessions, executor, startedSubs, pausedSubs, resumedSubs } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    const first = run(base, "sub_1");
+    setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
+    await first;
+
+    expect((await run(base, "sub_1", "return 1")).status).toBe(200);
+    expect(resumedSubs).toEqual(["sub_1"]);
+    expect(startedSubs).toEqual(["sub_1"]); // started once, ever
+    expect(pausedSubs).toEqual(["sub_1", "sub_1"]); // one pause per run
+    expect(executor.calls).toEqual([CODE, "return 1"]);
+  });
+
+  it("a run that fails still pauses the meter", async () => {
+    const executor = { calls: [] as string[], async run(code: string) { this.calls.push(code); return { ok: false as const, error: "boom", ms: 1, logs: [] }; } };
+    const { base, sessions, pausedSubs } = await start({ executor });
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    const pending = run(base, "sub_1");
+    setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
+    expect((await pending).status).toBe(200);
+    expect(pausedSubs).toEqual(["sub_1"]);
+  });
+
+  it("a resume that never confirms fails the run, invokes nothing, and leaves it paused", async () => {
+    const { base, sessions, executor, resumedSubs } = await start({
+      startTimeoutMs: 120,
+      startPollMs: 10,
+      resumeSubscription: async () => {}, // accepted, but the chain never answers
+    });
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW });
+    sessions.applyPaused("sub_1", { nowMs: NOW });
+
+    const res = await run(base, "sub_1");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "The meter didn't start, so nothing ran and nothing was charged." });
+    expect(executor.calls).toEqual([]);
+    expect(resumedSubs).toEqual([]); // the injected stub replaced the recorder
+    expect(sessions.state("sub_1")).not.toBe("active");
   });
 });
 

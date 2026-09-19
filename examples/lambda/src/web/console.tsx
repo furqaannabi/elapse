@@ -13,6 +13,7 @@ import { postRun, resolveSub, type RunBody } from "./flow";
 type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "session"; session: string; sub: string };
 
 const IDLE_STATUS = "Not running — your first run opens the session";
+const BETWEEN_RUNS = "Paused between runs — you only pay while your code runs";
 const isImage = (v: unknown): v is string => typeof v === "string" && v.startsWith("data:image/");
 
 function resultLine(body: RunBody): string {
@@ -76,7 +77,8 @@ export function Console({ merchant }: { merchant: string }) {
         return;
       }
       setOut(outcome.body.ok ? { body: outcome.body } : { error: outcome.body.error ?? "run failed" });
-      setStatus("Running — walk away and it closes itself");
+      // FR-EXM-153: by the time the answer is here the meter is already paused again.
+      setStatus(BETWEEN_RUNS);
     },
     [],
   );
@@ -144,7 +146,7 @@ export function Console({ merchant }: { merchant: string }) {
 
       <p className="note">
         Write JavaScript and Run it on real AWS Lambda. fetch, node builtins via require, anything you like — the longer it
-        runs, the more seconds you pay for.
+        runs, the more seconds you pay for. Between runs the meter is paused, so thinking time is free.
       </p>
 
       <div className="screen" id="editor" style={{ height: "190px", padding: 0 }} ref={editor.hostRef}>

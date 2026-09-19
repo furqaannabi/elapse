@@ -58,12 +58,21 @@ describe("FR-EXM-133 merchant-started sessions follow the webhooks", () => {
     expect(lines[1]).toContain("meter started sub_4QeABC");
   });
 
-  it("an update that is not the start is only synced", () => {
+  it("an update that says paused stops the session's meter (FR-EXM-153)", () => {
     const sessions = createSessionStore({ dailyRunLimit: 20 });
     post(authorised(), sessions);
+    post(started(), sessions);
     const lines = post(started({ status: "paused" }, "evt_paused"), sessions);
+    expect(sessions.state("sub_4QeABC")).toBe("paused");
+    expect(lines[0]).toContain("meter paused sub_4QeABC");
+  });
+
+  it("an update this merchant does not act on is only synced", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    post(authorised(), sessions);
+    const lines = post(started({ status: "incomplete" }, "evt_synced"), sessions);
     expect(sessions.state("sub_4QeABC")).toBe("authorised");
-    expect(lines[0]).toContain("sync session (paused)");
+    expect(lines[0]).toContain("sync session (incomplete)");
   });
 });
 

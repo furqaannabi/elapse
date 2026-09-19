@@ -112,6 +112,49 @@ describe("FR-EXM-133 the session's state follows the webhooks", () => {
   });
 });
 
+describe("FR-EXM-153 the meter runs only while code runs", () => {
+  it("pauses between runs and comes back to active on resume", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { nowMs: t0 });
+    s.applyActive("sub_1", { startedAt: t0, nowMs: t0 });
+
+    s.markPausing("sub_1", t0 + 1_000);
+    expect(s.state("sub_1")).toBe("pausing");
+    expect(s.isActive("sub_1")).toBe(false); // nothing may run while the pause is in flight
+
+    s.applyPaused("sub_1", { nowMs: t0 + 2_000 });
+    expect(s.state("sub_1")).toBe("paused");
+
+    s.markResuming("sub_1", t0 + 3_000);
+    expect(s.state("sub_1")).toBe("resuming");
+
+    s.applyActive("sub_1", { startedAt: t0, nowMs: t0 + 4_000 });
+    expect(s.state("sub_1")).toBe("active");
+    expect(s.isActive("sub_1")).toBe(true);
+  });
+
+  it("a paused session keeps its start time, so the receipt still knows when it began", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { nowMs: t0 });
+    s.applyActive("sub_1", { startedAt: t0, nowMs: t0 });
+    s.applyPaused("sub_1", { nowMs: t0 + 5_000 });
+    expect(s.get("sub_1")?.startedAt).toBe(t0);
+  });
+});
+
+describe("FR-EXM-154 the idle timeout is cleanup, not billing", () => {
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+
+  it("still reclaims a paused session nobody is using", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyAuthorised("sub_1", { nowMs: t0 });
+    s.applyActive("sub_1", { startedAt: t0, nowMs: t0 });
+    s.applyPaused("sub_1", { nowMs: t0 });
+    s.touch("sub_1", t0 + 70_000); // the console is still here, but nothing has run
+    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "idle" }]);
+  });
+});
+
 describe("FR-EXM-126 a session the console has not reached yet", () => {
   const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
 

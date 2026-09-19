@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Executor } from "./executor";
 import { handleWebhook, type SessionStore } from "./webhooks";
+import type { SessionState } from "./session";
 import { DEFAULT_SNIPPET } from "../runner/snippet.mjs";
 
 /**
@@ -22,6 +23,9 @@ export interface ServerDeps {
   createCheckoutSession: () => Promise<{ id: string }>;
   /** `subscriptions.start`, behind a function (FR-EXM-125). */
   startSubscription: (sub: string) => Promise<void>;
+  /** `subscriptions.pause` / `resume` (FR-EXM-153): the meter runs only while code runs. */
+  pauseSubscription: (sub: string) => Promise<void>;
+  resumeSubscription: (sub: string) => Promise<void>;
   /** FR-EXM-125: how long the first Run waits for the chain before refunding. Default 30 s. */
   startTimeoutMs?: number;
   /** How long a Run waits for `subscription.created` to arrive for a subscription it does not know. Default 15 s. */
@@ -59,15 +63,18 @@ const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w
 const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2);
 
 export function createServer(deps: ServerDeps) {
+  // FR-EXM-153: runs are serialised per subscription. Each one resumes the meter and pauses it
+  // again, so two overlapping runs would fight over the same stream.
+  const queues = new Map<string, Promise<unknown>>();
   return createHttpServer((req, res) => {
-    route(req, res, deps).catch((err: Error) => {
+    route(req, res, deps, queues).catch((err: Error) => {
       deps.log(`✗ ${req.method} ${req.url}: ${err.message}`);
       if (!res.headersSent) send(res, 500, "text/plain", "Something went wrong.");
     });
   });
 }
 
-async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps): Promise<void> {
+async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps, queues: Map<string, Promise<unknown>>): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
 
   // FR-EXM-120: run code, but only inside a session that is actually running.
@@ -92,31 +99,14 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
       }
       return send(res, 409, "application/json", JSON.stringify({ needs_start: true, session: session.id }));
     }
-    // FR-EXM-125: the subscriber authorised; this Run is what starts the meter. Nothing is
-    // invoked until the chain confirms, so every second of compute is paid for and no more.
-    if (state === "authorised" || state === "starting") {
-      const started = await ensureStarted(sub, state, deps);
-      if (!started) {
-        return send(res, 503, "application/json", JSON.stringify({ error: "The meter didn't start, so nothing ran and nothing was charged." }));
-      }
-    }
     const { code } = JSON.parse(await readRaw(req)) as { code?: string };
-    // Reject rubbish before it costs a daily run.
+    // Reject rubbish before it costs a daily run, and before the meter is touched.
     if (typeof code !== "string" || code.trim() === "") {
       return send(res, 400, "application/json", JSON.stringify({ error: "code must be a non-empty string" }));
     }
-    const now = deps.now();
-    // BR-EXM-109: the cost guard is checked before the runner is ever reached.
-    if (!deps.sessions.tryConsumeRun(now)) {
-      return send(res, 429, "application/json", JSON.stringify({ error: "daily execution limit reached" }));
-    }
-    deps.sessions.touch(sub, now, { run: true });
-    const result = await deps.executor.run(code);
-    // FR-EXM-120: one line per run, so the terminal shows what the meter is being paid for.
-    const outcome = result.ok ? JSON.stringify(result.result) : result.error;
-    const { used, limit } = deps.sessions.runsToday(now);
-    deps.log(`▶ run ${sub}  ${oneLine(code)}  → ${outcome}  (${result.ms}ms)   [${used}/${limit} today]`);
-    return send(res, 200, "application/json", JSON.stringify(result));
+    // One run at a time per subscription: the next one waits for this one's pause to land.
+    const answer = await queued(queues, sub, () => runOnce(sub, code, deps));
+    return send(res, answer.status, "application/json", JSON.stringify(answer.body));
   }
 
   const vars = {
@@ -251,6 +241,62 @@ async function knownState(sub: string, deps: ServerDeps) {
   return undefined;
 }
 
+/** Runs `fn` after whatever is already queued for this subscription, and keeps the queue moving. */
+async function queued<T>(queues: Map<string, Promise<unknown>>, key: string, fn: () => Promise<T>): Promise<T> {
+  const previous = queues.get(key) ?? Promise.resolve();
+  const mine = previous.then(fn, fn);
+  queues.set(key, mine.catch(() => {}));
+  return mine;
+}
+
+/**
+ * One run: make sure the meter is on (FR-EXM-125/153), invoke, pause again, and answer. The daily
+ * cap (BR-EXM-109) is consumed only once the runner is actually about to be called.
+ */
+async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ status: number; body: unknown }> {
+  const state = deps.sessions.state(sub);
+  if (state !== "active") {
+    const running = await ensureRunning(sub, state ?? "paused", deps);
+    if (!running) {
+      return { status: 503, body: { error: "The meter didn't start, so nothing ran and nothing was charged." } };
+    }
+  }
+  const now = deps.now();
+  if (!deps.sessions.tryConsumeRun(now)) {
+    // The meter is on and nothing will run: stop it again rather than bill the refusal.
+    await pauseAfterRun(sub, deps);
+    return { status: 429, body: { error: "daily execution limit reached" } };
+  }
+  deps.sessions.touch(sub, now, { run: true });
+  let result;
+  try {
+    result = await deps.executor.run(code);
+  } finally {
+    // FR-EXM-153: the meter stops the moment the run does, whether it returned or threw.
+    await pauseAfterRun(sub, deps);
+  }
+  // FR-EXM-120: one line per run, so the terminal shows what the meter is being paid for.
+  const outcome = result.ok ? JSON.stringify(result.result) : result.error;
+  const { used, limit } = deps.sessions.runsToday(now);
+  deps.log(`▶ run ${sub}  ${oneLine(code)}  → ${outcome}  (${result.ms}ms)   [${used}/${limit} today]`);
+  return { status: 200, body: result };
+}
+
+/**
+ * FR-EXM-153: stop the meter now that the run is over. A pause that the platform refuses is logged
+ * and left alone — the session stays active, the idle sweep still ends it, and the subscriber is
+ * never billed for a pause we failed to make rather than for seconds they used.
+ */
+async function pauseAfterRun(sub: string, deps: ServerDeps): Promise<void> {
+  deps.sessions.markPausing(sub, deps.now());
+  try {
+    await deps.pauseSubscription(sub);
+  } catch (err) {
+    deps.sessions.applyActive(sub, { startedAt: deps.sessions.get(sub)?.startedAt ?? deps.now(), nowMs: deps.now() });
+    deps.log(`✗ pause ${sub}: ${(err as Error).message}`);
+  }
+}
+
 /**
  * FR-EXM-125: start the meter for an authorised session and wait for the chain to confirm it.
  *
@@ -260,7 +306,7 @@ async function knownState(sub: string, deps: ServerDeps) {
  * If it does not arrive in time the session is cancelled — nothing accrued, so the subscriber is
  * refunded in full — and the caller answers 503.
  */
-async function ensureStarted(sub: string, state: "authorised" | "starting", deps: ServerDeps): Promise<boolean> {
+async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps): Promise<boolean> {
   if (state === "authorised") {
     deps.sessions.markStarting(sub, deps.now());
     try {
@@ -270,6 +316,17 @@ async function ensureStarted(sub: string, state: "authorised" | "starting", deps
       // The start never happened: put the session back so the next Run can try again.
       deps.sessions.applyAuthorised(sub, { nowMs: deps.now() });
       deps.log(`✗ start ${sub}: ${(err as Error).message}`);
+      return false;
+    }
+  } else if (state === "paused") {
+    // FR-EXM-153: the meter was paused when the last run finished; this one turns it back on.
+    deps.sessions.markResuming(sub, deps.now());
+    try {
+      await deps.resumeSubscription(sub);
+      deps.log(`▶ resuming meter ${sub}`);
+    } catch (err) {
+      deps.sessions.applyPaused(sub, { nowMs: deps.now() });
+      deps.log(`✗ resume ${sub}: ${(err as Error).message}`);
       return false;
     }
   }

@@ -139,12 +139,15 @@ textarea.
 | First Run, no session | `checkout.sessions.create` with `max_duration_seconds`; the server answers `409 needs_start` with the session id, and `<Authorize>` appears in the page |
 | Subscriber authorises once | the permit is signed for `rate × max_duration_seconds` — the most this session can ever cost. Nothing is accruing yet: the Product is **merchant-started** |
 | The meter starts | the first Run calls `subscriptions.start`; nothing is invoked until `subscription.updated` says `active`, so the seconds you spent editing are free. If the start does not confirm within 30 s the session is cancelled and refunded in full |
+| Each run | `subscriptions.resume` before the invocation and `subscriptions.pause` the moment it returns, so you pay for the seconds your code runs plus the confirmation either side — roughly 1–3 s, not the minutes you spend reading the output |
 | Tab closed, idle, or gone | the server calls `subscriptions.cancel` itself, retried a few times if it fails |
 | Meter stops | `subscription.canceled` → the session closes and the exact settled amount is recorded |
 | Next Run | `409 needs_start` again — a new session, because the webhook closed the old one |
 
-`<Meter>` ticks from `rate × (now − started_at)` while you work; the figure it shows when the
-session ends is the **settled** amount, not the estimate.
+`<Meter>` ticks while your code runs and stops between runs; the figure it shows when the session
+ends is the **settled** amount, not the estimate. The meter is on chain, so the smallest thing it
+can bill is a confirmation, not a millisecond: a 0 ms Lambda call costs about one to three
+seconds of meter.
 
 ## Security
 

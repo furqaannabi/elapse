@@ -10,8 +10,12 @@
  * FR-EXM-133: where a session is in its life. `authorised` means the subscriber signed the permit
  * and the money is escrowed but nothing is accruing; `starting` means the merchant asked the
  * platform to start the meter and the chain has not confirmed yet; `active` means it is accruing.
+ *
+ * FR-EXM-153: between runs the meter is paused, so the subscriber pays only for the seconds their
+ * code runs. `pausing` and `resuming` are the windows where the platform has been asked and the
+ * chain has not answered; nothing may be invoked in either.
  */
-export type SessionState = "authorised" | "starting" | "active" | "ended";
+export type SessionState = "authorised" | "starting" | "active" | "pausing" | "paused" | "resuming" | "ended";
 
 export interface Session {
   state: SessionState;
@@ -120,6 +124,27 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       sessions.set(sub, { ...prev, state: "starting", active: false, lastSeen: nowMs, updatedAt: nowMs });
     },
 
+    /** FR-EXM-153: `subscriptions.pause` was accepted; the meter is no longer safe to run against. */
+    markPausing(sub: string, nowMs: number): void {
+      const prev = sessions.get(sub);
+      if (!prev) return;
+      sessions.set(sub, { ...prev, state: "pausing", active: false, updatedAt: nowMs });
+    },
+
+    /** FR-EXM-153: `subscriptions.resume` was accepted; wait for the chain before invoking. */
+    markResuming(sub: string, nowMs: number): void {
+      const prev = sessions.get(sub);
+      if (!prev) return;
+      sessions.set(sub, { ...prev, state: "resuming", active: false, updatedAt: nowMs });
+    },
+
+    /** FR-EXM-133/153: `subscription.updated` with `status: "paused"` — accrual has stopped. */
+    applyPaused(sub: string, info: { nowMs: number }): void {
+      const prev = sessions.get(sub);
+      if (!prev) return;
+      sessions.set(sub, { ...prev, state: "paused", active: false, updatedAt: info.nowMs });
+    },
+
     /** FR-EXM-133: `subscription.updated` with `status: "active"` — the meter is running now. */
     applyActive(sub: string, info: { startedAt: number; nowMs: number }): void {
       const prev = sessions.get(sub);
@@ -186,7 +211,11 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
         if (!s.seen) continue;
         if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, reason: "left" });
         // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
-        else if (s.state === "active" && nowMs - s.lastRun > windows.idleTimeoutMs) due.push({ sub, reason: "idle" });
+        // FR-EXM-154: after it, the timeout is cleanup rather than billing (a paused session costs
+        // nothing either), so it applies to every state that has a stream running or paused.
+        else if (s.state !== "authorised" && s.state !== "starting" && nowMs - s.lastRun > windows.idleTimeoutMs) {
+          due.push({ sub, reason: "idle" });
+        }
       }
       return due;
     },
