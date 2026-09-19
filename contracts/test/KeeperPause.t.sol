@@ -24,14 +24,22 @@ contract KeeperPauseTest is BaseTest {
     function stream() internal returns (AccrualStream s) {
         vm.prank(sub);
         usd.approve(address(factory), ESCROW);
-        s = AccrualStream(factory.createWithPermit(mer, sub, address(usd), RATE, ESCROW, block.timestamp + 600, 0, bytes32(0), bytes32(0)));
+        s = AccrualStream(
+            factory.createWithPermit(
+                mer, sub, address(usd), RATE, ESCROW, block.timestamp + 600, 0, bytes32(0), bytes32(0)
+            )
+        );
     }
 
     /// A merchant-started stream, started by the keeper on the merchant's behalf.
     function merchantStream() internal returns (AccrualStream s) {
         vm.prank(sub);
         usd.approve(address(factory), ESCROW);
-        s = AccrualStream(factory.createWithPermitNoStart(mer, sub, address(usd), RATE, ESCROW, block.timestamp + 600, 0, bytes32(0), bytes32(0)));
+        s = AccrualStream(
+            factory.createWithPermitNoStart(
+                mer, sub, address(usd), RATE, ESCROW, block.timestamp + 600, 0, bytes32(0), bytes32(0)
+            )
+        );
         vm.prank(keeper);
         s.start();
     }
