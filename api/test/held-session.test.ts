@@ -85,12 +85,14 @@ describe("FR-API-137 start mode and refund-by time for the subscriber", () => {
     expect(chain.keeperCancels).toEqual([STREAM]);
   });
 
-  it("FR_API_137_a_checkout_mode_subscriber_keeps_stop", async () => {
-    // Nothing changes for a meter the subscriber started themselves.
+  it("FR_API_137_a_checkout_mode_session_is_refused_for_having_no_meter_not_for_being_the_merchant_s", async () => {
+    // A checkout-mode session starts at authorisation, so an unstarted one has no meter at all.
+    // The distinction matters: `merchant_controlled` would tell the subscriber the wrong story.
     const { sessionId } = await heldSession({ startMode: "checkout" });
     chain.setRelayNonce(STREAM, 0n);
     const prep = await api("POST", `/v1/checkout/sessions/${sessionId}/cancel/prepare`, { key: m.pkTest, body: {}, headers: await identity() });
-    expect(prep.status).not.toBe(409);
+    expect(prep.status).toBe(409);
+    expect(prep.body.error.code).toBe("not_running");
   });
 });
 
@@ -125,17 +127,19 @@ describe("FR-API-138 /account lists held money", () => {
     expect(row).toMatchObject({ status: "incomplete", start_mode: "merchant", start_by: created + Math.min(3600, UNSTARTED_WINDOW_S) });
   });
 
-  it("FR_API_138_the_account_stops_a_held_meter_and_the_sweep_never_cancels_it_again", async () => {
+  it("FR_API_138_the_account_cannot_stop_a_held_meter_amended_2026_09_19", async () => {
+    // /account is Elapse's own page, and it is bound by the same rule as the merchant's:
+    // a merchant-started meter is the merchant's to stop, before it starts as well as after.
     const held = await heldSession();
     chain.setRelayNonce(STREAM, 0n);
     const prep = await api("POST", `/v1/account/subscriptions/${held.subId}/cancel/prepare`, { body: {}, headers: await identity() });
-    expect(prep.status).toBe(200);
-    const signature = await subscriber.signMessage({ message: { raw: prep.body.message } });
-    const res = await api("POST", `/v1/account/subscriptions/${held.subId}/cancel`, { body: { signature, deadline: prep.body.deadline }, headers: await identity() });
-    expect(res.status).toBe(202);
-    expect(chain.cancels.map((c) => c.stream)).toEqual([STREAM]);
+    expect(prep.status).toBe(409);
+    expect(prep.body.error.code).toBe("merchant_controlled");
+    expect(chain.cancels).toEqual([]);
+
+    // And the sweep is still there to refund it.
     const swept = await runUnstartedSweepOnce({ now: Math.floor(Date.now() / 1000) + 86_400, log: () => {} });
-    expect(swept.canceled).toEqual([]);
+    expect(swept.canceled).toEqual([STREAM]);
   });
 });
 

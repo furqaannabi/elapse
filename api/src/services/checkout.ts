@@ -346,7 +346,12 @@ export async function resumeAsKeeper(sub: SubscriptionRow): Promise<Hex> {
 }
 
 export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
-  if (!sub.stream_address || (sub.status !== "active" && sub.status !== "paused")) {
+  // FR-API-137 (amended 2026-09-19): a held session counts. Since the subscriber can no longer
+  // stop one themselves, the merchant must be able to — otherwise the only way their money comes
+  // back is the unstarted sweep, and the ADR promises two. Cancelling an unstarted stream refunds
+  // the whole deposit (contracts FR-CON-056).
+  const releasable = sub.status === "active" || sub.status === "paused" || isHeld(sub);
+  if (!sub.stream_address || !releasable) {
     throw new CheckoutStateError("not_running", "The subscription has no running meter.");
   }
   const pendingTx = await chainClient().cancel(sub.chain_id, sub.stream_address as Address);
