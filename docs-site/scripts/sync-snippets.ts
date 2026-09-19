@@ -64,6 +64,11 @@ function build(): Record<string, string> {
   const hooks = read("examples/saas/src/webhooks.ts");
   for (const name of ["client", "product", "session"]) out[`example-${name}.mdx`] = fence("ts", extractRegion(boot, name), "server.ts");
   for (const name of ["verify", "handle"]) out[`example-${name}.mdx`] = fence("ts", extractRegion(hooks, name), "webhooks.ts");
+  // FR-DOC-047: the React page's snippets come from the example's own island, not from prose.
+  const island = read("examples/saas/src/web/mount.tsx");
+  for (const name of ["react-components", "react-provider"]) {
+    out[`example-${name}.mdx`] = fence("tsx", extractRegion(island, name), "mount.tsx");
+  }
 
   for (const type of EVENT_TYPES) out[`payload-${type}.mdx`] = fence("json", samplePayload(type), type);
 

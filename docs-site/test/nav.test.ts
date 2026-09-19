@@ -12,7 +12,7 @@ const docs = JSON.parse(readFileSync(new URL("../site/docs.json", import.meta.ur
 const title = (e: string | { group: string }) => (typeof e === "string" ? e : e.group);
 
 describe("FR-DOC-002 navigation", () => {
-  it("has the ten entries in order", () => {
+  it("has the eleven entries in order", () => {
     expect(docs.navigation.pages.map(title)).toEqual([
       "introduction",
       "quickstart",
@@ -21,6 +21,7 @@ describe("FR-DOC-002 navigation", () => {
       "payouts",
       "Webhooks",
       "sdks",
+      "react",
       "API reference",
       "contracts",
       "testing",

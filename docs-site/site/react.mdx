@@ -1,0 +1,146 @@
+---
+title: "React"
+description: "Authorise, meter and prove a per-second subscription inside your own app."
+---
+
+`@elapse/react` puts the whole subscriber flow in your page: choosing how long the meter may run,
+Face ID, the live amount, and the receipt. Your code never touches the subscriber's wallet — every
+signature happens on Elapse's origin, in a frame over your page.
+
+```bash
+npm install @elapse/react
+```
+
+Peers: `react` 18 or 19, `react-dom`, `motion`.
+
+<Note>
+  Create the checkout session on your **server** with [`@elapse/sdk`](/sdks) and pass its `id` to
+  the browser. The React package only ever takes your publishable key.
+</Note>
+
+## The whole integration
+
+<Snippet file="example-react-provider.mdx" />
+
+<Snippet file="example-react-components.mdx" />
+
+That is `examples/saas` verbatim — the snippets above are synced from its source, so they cannot
+drift from code that runs.
+
+## `<ElapseProvider>`
+
+Wraps everything below it and holds the configuration.
+
+| Prop | Default | |
+| --- | --- | --- |
+| `publishableKey` | — | `pk_test_…` or `pk_live_…`. A key starting with `sk_` throws at render. |
+| `baseUrl` | `https://api.elapse.finance` | The Elapse API. |
+| `appOrigin` | `https://elapse.finance` | Where the signing frame and its fallback window live. |
+| `sound` | `true` | Meter cues. `false` silences them for every subscriber. |
+
+## `<Authorize>`
+
+Shows how long the meter may run and what that can cost, then asks for the signature.
+
+```tsx
+<Authorize
+  session="cs_…"
+  onAuthorised={(e) => console.log(e.subscription, e.txHash)}
+  onStarted={(e) => setRunning(true)}
+  onError={(e) => console.error(e.message)}
+/>
+```
+
+`onStarted` fires for a checkout-mode product, whose meter starts at authorisation. `onAuthorised`
+fires for a `merchant`-mode one, whose meter waits for your `subscriptions.start` — the subscriber
+sees "Waiting for you to start" until then.
+
+### Where Face ID happens
+
+Elapse opens in a frame over your page. Browsers refuse to *enrol* a passkey inside a cross-origin
+frame, so a subscriber who has never used Elapse is handed to a window automatically, mid-flow,
+carrying the same attempt. There is nothing for you to handle, and nothing to configure: your
+session's `success_url` decides which origin may frame the page, so only you can.
+
+## `<Meter>`
+
+The live meter: elapsed and amount from `rate × (now − started_at)`, ticking at 100 ms, the
+controls the product allows, and the receipt when it ends.
+
+| Prop | Default | |
+| --- | --- | --- |
+| `session` | — | The checkout session id. |
+| `dock` | *(inline)* | `"bottom-right"` or `"bottom-left"` floats it as a capsule instead of a card in your layout. On a phone the capsule spans the gutter. |
+| `controls` | `true` | `false` hides Stop, Pause and Resume — for a meter only you stop. |
+| `proof` | `false` | Drops a card carrying the transaction when the meter starts and when it ends. |
+| `onStopped` `onPaused` `onResumed` `onError` | — | Each event carries `{ subscription, txHash, explorerUrl }`. |
+
+```tsx
+<Meter session="cs_…" dock="bottom-right" proof onStopped={(e) => revoke(e.subscription)} />
+```
+
+A `merchant`-mode meter shows the subscriber no Stop once you have started it: it is yours to stop,
+and the meter says so.
+
+## `<TxLink>`
+
+```tsx
+<TxLink hash="0x4cbe…9143" chainId={10143} />
+```
+
+Renders `0x4cbe…9143`, linked to the chain's explorer in a new tab. Nothing renders it for you:
+a subscriber should not have to learn what a transaction is to buy something, so chain words appear
+only where you put them, or when you pass `proof` to the meter.
+
+## Hooks
+
+`useAuthorize(session)` and `useMeter(session)` return the same state the components render, for
+when you want your own markup entirely.
+
+```tsx
+const { elapsed, accrued, running, canStop, stop, receipt, modal } = useMeter("cs_…");
+```
+
+Render `modal` somewhere in your tree: it is the signing frame, and without it nothing can be
+signed. `@elapse/react/math` exports the money math on its own, for a server or a test.
+
+## Styling
+
+```tsx
+import "@elapse/react/styles.css";
+```
+
+Plain CSS scoped to `.elapse`; no Tailwind required. Override what you want:
+
+```css
+.elapse {
+  --elapse-accent: #7c3aed;
+  --elapse-bg: #ffffff;
+  --elapse-fg: #101010;
+  --elapse-muted: #6b7280;
+  --elapse-radius: 1rem;
+  --elapse-font: "Inter", sans-serif;
+}
+```
+
+Dark by default, light when the page or the system asks. Every animation stops under
+`prefers-reduced-motion`, and the meter never animates per second.
+
+## Sound
+
+Two short synthesised notes when a meter starts and when it stops — never one per second. The
+subscriber gets a mute on the meter, remembered by their browser; `sound={false}` on the provider
+turns it off for everyone.
+
+## No bundler?
+
+```html
+<div id="elapse"></div>
+<script type="module">
+  import { mount } from "https://cdn.jsdelivr.net/npm/@elapse/react/dist/elapse.browser.js";
+  mount("#elapse", { publishableKey: "pk_test_…", session: "cs_…" });
+</script>
+```
+
+That build carries its own React (~65 KB gzipped). If your app already runs React, install the
+package instead and keep one copy.

@@ -1,0 +1,11 @@
+```tsx mount.tsx
+const el = document.getElementById("elapse");
+if (el) {
+  const { session, publishableKey, apiUrl, appUrl } = el.dataset as Record<string, string>;
+  createRoot(el).render(
+    <ElapseProvider publishableKey={publishableKey!} baseUrl={apiUrl!} appOrigin={appUrl!}>
+      <Checkout session={session!} />
+    </ElapseProvider>,
+  );
+}
+```

@@ -58,6 +58,7 @@
         ]
       },
       "sdks",
+      "react",
       {
         "group": "API reference",
         "openapi": "openapi.json",

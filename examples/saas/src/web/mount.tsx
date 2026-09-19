@@ -13,6 +13,7 @@ import "@elapse/react/styles.css";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
+// region:react-components
 function Checkout({ session }: { session: string }) {
   const [started, setStarted] = useState(false);
   return started ? (
@@ -32,6 +33,9 @@ function Checkout({ session }: { session: string }) {
   );
 }
 
+// endregion
+
+// region:react-provider
 const el = document.getElementById("elapse");
 if (el) {
   const { session, publishableKey, apiUrl, appUrl } = el.dataset as Record<string, string>;
@@ -41,3 +45,4 @@ if (el) {
     </ElapseProvider>,
   );
 }
+// endregion

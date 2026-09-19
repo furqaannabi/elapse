@@ -9,6 +9,7 @@ import ExampleSession from '/snippets/example-session.mdx';
 import ExampleVerify from '/snippets/example-verify.mdx';
 import ExampleHandle from '/snippets/example-handle.mdx';
 import CliListen from '/snippets/cli-listen.mdx';
+import ExampleReactComponents from '/snippets/example-react-components.mdx';
 
 Takes about 10 minutes · you need Node 20 and a dashboard account.
 
@@ -65,11 +66,11 @@ Every snippet on this page is extracted from the finished merchant in [`examples
     </Tabs>
   </Step>
 
-  <Step title="Create a Checkout session and print its URL">
+  <Step title="Create a Checkout session on your server">
     <Tabs>
       <Tab title="TypeScript">
         <ExampleSession />
-        Send the subscriber to `session.url`; it is the link you open in the last step. When they stop, Elapse returns them to `success_url` with `?session_id=cs_…` appended.
+        Pass `session.id` to your page — that is all the browser needs, and the only Elapse id it should ever hold. When the meter stops, Elapse returns the subscriber to `success_url` with `?session_id=cs_…` appended.
       </Tab>
       <Tab title="cURL">
         ```bash
@@ -116,14 +117,21 @@ Every snippet on this page is extracted from the finished merchant in [`examples
     <CliListen />
   </Step>
 
-  <Step title="Open the URL on your phone, Start, Stop">
-    Open the Checkout URL from step 4 on a phone. Sign in with Face ID, press **Start**, watch the meter, press **Stop** after a few seconds. Your terminal shows `subscription.canceled` with `seconds_elapsed` and what was paid.
+  <Step title="Render the meter, then authorise on your phone">
+    `@elapse/react` takes the session id and your publishable key. Face ID happens in a frame Elapse
+    opens over your page, so your code never touches the subscriber's wallet.
+
+    <ExampleReactComponents />
+
+    Open your page on a phone. Choose how long the meter may run, confirm with Face ID, watch the
+    amount tick, press **Stop** after a few seconds. Your terminal shows `subscription.canceled`
+    with `seconds_elapsed` and what was paid.
 
     ```text
     14:02:26  evt_1S2b…  subscription.canceled   → revoke access · 83s · $0.33
     ```
 
-    That is the whole loop: a subscriber paid for 83 seconds, and your server found out through a webhook.
+    The docked capsule, hiding controls, and the proof drop are on the [React page](/react).
   </Step>
 </Steps>
 
