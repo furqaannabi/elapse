@@ -2,11 +2,11 @@
   "ausd": "0xa9012a055bd4e0eDfF8Ce09f960291C09D5322dC",
   "ausdDecimals": 6,
   "chainId": 10143,
-  "deployedAtBlock": 63828958,
-  "factory": "0x6D6A5E80Fbe09552f2B604D23e207A76B85C8695",
+  "deployedAtBlock": 63882987,
+  "factory": "0xD5851fB58A875cEBabf6828F93416A062D737907",
   "feeBps": 200,
-  "implementation": "0x08066b4561065A8b132C9Ef6bF6749c98449195e",
+  "implementation": "0x349A1B04161A217ba1A47983cBb681600787Ba74",
   "keeper": "0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35",
   "treasury": "0xaf1444aBF40aFC91Bcb4A6793765553c6BcceA0d",
-  "deployTx": "0x4cbee5356bc3ee14abfd5b02598639e5fc19ee20c7d61cfdb5943536c3759143"
+  "deployTx": "0xec94e7f6ea9a7e68429d4ce0a071671bb271b1ff92fe13f52a3a91ab44ac3098"
 }

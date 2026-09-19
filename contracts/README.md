@@ -57,7 +57,22 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
-## Current testnet deployment (2026-09-19, the keeper may pause)
+## Current testnet deployment (2026-09-19, only the merchant stops a held meter)
+
+| | |
+| --- | --- |
+| Factory | [`0xD5851fB58A875cEBabf6828F93416A062D737907`](https://testnet.monadscan.com/address/0xD5851fB58A875cEBabf6828F93416A062D737907) · Sourcify exact match |
+| Implementation | `0x349A1B04161A217ba1A47983cBb681600787Ba74` · Sourcify exact match |
+| Owner | `0x35134987bB541607Cd45e62Dd1feA4F587607817` (the `hackathons` keystore) |
+| Keeper (relayer) | `0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35`, set in the deploy run |
+| Fee | 200 bps from the constructor |
+| Block | 63882987, tx `0xec94e7f6…ac3098` |
+| Why | FR-CON-057 amended: a subscriber may not stop a merchant-started stream in **any** state, held included ([ADR 2026-09-19](../docs/decisions/2026-09-19-only-the-merchant-stops-a-held-meter.md)). Held money is released by the merchant or by the keeper's unstarted sweep |
+
+Streams created on an earlier factory keep that factory's rules; nothing migrates. A held session
+created before this cutover can still be stopped by its subscriber.
+
+## Previous testnet deployment (2026-09-19, the keeper may pause)
 
 | | |
 | --- | --- |
@@ -68,8 +83,6 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 | Fee | 200 bps from the constructor — no `setFee` needed, unlike every deployment before it |
 | Block | 63828958, tx `0x4cbee535…759143` |
 | Why | FR-CON-074: `pause()` and `resume()` accept the factory's keeper, so a merchant can bill only while its resource is working ([ADR 2026-09-19](../docs/decisions/2026-09-19-keeper-may-pause.md)) |
-
-Streams created on an earlier factory keep that factory's rules; nothing migrates.
 
 ## Previous testnet deployment (2026-09-17, only the merchant stops)
 
