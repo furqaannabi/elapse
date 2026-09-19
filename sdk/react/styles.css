@@ -540,3 +540,51 @@
     stroke-dashoffset: 0;
   }
 }
+
+/*
+ * The proof drop (FR-RCT-045). It falls out of the meter, holds, and lifts away — a receipt handed
+ * over rather than a banner demanding attention. It is opt-in, so anything it says is something the
+ * merchant chose to show; the hash is a link because proof you cannot check is not proof.
+ */
+.elapse-proof {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.5rem 0.875rem;
+  background: var(--elapse-surface);
+  border: 1px solid var(--elapse-border);
+  border-radius: calc(var(--elapse-radius) * 1.5);
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  font-size: 0.8125rem;
+  animation: elapse-proof-drop 320ms cubic-bezier(0.16, 1, 0.3, 1) 1;
+}
+
+.elapse-proof-step {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.elapse-tx {
+  font-family: var(--elapse-font-mono);
+  font-size: 0.75rem;
+  color: var(--elapse-accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--elapse-accent) 40%, transparent);
+}
+
+.elapse-tx:hover {
+  border-bottom-color: var(--elapse-accent);
+}
+
+@keyframes elapse-proof-drop {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .elapse-proof {
+    animation: none;
+  }
+}

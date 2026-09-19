@@ -5,5 +5,6 @@ export { useAuthorize, type AuthorizeState, type StepEvent } from "./use-authori
 export { fetchPublicSession, type PublicSession, type PublicSubscription } from "./session";
 export { explorerUrl } from "./explorer";
 export { Meter, type MeterDock } from "./meter";
+export { TxLink } from "./tx-link";
 export { useMeter, type MeterHandlers, type MeterReceipt, type MeterView } from "./use-meter";
 export * from "./math";

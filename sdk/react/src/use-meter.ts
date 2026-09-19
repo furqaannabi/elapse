@@ -155,8 +155,20 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
         }
       : null;
 
+  /**
+   * FR-RCT-045: the two moments worth a proof, and the transaction behind each. Pause and resume
+   * are deliberately absent — with per-run billing they land every few seconds.
+   */
+  const proof: { step: "started" | "stopped"; txHash: string } | null =
+    view === "ended" && sub?.endTx
+      ? { step: "stopped", txHash: sub.endTx }
+      : (view === "running" || view === "paused") && sub?.startTx
+        ? { step: "started", txHash: sub.startTx }
+        : null;
+
   return {
     modal,
+    proof,
     view,
     session,
     error,

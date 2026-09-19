@@ -24,6 +24,9 @@ export interface SubscriptionRow {
   chain_id: number;
   stream_address: string | null;
   pending_tx: string | null;
+  /** FR-API-143: the transactions that started and ended the meter, for the proof drop. */
+  start_tx: string | null;
+  end_tx: string | null;
   rate_per_second_wei: string;
   max_duration_seconds: number;
   max_escrow_wei: string;
@@ -42,7 +45,7 @@ export interface SubscriptionRow {
   customer_email: string | null;
 }
 
-const COLS = sql`id, merchant_id, livemode, product_id, customer_id, checkout_session_id, status, start_mode, start_submitted_at, cancel_submitted_at, ended_reason, chain_id,
+const COLS = sql`id, merchant_id, livemode, product_id, customer_id, checkout_session_id, status, start_mode, start_submitted_at, cancel_submitted_at, ended_reason, chain_id, start_tx, end_tx,
   stream_address, pending_tx, rate_per_second_wei::text AS rate_per_second_wei, max_duration_seconds,
   max_escrow_wei::text AS max_escrow_wei, funded_wei::text AS funded_wei, settled_wei::text AS settled_wei,
   settled_fee_wei::text AS settled_fee_wei, settled_seconds, paused_seconds, started_at, paused_at, canceled_at, simulated, created_at,

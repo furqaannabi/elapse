@@ -20,6 +20,9 @@ export interface PublicSubscription {
   /** Epoch ms when an unstarted merchant-mode meter comes back if never started (FR-API-137). */
   startBy: number | null;
   subscriberCanStop: boolean;
+  /** FR-API-143: the transactions that started and ended the meter; `<Meter proof>` links them. */
+  startTx: string | null;
+  endTx: string | null;
 }
 
 export interface PublicSession {
@@ -59,6 +62,8 @@ export function mapSession(w: any): PublicSession {
           startMode: s.start_mode === "merchant" ? "merchant" : "checkout",
           startBy: typeof s.start_by === "number" ? s.start_by * 1000 : null,
           subscriberCanStop: s.subscriber_can_stop !== false,
+          startTx: (s.start_tx as string | null) ?? null,
+          endTx: (s.end_tx as string | null) ?? null,
         }
       : null,
   };

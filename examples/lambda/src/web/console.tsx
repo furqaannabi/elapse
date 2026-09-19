@@ -143,6 +143,10 @@ export function Console({ merchant }: { merchant: string }) {
           // Northwind's meter is Northwind's to stop (FR-CHK-037): the subscriber gets no Stop,
           // not even in the held second before the first run starts it.
           controls={false}
+          // FR-RCT-045: this console's audience is developers and judges, so the start and the end
+          // drop in with their transactions — the one place chain words belong on a subscriber's
+          // screen is the one a merchant asked for (BR-RCT-001).
+          proof
           onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
           onError={(e) => setOut({ error: e.message })}
         />

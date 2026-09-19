@@ -69,6 +69,7 @@ const big = (s: string | undefined): bigint => BigInt(s ?? "0");
 const int = (s: string | undefined): number => Number(s ?? "0");
 
 async function applyLog(tx: SQL, sub: SubscriptionRow, body: IngestBody, chainEventId: number): Promise<string[]> {
+  const txHash = body.tx_hash.toLowerCase();
   const a = body.args;
   const ts = body.block_timestamp;
   const eventIds: string[] = [];
@@ -105,7 +106,9 @@ async function applyLog(tx: SQL, sub: SubscriptionRow, body: IngestBody, chainEv
       break;
     }
     case "StreamStarted": {
-      await tx`UPDATE subscriptions SET status = 'active', started_at = to_timestamp(${int(a.startedAt)}), updated_at = now() WHERE id = ${sub.id}`;
+      // FR-API-143: the transaction that started the meter, kept for the proof drop. Written here
+      // rather than joined from chain_events because the public session is read every 5 s.
+      await tx`UPDATE subscriptions SET status = 'active', started_at = to_timestamp(${int(a.startedAt)}), start_tx = COALESCE(start_tx, ${txHash}), updated_at = now() WHERE id = ${sub.id}`;
       // A merchant-started stream already completed its session and announced itself at
       // `Deposited`; starting is a lifecycle change, so it rides on `subscription.updated`
       // and the frozen six event types stand (FR-API-071).
@@ -170,7 +173,8 @@ async function applyLog(tx: SQL, sub: SubscriptionRow, body: IngestBody, chainEv
       const reason = capReached ? "cap_reached" : "canceled";
       await tx`UPDATE subscriptions
                SET status = 'canceled', ended_reason = ${reason}, canceled_at = to_timestamp(${int(a.at)}), paused_at = NULL,
-                   settled_seconds = ${secondsElapsed}, settled_wei = ${big(a.amountSettled).toString()}::numeric, updated_at = now()
+                   settled_seconds = ${secondsElapsed}, settled_wei = ${big(a.amountSettled).toString()}::numeric,
+                   end_tx = COALESCE(end_tx, ${txHash}), updated_at = now()
                WHERE id = ${sub.id}`;
       const after = await reload();
       if (capReached) {

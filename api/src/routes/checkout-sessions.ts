@@ -110,6 +110,8 @@ export const PublicCheckoutSessionSchema = z
       start_mode: z.enum(["checkout", "merchant"]),
       start_by: z.number().int().nullable().openapi({ description: "FR-API-137: when an unstarted merchant-mode meter is refunded if the merchant never starts it; null otherwise." }),
       subscriber_can_stop: z.boolean().openapi({ description: "FR-API-139: false once the merchant has started a merchant-mode meter; only the merchant can stop it." }),
+      start_tx: z.string().nullable().openapi({ description: "FR-API-143: the transaction that started the meter, once it has. Public chain data; `<Meter proof>` links it." }),
+      end_tx: z.string().nullable().openapi({ description: "FR-API-143: the transaction that ended the meter, once it has." }),
     }).nullable(),
     max_duration_seconds: z.number().int().nullable(),
     max_escrow_usd: z.string().nullable(),
@@ -201,7 +203,17 @@ export function serializePublicSession(
     },
     customer,
     // FR-API-137: only the subscriber's projection carries these; the merchant's Subscription object is unchanged.
-    subscription: sub ? { ...serializeSubscription(sub), start_mode: sub.start_mode, start_by: startBy(sub), subscriber_can_stop: !isMerchantControlled(sub) } : null,
+    subscription: sub
+      ? {
+          ...serializeSubscription(sub),
+          start_mode: sub.start_mode,
+          start_by: startBy(sub),
+          subscriber_can_stop: !isMerchantControlled(sub),
+          // FR-API-143: public chain facts, unlike anything the denylist keeps out of this read.
+          start_tx: sub.start_tx,
+          end_tx: sub.end_tx,
+        }
+      : null,
     last_max_duration_seconds: s.last_max_duration_seconds,
     restarted_as: s.restarted_as,
     max_duration_seconds: s.max_duration_seconds,

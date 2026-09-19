@@ -5,8 +5,9 @@
  */
 import { formatCap } from "./money";
 import { useElapseConfig } from "./provider";
+import { TxLink } from "./tx-link";
 import { useMeter, type MeterHandlers } from "./use-meter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * FR-RCT-041: the mark that says it is done. A checkmark that draws itself once, the way a payment
@@ -25,11 +26,43 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numer
 /** Where a docked meter sits. Omit it and the meter renders inline, as it always has. */
 export type MeterDock = "bottom-right" | "bottom-left";
 
-export function Meter({ session, dock, controls = true, ...handlers }: { session: string; dock?: MeterDock; controls?: boolean } & MeterHandlers) {
+/**
+ * FR-RCT-045: the proof of one step, dropped out of the meter and gone again in six seconds. It is
+ * never the only place a fact appears — the receipt still carries the totals once it has lifted —
+ * so nobody has to catch it.
+ */
+function ProofDrop({ step, txHash, chainId }: { step: "started" | "stopped"; txHash: string; chainId: number }) {
+  const [gone, setGone] = useState(false);
+  useEffect(() => {
+    setGone(false);
+    const id = setTimeout(() => setGone(true), 6_000);
+    return () => clearTimeout(id);
+  }, [txHash]);
+  if (gone) return null;
+  return (
+    <div className="elapse-proof" aria-live="polite">
+      <span className="elapse-proof-step">{step === "started" ? "Meter started" : "Meter stopped"}</span>
+      <TxLink hash={txHash} chainId={chainId} />
+    </div>
+  );
+}
+
+export function Meter({
+  session,
+  dock,
+  controls = true,
+  proof = false,
+  ...handlers
+}: { session: string; dock?: MeterDock; controls?: boolean; proof?: boolean } & MeterHandlers) {
   const m = useMeter(session, handlers);
   // FR-RCT-042 (amended 2026-09-19, Furqaan: "no stop button"): a merchant whose meter is its own
   // to stop can turn the subscriber's controls off entirely. The escrow is untouched by this — the
   // held session still refunds by itself (worker FR-WRK-075) and the merchant can still cancel.
+  // BR-RCT-001: no hash reaches a subscriber unless the merchant asked for one.
+  const drop =
+    proof && m.proof && m.session?.subscription ? (
+      <ProofDrop step={m.proof.step} txHash={m.proof.txHash} chainId={m.session.subscription.chainId} />
+    ) : null;
   const canStop = controls && m.canStop;
   const canPause = controls && m.canPause;
   const canResume = controls && m.canResume;
@@ -65,6 +98,7 @@ export function Meter({ session, dock, controls = true, ...handlers }: { session
       <>
       {m.modal}
       <div className={`elapse elapse-dock`} data-corner={dock} data-running={running} aria-live="polite">
+        {drop}
         <div className="elapse-capsule">
           <span className="elapse-dot" aria-hidden="true" />
           {m.view === "ended" && r ? (
@@ -151,6 +185,7 @@ export function Meter({ session, dock, controls = true, ...handlers }: { session
     return (
       <>
       {m.modal}
+      {drop}
       <div className="elapse elapse-card" aria-live="polite">
         <h2 className="elapse-title">
           <Tick /> You paid for {r.seconds} {r.seconds === 1 ? "second" : "seconds"} · {r.paid}
@@ -176,6 +211,7 @@ export function Meter({ session, dock, controls = true, ...handlers }: { session
   return (
     <>
     {m.modal}
+    {drop}
     <div className="elapse elapse-card" aria-live="polite">
       <p className="elapse-label">
         {s.product.name} · <span className="elapse-numerals">${s.product.rateUsdPerSecond}/s</span>

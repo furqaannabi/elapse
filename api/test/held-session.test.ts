@@ -3,7 +3,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { api, resetDb, seedMerchant, type Fixture } from "./helpers";
 import { setChainClient } from "../src/chain/relayer";
 import { fakeChain } from "./fake-chain";
-import { STREAM, streamCreated, deposited, streamStarted } from "./ingest-fixtures";
+import { STREAM, streamCreated, deposited, streamStarted, streamCanceled, T0 } from "./ingest-fixtures";
 import { privyFixture } from "./privy-fixture";
 import { UNSTARTED_WINDOW_S, runUnstartedSweepOnce } from "../src/worker/unstarted";
 
@@ -189,3 +189,36 @@ describe("FR-API-139 only the merchant stops a started merchant-mode meter", () 
   });
 });
 
+describe("FR-API-143 the meter's two transactions on the public session", () => {
+  it("FR_API_143_start_tx_and_end_tx_arrive_with_their_logs_and_are_null_before", async () => {
+    const { sessionId } = await heldSession();
+    const pk = { key: m.pkTest };
+
+    let pub = await api("GET", `/v1/checkout/sessions/${sessionId}`, pk);
+    expect(pub.body.subscription.start_tx).toBeNull();
+    expect(pub.body.subscription.end_tx).toBeNull();
+
+    const startTx = "0x" + "11".repeat(32);
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamStarted(startTx, T0) });
+    pub = await api("GET", `/v1/checkout/sessions/${sessionId}`, pk);
+    expect(pub.body.subscription.start_tx).toBe(startTx);
+    expect(pub.body.subscription.end_tx).toBeNull();
+
+    const endTx = "0x" + "22".repeat(32);
+    await api("POST", "/internal/ingest", { headers: INGEST, body: streamCanceled(T0 + 3, 3, "12000", "7188000", endTx) });
+    pub = await api("GET", `/v1/checkout/sessions/${sessionId}`, pk);
+    // The start is still there: the drop for the end must not overwrite the proof of the start.
+    expect(pub.body.subscription.start_tx).toBe(startTx);
+    expect(pub.body.subscription.end_tx).toBe(endTx);
+  });
+
+  it("FR_API_143_adds_only_the_two_named_transactions", async () => {
+    // `pending_tx` stays out: it holds whatever was submitted last and is never cleared, so after
+    // a stop it would still be the start's hash and the drop would lie.
+    const { sessionId } = await heldSession();
+    const pub = await api("GET", `/v1/checkout/sessions/${sessionId}`, { key: m.pkTest });
+    expect(pub.body.subscription).not.toHaveProperty("pending_tx");
+    expect(pub.body.subscription).toHaveProperty("start_tx");
+    expect(pub.body.subscription).toHaveProperty("end_tx");
+  });
+});
