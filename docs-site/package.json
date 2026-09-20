@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@elapse/sdk": "workspace:*",
+    "@elapse/sdk": "^0.3.0",
     "@types/node": "^24.0.0",
     "mintlify": "^4.2.876",
     "tsx": "^4.20.0",

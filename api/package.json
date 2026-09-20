@@ -23,7 +23,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
-    "@elapse/sdk": "workspace:*",
+    "@elapse/sdk": "^0.3.0",
     "@types/bun": "^1.2.0",
     "typescript": "^5.9.0"
   }
