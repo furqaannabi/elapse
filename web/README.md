@@ -1,11 +1,11 @@
-# web — landing, hosted checkout, merchant dashboard
+# web — landing, `/authorize`, subscriber account, merchant dashboard
 
 One Next.js 16 App Router app, deployed on Vercel at <https://elapse.finance>.
 
 | Route | What | Rendering | Spec |
 | --- | --- | --- | --- |
 | `/` | Landing for founders and finance owners | Server component, static | `docs/specs/landing-frd.md` |
-| `/authorize` | The page `@elapse/react` frames over a merchant's own page for every signature: Privy sign-in, cap, Face ID permit, Add funds. Framed only by the origin of the session's `success_url`; falls back to a window when a passkey cannot be enrolled in a frame. | Client | `docs/specs/checkout-frd.md` (FR-CHK-038) |
+| `/authorize` | The page `@elapse/react` opens in a window for every signature: Privy sign-in, cap, Face ID permit, Add funds. Framed only by the origin of the session's `success_url`; falls back to a window when a passkey cannot be enrolled in a frame. | Client | `docs/specs/checkout-frd.md` (FR-CHK-038) |
 | `/c/[session]` | Retired. One sentence pointing an old link back to the merchant (FR-CHK-040) | Client | `docs/specs/checkout-frd.md` |
 | `/account` | The subscriber's meters and receipts across merchants | Client | `docs/specs/checkout-frd.md` (FR-CHK-016..030) |
 | `/login`, `/dashboard/*` | Merchant dashboard: home, products, subscriptions, customers, invoices, balance and payouts, developers (keys, webhooks, events), settings | Client, cookie session | `docs/specs/dashboard-frd.md` |

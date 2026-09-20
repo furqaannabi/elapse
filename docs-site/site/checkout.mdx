@@ -1,9 +1,9 @@
 ---
 title: "Checkout"
-description: "The hosted page you send a subscriber to, and how they come back."
+description: "Creating a session on your server, and what your subscriber does with it in your page."
 ---
 
-Elapse hosts one page in your flow: the checkout. You create a session on your server, send the subscriber to its URL, and they return to you when the meter stops. You never hold a card, a wallet, or a balance.
+A Checkout session is one subscriber's permission to start one meter. You create it on your server with your secret key, hand its **id** to your own page, and `@elapse/react` does the rest in place. Nobody is sent to a page Elapse hosts, and you never hold a card, a wallet or a balance.
 
 ## Creating a session
 
@@ -15,7 +15,8 @@ const session = await elapse.checkout.sessions.create({
   cancelUrl: "https://yourapp.example/cancel",
   maxDurationSeconds: 3600, // optional cap; default one hour
 });
-redirect(session.url);
+// Hand session.id to your page. There is no URL to redirect to.
+return { sessionId: session.id };
 ```
 ```bash cURL
 curl "$ELAPSE_API_URL/v1/checkout/sessions" \
@@ -25,41 +26,41 @@ curl "$ELAPSE_API_URL/v1/checkout/sessions" \
 ```
 </CodeGroup>
 
-`max_duration_seconds` caps how long one subscription can run and therefore how much the subscriber is asked to fund: `rate × cap`, shown to them as a dollar amount before they start. When the cap is reached the meter stops on its own.
+`max_duration_seconds` caps how long one subscription can run and therefore how much the subscriber is asked to fund: `rate × cap`, shown to them as a dollar amount before they authorise. When the cap is reached the meter stops on its own.
 
-## What the subscriber sees
+**`success_url` is a security boundary, not a redirect.** Its origin is the only one Elapse will post a signature result back to, so it must be your app's origin. `cancel_url` is where a subscriber who backs out is sent from their own account page.
 
-The page is built for a phone and says nothing about chains. In order:
+## What the subscriber does
 
-1. **Your product and its rate.** Your name and logo from the dashboard, the product, `$0.004 / second` and what that is per hour.
-2. **Sign in.** Face ID or a passkey. No password, no seed phrase, no app to install.
-3. **How long.** They choose a cap, shown with the most it can cost: `rate × cap`, in dollars, next to what they hold. The money is AUSD in their own wallet, in test mode and live mode alike; if it is short of the cap, an **Add funds** step shows the amount needed and where to send it, and continues by itself when it lands. Unused funds return the moment they stop.
-4. **Start.** A live meter: seconds elapsed and dollars accrued, ticking, no jitter.
-5. **Pause**, if the Product has `allow_pause`. Nothing is charged while paused; the meter keeps its subscription id, its cap and its funds, and Resume picks up where it left off. You receive `subscription.updated` for each change.
-6. **Stop.** A receipt: "You paid for 83 seconds · $0.33". Then the redirect to your `success_url`.
+In your page, not ours:
 
-If they leave before pressing Start, or the session's hour passes, they land on `cancel_url` and nothing was charged.
-
-## Coming back
-
-Elapse appends the session id to your success URL:
-
-```text
-https://yourapp.example/ok?session_id=cs_7Ha…
+```tsx
+<ElapseProvider publishableKey="pk_test_…">
+  <Authorize session={sessionId} onAuthorised={(e) => setSub(e.subscription)} />
+  <Meter session={sessionId} />
+</ElapseProvider>
 ```
 
-Do not grant access from that redirect alone; a URL can be typed. Grant access when `subscription.created` arrives at your webhook endpoint, and revoke it on `subscription.canceled`. The [Quickstart](/quickstart) handler does exactly that with an in-memory map keyed by subscription id.
+1. **`<Authorize>`** shows how long the meter may run and the most it can cost — unless you pass `cap`, in which case you have chosen it and the step is skipped.
+2. **Face ID**, in a window Elapse opens on its own origin. Your code never touches the subscriber's wallet.
+3. **`<Meter>`** ticks the seconds and the dollars, offers the controls the Product allows, and turns into the receipt when the meter stops.
+
+The money is AUSD in the subscriber's own wallet, in test mode and live mode alike. If it is short of the cap, an **Add funds** step shows the amount needed and continues by itself when it lands. Unused funds come back the moment the meter stops.
+
+## Granting access
+
+Grant access when `subscription.created` arrives at your webhook endpoint — and for a merchant-started Product, when `subscription.updated` says `active`. Revoke it on `subscription.canceled`. Never grant from something the browser told you; a callback in a page can be forged, a signed webhook cannot. The [Quickstart](/quickstart) handler does exactly that with an in-memory map keyed by subscription id.
 
 ## Session states
 
 | `status` | Meaning |
 | --- | --- |
-| `open` | Created, not yet started. Expires after one hour. |
-| `complete` | The subscriber pressed Start. A Subscription exists and `checkout.session.completed` has fired. |
-| `expired` | Nobody started it within the hour. Create a new one. |
+| `open` | Created, not yet authorised. Expires after one hour. |
+| `complete` | The subscriber authorised it. A Subscription exists and `checkout.session.completed` has fired. |
+| `expired` | Nobody authorised it within the hour. Create a new one. |
 
 A session is single-use. Create one per visit, not one per product.
 
 ## The promise
 
-Whatever happens on the chain underneath, the subscriber only ever sees seconds and dollars. There is one exception, a judge mode on the receipt that shows the settlement transaction for people who want to verify it. Your integration never has to mention it.
+Whatever happens on the chain underneath, the subscriber only ever sees seconds and dollars. The one exception is opt-in: `<Meter proof>` shows the transaction that started the meter and the one that ended it, for merchants whose audience wants to verify. Your integration never has to mention it.

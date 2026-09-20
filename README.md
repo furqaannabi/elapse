@@ -10,10 +10,11 @@ Track 2 · Monad Metropolis · Consumer Products & Payments. Submission 13 Octob
 
 | What | Where |
 |---|---|
-| App: landing, hosted checkout, merchant dashboard | https://elapse.finance |
+| App: landing, `/authorize`, subscriber account, merchant dashboard | https://elapse.finance |
 | API | https://api.elapse.finance (`GET /v1/status` is public) |
 | Docs | https://docs.elapse.finance — start at the Quickstart |
-| SDK | `npm install @elapse/sdk` (0.1.3, Node 20+) |
+| SDK | `npm install @elapse/sdk` (0.3.0, Node 20+) |
+| React | `npm install @elapse/react` (0.2.0) — `<Authorize>` and `<Meter>` in your own page |
 | CLI | `npx @elapse/cli listen --forward http://localhost:3000/webhooks` (0.1.3) |
 
 Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)); nothing is minted, and a wallet short of the cap sees Add funds on the checkout. Live mode (`sk_live_`) moves to mainnet AUSD when a chain-143 record lands, with no integration change.
@@ -24,7 +25,7 @@ Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-
 |---|---|---|
 | Protocol | `contracts/` | Accrue AUSD per second; cancel; settle elapsed only |
 | API | `api/` | Products, checkout sessions, webhook endpoints, events; `src/worker/` delivers webhooks as a second process |
-| Web | `web/` | Landing, `/authorize` (the page `@elapse/react` frames for every signature), subscriber `/account`, merchant dashboard |
+| Web | `web/` | Landing, `/authorize` (the page `@elapse/react` opens in a window for every signature), subscriber `/account`, merchant dashboard |
 | SDK | `sdk/ts` | `@elapse/sdk` — server: products, sessions, start, pause, resume, cancel, webhooks |
 | React SDK | `sdk/react` | `@elapse/react` — `<Authorize>` and `<Meter>` in the merchant's own page; the wallet stays on Elapse's origin |
 | CLI | `cli/` | `elapse listen --forward` |
@@ -44,7 +45,7 @@ flowchart LR
   dev(["Merchant developer"])
   server["Merchant server<br/>@elapse/sdk"]
   cli["elapse listen --forward"]
-  web["web/ · Next.js on Vercel<br/>/ landing · /c/:session checkout · /dashboard"]
+  web["web/ · Next.js on Vercel<br/>/ landing · /authorize · /account · /dashboard"]
   api["api/ · Bun + Hono on Railway<br/>REST /v1 · dashboard · /internal/ingest"]
   worker["worker process<br/>deliveries · keeper · reconcile · notices"]
   pg[("Postgres")]
@@ -87,9 +88,9 @@ sequenceDiagram
   participant E as Envio
 
   M->>A: products.create · checkout.sessions.create (sk_ key)
-  A-->>M: session URL
-  M->>S: redirect to /c/:session
-  S->>A: sign in (Privy) · choose cap · sign permit (Face ID)
+  A-->>M: session id
+  M->>S: <Authorize session> in the merchant's own page
+  S->>A: sign in (Privy) · sign permit (Face ID) in the Elapse window
   A->>C: create(permit) via relayer
   C-->>E: StreamStarted
   E->>A: ingest (txHash + logIndex, idempotent)

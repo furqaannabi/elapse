@@ -2,10 +2,10 @@
 
 ## What this is
 
-A merchant that rents you a **live compute session**. You write JavaScript, press Run, and it
-executes on a real AWS Lambda. You pay for the seconds your session is **open** — not per
-invocation — and the session **starts and ends by itself**: your first Run opens it, and it
-closes when you walk away, go idle, or hit the cap.
+A merchant that rents you **compute by the second**. You write JavaScript, press Run, and it
+executes on a real AWS Lambda. The session **starts and ends by itself** around that run: Run
+starts the meter, and the moment your code returns the session ends and the receipt appears. You
+pay for the seconds your code ran, plus the second or two the chain needs to confirm each end.
 
 Anything JavaScript can do works: `fetch` calls, sorting, `require("node:crypto")`, async. The
 editor opens on a hello-world, so the first Run is immediate. For something that actually burns
@@ -117,9 +117,9 @@ Runner:   elapse-lambda-runner @ us-east-1
 14:02:12  ▶ starting meter sub_…
 14:02:13  evt_…  subscription.updated   → meter started sub_…
 14:02:19  ▶ run sub_…  return 2 + 2  → 4  (9ms)   [1/20 today]
-14:03:20  ⏹ auto-ended (idle) sub_…
-14:03:21  evt_…  subscription.canceled  → session closed · 62s · $0.12
-14:03:25  ▶ run sub_…  → 409 needs_start
+14:02:19  ⏹ ended with the run sub_…
+14:02:21  evt_…  subscription.canceled  → session closed · 3s · $0.006
+14:02:30  ▶ run sub_…  → 409 needs_start   (a new session, a fresh authorisation)
 ```
 
 The console is a React page with the **VS Code editor** (Monaco) holding the JavaScript, the

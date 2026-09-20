@@ -21,7 +21,7 @@ Elapse runs on Monad, where blocks land every few hundred milliseconds and fees 
 
 **Platform API.** Products, Checkout sessions, Subscriptions, Customers, Invoices and Events, with the ids and conventions you already know from Stripe: `prod_`, `cus_`, `sub_`, `evt_`, bearer secret keys, `snake_case` JSON, cursor pagination. The [API reference](/api-reference/authentication) is generated from the same schemas the server validates with.
 
-**Hosted Checkout.** You create a session and send the subscriber to its URL. Elapse handles sign-in, funding, the live meter and cancel, then returns them to your success URL. You never hold a card or a wallet.
+**`@elapse/react`.** You create a session and render `<Authorize>` and `<Meter>` in your own page. Elapse handles sign-in, the permit and the live meter in a window it opens on its own origin, so the subscriber never leaves your app and you never hold a card or a wallet.
 
 **Webhooks.** Six lifecycle events, signed with `X-Elapse-Signature`, retried on a fixed schedule, verified with one SDK call. There are no per-second events.
 
