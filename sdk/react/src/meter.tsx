@@ -7,7 +7,7 @@ import { formatCap } from "./money";
 import { useElapseConfig } from "./provider";
 import { TxLink } from "./tx-link";
 import { useMeter, type MeterHandlers } from "./use-meter";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 /**
  * FR-RCT-041: the mark that says it is done. A checkmark that draws itself once, the way a payment
@@ -27,18 +27,14 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numer
 export type MeterDock = "bottom-right" | "bottom-left";
 
 /**
- * FR-RCT-045: the proof of one step, dropped out of the meter and gone again in six seconds. It is
- * never the only place a fact appears — the receipt still carries the totals once it has lifted —
- * so nobody has to catch it.
+ * FR-RCT-045: the proof of one step, dropped out of the meter.
+ *
+ * **Amended 2026-09-20 (Furqaan: "don't disappear hashes"):** it stays for as long as the meter is
+ * on screen. It used to lift away after six seconds, which was fine when a session ran for minutes;
+ * with `examples/lambda` ending the session with its run (FR-EXM-153), the whole session can be
+ * shorter than that, and the proof of both ends vanished while it was still being read.
  */
 function ProofDrop({ step, txHash, chainId }: { step: "started" | "stopped"; txHash: string; chainId: number }) {
-  const [gone, setGone] = useState(false);
-  useEffect(() => {
-    setGone(false);
-    const id = setTimeout(() => setGone(true), 6_000);
-    return () => clearTimeout(id);
-  }, [txHash]);
-  if (gone) return null;
   return (
     <div className="elapse-proof" aria-live="polite">
       <span className="elapse-proof-step">{step === "started" ? "Meter started" : "Meter stopped"}</span>

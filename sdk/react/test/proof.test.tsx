@@ -72,11 +72,14 @@ describe("FR-RCT-045 the proof drop", () => {
     expect(proof()!.getAttribute("aria-live")).toBe("polite");
   });
 
-  it("lifts away on its own, leaving the meter to say what is true", async () => {
+  it("stays put: a hash never disappears on a timer", async () => {
     mount(wire(sub()), { proof: true });
     await settle();
-    await act(async () => { await vi.advanceTimersByTimeAsync(6_500); });
-    expect(proof()).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    // Amended 2026-09-20 (Furqaan: "don't disappear hashes"). A session can end 2 s after it
+    // starts, so a six-second drop took the proof away while it was still being read.
+    expect(proof()).toBeTruthy();
+    expect(document.querySelector(".elapse-proof a")).toBeTruthy();
   });
 
   it("keeps the start beside the stop when the meter ends, so both transactions are there", async () => {
@@ -98,10 +101,13 @@ describe("FR-RCT-045 the proof drop", () => {
   it("stays quiet through a pause and a resume, which happen around every run", async () => {
     mount(wire(sub()), { proof: true });
     await settle();
-    await act(async () => { await vi.advanceTimersByTimeAsync(6_500); });
     server = wire(sub({ status: "paused", paused_at: NOW / 1000 }));
     await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
-    expect(proof()).toBeNull();
+
+    // Pausing and resuming are not moments worth a proof: the start's is still the only one.
+    const drops = document.querySelectorAll(".elapse-proof");
+    expect(drops).toHaveLength(1);
+    expect(drops[0]!.textContent).toContain("Meter started");
   });
 });
 
