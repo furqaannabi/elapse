@@ -1,8 +1,8 @@
 /**
  * `useAuthorize(session)` — the authorise flow without markup (FR-RCT-030). `<Authorize>` is built only
- * from this hook. It reads the public session, and `authorise(cap)` asks for a signature — in a modal
- * frame, or a window when the frame cannot do Face ID (FR-RCT-011/043) — then reports what came back
- * (FR-RCT-013/014/031). `modal` is the element the component must render for the frame to exist.
+ * from this hook. It reads the public session, and `authorise(cap)` asks for a signature — in a window
+ * (FR-RCT-011/043, amended 2026-09-20) — then reports what came back
+ * (FR-RCT-013/014/031). There is no frame: the signature happens in a window (FR-RCT-043 amended).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { explorerUrl } from "./explorer";
@@ -31,7 +31,7 @@ export function useAuthorize(
 ) {
   const config = useElapseConfig();
   // FR-RCT-043: the signature happens in a frame on this page, or in a window if it must.
-  const { request, modal } = useSignature(sessionId);
+  const { request } = useSignature(sessionId);
   const [state, setState] = useState<AuthorizeState>({ kind: "loading" });
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -80,5 +80,5 @@ export function useAuthorize(
     [request, state],
   );
 
-  return { state, authorise, modal };
+  return { state, authorise };
 }

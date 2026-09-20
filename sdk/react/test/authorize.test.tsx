@@ -27,17 +27,12 @@ function setup(opts: { startMode?: "checkout" | "merchant"; blocked?: boolean; c
     removeEventListener: target.removeEventListener.bind(target) as PopupHost["removeEventListener"],
     screenX: 0, screenY: 0, outerWidth: 1280, outerHeight: 800,
   };
+  /** FR-RCT-043 amended 2026-09-20: there is no frame; every signature happens in the window. */
   const frame = () => document.querySelector("iframe.elapse-modal-frame") as HTMLIFrameElement | null;
-  const frameNonce = () => new URL(frame()!.src).searchParams.get("nonce");
-  const windowNonce = () => new URL((open.mock.calls[0] as unknown as [string])[0]).searchParams.get("nonce");
-  /** A result as the framed Elapse page sends it (FR-RCT-043). */
+  const windowUrl = () => new URL((open.mock.calls[0] as unknown as [string])[0]);
+  const windowNonce = () => windowUrl().searchParams.get("nonce");
+  /** A result as the Elapse window sends it. */
   const post = (data: Record<string, unknown>) =>
-    act(() => { window.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce: frameNonce(), ...data }, origin: "https://elapse.finance", source: frame()!.contentWindow })); });
-  /** The framed page reporting that Face ID cannot run in a frame, which moves the attempt to a window. */
-  const needsWindow = () =>
-    act(() => { window.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:needs-window", nonce: frameNonce() }, origin: "https://elapse.finance", source: frame()!.contentWindow })); });
-  /** A result from the fallback window. */
-  const postFromWindow = (data: Record<string, unknown>) =>
     act(() => { target.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce: windowNonce(), ...data }, origin: "https://elapse.finance", source: popup })); });
   const onStarted = vi.fn();
   const onAuthorised = vi.fn();
@@ -46,7 +41,7 @@ function setup(opts: { startMode?: "checkout" | "merchant"; blocked?: boolean; c
       <Authorize session="cs_1" onStarted={onStarted} onAuthorised={onAuthorised} {...(opts.cap === undefined ? {} : { cap: opts.cap })} />
     </ElapseProvider>,
   );
-  return { fetchFn, open, popup, post, needsWindow, postFromWindow, frame, onStarted, onAuthorised };
+  return { fetchFn, open, popup, post, windowUrl, frame, onStarted, onAuthorised };
 }
 
 afterEach(() => vi.useRealTimers());
@@ -77,12 +72,13 @@ describe("<Authorize> · FR-RCT-010", () => {
 
 describe("<Authorize> · FR-RCT-011/013/014/031", () => {
   it("FR_RCT_011_authorise_opens_elapse_for_the_chosen_cap", async () => {
-    // FR-RCT-043: the frame first, on the merchant's page; the window is the fallback.
-    const { open, frame } = setup();
+    // FR-RCT-043 amended 2026-09-20: straight to the window, no frame in between.
+    const { open, frame, windowUrl } = setup();
     fireEvent.click(await screen.findByRole("radio", { name: /4 hours/ }));
     fireEvent.click(screen.getByRole("button", { name: "Authorise" }));
-    expect(open).not.toHaveBeenCalled();
-    const url = new URL(frame()!.src);
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(frame()).toBeNull();
+    const url = windowUrl();
     expect(url.origin + url.pathname).toBe("https://elapse.finance/authorize");
     expect(url.searchParams.get("session")).toBe("cs_1");
     expect(url.searchParams.get("action")).toBe("authorise");
@@ -106,28 +102,24 @@ describe("<Authorize> · FR-RCT-011/013/014/031", () => {
     expect(await screen.findByText("Waiting for Nimbus to start")).toBeTruthy();
   });
 
-  it("FR_RCT_011_a_blocked_fallback_window_says_so_and_can_be_tried_again", async () => {
-    // The frame could not do Face ID and the window it fell back to was blocked: the subscriber is
-    // told the one thing that helps.
-    const { needsWindow } = setup({ blocked: true });
+  it("FR_RCT_011_a_blocked_window_says_so_and_can_be_tried_again", async () => {
+    // The browser refused the window: the subscriber is told the one thing that helps.
+    setup({ blocked: true });
     fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
-    needsWindow();
     expect(await screen.findByText("Your browser blocked the Elapse window. Allow pop-ups and try again.")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
   });
 
-  it("FR_RCT_043_the_fallback_window_finishes_the_same_attempt", async () => {
-    const { needsWindow, postFromWindow, onStarted } = setup();
+  it("FR_RCT_043_the_window_finishes_the_attempt", async () => {
+    const { post, onStarted } = setup();
     fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
-    needsWindow();
-    postFromWindow({ step: "authorised", subscription: "sub_1", txHash: "0xabc" });
+    post({ step: "authorised", subscription: "sub_1", txHash: "0xabc" });
     await waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
   });
 
-  it("FR_RCT_014_closing_the_fallback_window_returns_to_the_presets_with_nothing_charged", async () => {
-    const { popup, needsWindow } = setup();
+  it("FR_RCT_014_closing_the_window_returns_to_the_presets_with_nothing_charged", async () => {
+    const { popup } = setup();
     fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
-    needsWindow();
     popup.closed = true;
     expect(await screen.findByText("Nothing was charged.", undefined, { timeout: 2000 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Authorise" })).toBeTruthy();
@@ -136,27 +128,38 @@ describe("<Authorize> · FR-RCT-011/013/014/031", () => {
 
 describe("<Authorize cap> · FR-RCT-010 amended 2026-09-20", () => {
   it("skips the cap step and asks for the signature at once", async () => {
-    const { frame } = setup({ cap: 3600, startMode: "merchant" });
+    const { open, frame, windowUrl } = setup({ cap: 3600, startMode: "merchant" });
 
-    await waitFor(() => expect(frame()).toBeTruthy());
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    expect(frame()).toBeNull();
     // The merchant chose the cap, so the subscriber is not asked to.
     expect(screen.queryByText("How long may the meter run?")).toBeNull();
     expect(screen.queryByRole("button", { name: "Authorise" })).toBeNull();
     // ...and it is that cap the permit is asked for.
-    expect(new URL(frame()!.src).searchParams.get("cap")).toBe("3600");
+    expect(windowUrl().searchParams.get("cap")).toBe("3600");
   });
 
   it("asks only once, however many times it re-renders", async () => {
-    const { frame, fetchFn } = setup({ cap: 3600 });
-    await waitFor(() => expect(frame()).toBeTruthy());
+    const { open } = setup({ cap: 3600 });
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     await act(async () => { await Promise.resolve(); });
-    expect(document.querySelectorAll("iframe.elapse-modal-frame")).toHaveLength(1);
-    void fetchFn;
+    expect(open).toHaveBeenCalledTimes(1);
   });
 
   it("still offers the cap step when no cap is given", async () => {
     setup();
     expect(await screen.findByRole("button", { name: "Authorise" })).toBeTruthy();
     expect(screen.getByText("How long may the meter run?")).toBeTruthy();
+  });
+});
+
+describe("FR-RCT-043 amended 2026-09-20: one window, never a frame", () => {
+  it("opens the Elapse window straight away, with no modal frame in between", async () => {
+    const { open, frame } = setup();
+    fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
+
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(frame()).toBeNull();
+    expect(document.querySelector(".elapse-modal")).toBeNull();
   });
 });

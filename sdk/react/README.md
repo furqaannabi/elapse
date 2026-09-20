@@ -45,13 +45,14 @@ function Billing({ session }: { session: string }) {
 ```
 
 That is the whole integration. `<Authorize>` shows how long the meter may run and what that can
-cost, then opens Elapse in a frame over your page for Face ID — no new tab. `<Meter>` ticks the
-elapsed time and the amount, shows the controls the product allows, and turns into the receipt when
-the meter ends.
+cost, then opens Elapse in a window for Face ID. `<Meter>` ticks the elapsed time and the amount,
+shows the controls the product allows, and turns into the receipt when the meter ends.
 
-Browsers refuse to enrol a passkey inside a cross-origin frame, so a subscriber who has never used
-Elapse is handed to a window automatically, mid-flow, carrying the same attempt. You do not have to
-handle that; it is why the frame is safe to use as the default.
+One window, every time. It used to open in a frame over your page and hand off to a window when the
+passkey needed enrolling — which browsers refuse inside a cross-origin frame, so the handoff was the
+common path and the subscriber saw a panel flash by first. Call `authorise` (or the components'
+buttons) straight from a click: browsers only allow a window inside the user's own gesture, and a
+blocked one shows a notice and a Try again.
 
 ## No bundler? One script tag
 

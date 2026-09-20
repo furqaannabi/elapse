@@ -27,7 +27,7 @@ export function Authorize({
   onStarted?: (e: StepEvent) => void;
   onError?: (e: Error) => void;
 }) {
-  const { state, authorise, modal } = useAuthorize(session, {
+  const { state, authorise } = useAuthorize(session, {
     ...(onAuthorised ? { onAuthorised } : {}),
     ...(onStarted ? { onStarted } : {}),
     ...(onError ? { onError } : {}),
@@ -42,14 +42,13 @@ export function Authorize({
     authorise(fixedCap);
   }, [fixedCap, state.kind, authorise]);
 
-  if (state.kind === "loading") return <>{modal}<div className="elapse elapse-card" aria-busy="true" /></>;
-  if (state.kind === "error") return <>{modal}<div className="elapse elapse-card" role="alert">{state.message}</div></>;
+  if (state.kind === "loading") return <div className="elapse elapse-card" aria-busy="true" />;
+  if (state.kind === "error") return <div className="elapse elapse-card" role="alert">{state.message}</div>;
 
   const s = state.session;
   if (state.kind === "held") {
     return (
       <>
-        {modal}
         <div className="elapse elapse-card" aria-live="polite">
           <h2 className="elapse-title">Waiting for {s.merchant.name} to start</h2>
           <p className="elapse-muted">You haven&rsquo;t been charged.</p>
@@ -60,7 +59,6 @@ export function Authorize({
   if (state.kind === "started") {
     return (
       <>
-        {modal}
         <div className="elapse elapse-card" aria-live="polite">
           <h2 className="elapse-title">Your meter is running</h2>
         </div>
@@ -73,7 +71,6 @@ export function Authorize({
     const blockedNow = state.kind === "ready" && state.notice !== null && state.notice.startsWith("Your browser blocked");
     return (
       <>
-        {modal}
         <div className="elapse elapse-card" aria-live="polite" {...(blockedNow ? {} : { "aria-busy": true })}>
           {blockedNow ? (
             <>
@@ -97,7 +94,6 @@ export function Authorize({
 
   return (
     <>
-      {modal}
       <div className="elapse elapse-card">
       <p className="elapse-label">How long may the meter run?</p>
       <div className="elapse-presets" role="radiogroup" aria-label="How long">

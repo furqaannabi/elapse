@@ -1,5 +1,5 @@
 # Authorise happens in a modal frame on the merchant's page, with the popup as the escape hatch
-2026-09-19 · Decided by Furqaan · Status: accepted
+2026-09-19 · Decided by Furqaan · Status: accepted · **Superseded by [2026-09-20 authorise in a window only](./2026-09-20-authorise-in-a-window-only.md)**
 
 ## Context
 

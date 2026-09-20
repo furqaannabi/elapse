@@ -95,12 +95,11 @@ export function Meter({
    * marks running or paused; nothing here animates per second (BR-CHK-002).
    */
   if (dock) {
-    if (m.view === "loading" || m.view === "error") return <>{m.modal}</>;
+    if (m.view === "loading" || m.view === "error") return null;
     const running = m.view === "running";
     const r = m.receipt;
     return (
       <>
-      {m.modal}
       <div className={`elapse elapse-dock`} data-corner={dock} data-running={running} aria-live="polite">
         {drop}
         <div className="elapse-capsule">
@@ -143,8 +142,8 @@ export function Meter({
     );
   }
 
-  if (m.view === "loading") return <>{m.modal}<div className="elapse elapse-card" aria-busy="true" /></>;
-  if (m.view === "error") return <>{m.modal}<div className="elapse elapse-card" role="alert">{m.error}</div></>;
+  if (m.view === "loading") return <div className="elapse elapse-card" aria-busy="true" />;
+  if (m.view === "error") return <div className="elapse elapse-card" role="alert">{m.error}</div>;
   const s = m.session!;
   const sub = s.subscription;
 
@@ -157,7 +156,6 @@ export function Meter({
   if (m.view === "waiting") {
     return (
       <>
-      {m.modal}
       <div className="elapse elapse-card" aria-live="polite">
         <p className="elapse-muted">Your meter hasn&rsquo;t started yet.</p>
       </div>
@@ -168,7 +166,6 @@ export function Meter({
   if (m.view === "held" && m.held) {
     return (
       <>
-      {m.modal}
       <div className="elapse elapse-card" aria-live="polite">
         <h2 className="elapse-title">Waiting for {s.merchant.name} to start</h2>
         <p className="elapse-numerals">{m.held.amount} held · You haven&rsquo;t been charged.</p>
@@ -188,7 +185,6 @@ export function Meter({
     const r = m.receipt;
     return (
       <>
-      {m.modal}
       {drop}
       <div className="elapse elapse-card" aria-live="polite">
         <h2 className="elapse-title">
@@ -214,7 +210,6 @@ export function Meter({
   const paused = m.view === "paused";
   return (
     <>
-    {m.modal}
     {drop}
     <div className="elapse elapse-card" aria-live="polite">
       <p className="elapse-label">

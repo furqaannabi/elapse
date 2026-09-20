@@ -5,7 +5,7 @@ description: "Authorise, meter and prove a per-second subscription inside your o
 
 `@elapse/react` puts the whole subscriber flow in your page: choosing how long the meter may run,
 Face ID, the live amount, and the receipt. Your code never touches the subscriber's wallet — every
-signature happens on Elapse's origin, in a frame over your page.
+signature happens on Elapse's origin, in a window it opens.
 
 ```bash
 npm install @elapse/react
@@ -35,7 +35,7 @@ Wraps everything below it and holds the configuration.
 | --- | --- | --- |
 | `publishableKey` | — | `pk_test_…` or `pk_live_…`. A key starting with `sk_` throws at render. |
 | `baseUrl` | `https://api.elapse.finance` | The Elapse API. |
-| `appOrigin` | `https://elapse.finance` | Where the signing frame and its fallback window live. |
+| `appOrigin` | `https://elapse.finance` | Where the signing window lives. |
 | `sound` | `true` | Meter cues. `false` silences them for every subscriber. |
 
 ## `<Authorize>`
@@ -57,10 +57,10 @@ sees "Waiting for you to start" until then.
 
 ### Where Face ID happens
 
-Elapse opens in a frame over your page. Browsers refuse to *enrol* a passkey inside a cross-origin
-frame, so a subscriber who has never used Elapse is handed to a window automatically, mid-flow,
-carrying the same attempt. There is nothing for you to handle, and nothing to configure: your
-session's `success_url` decides which origin may frame the page, so only you can.
+Elapse opens a window. Browsers refuse to *enrol* a passkey inside a cross-origin frame, so a frame
+could never serve a subscriber who has never used Elapse — the window is the one path that always
+works. Open it from a click: a window outside the user's gesture can be blocked, and the components
+then show a notice with a Try again.
 
 ## `<Meter>`
 
@@ -98,11 +98,10 @@ only where you put them, or when you pass `proof` to the meter.
 when you want your own markup entirely.
 
 ```tsx
-const { elapsed, accrued, running, canStop, stop, receipt, modal } = useMeter("cs_…");
+const { elapsed, accrued, running, canStop, stop, receipt } = useMeter("cs_…");
 ```
 
-Render `modal` somewhere in your tree: it is the signing frame, and without it nothing can be
-signed. `@elapse/react/math` exports the money math on its own, for a server or a test.
+`@elapse/react/math` exports the money math on its own, for a server or a test.
 
 ## Styling
 

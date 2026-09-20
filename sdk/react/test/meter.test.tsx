@@ -54,10 +54,11 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
     screenX: 0, screenY: 0, outerWidth: 1280, outerHeight: 800,
   };
   const frame = () => document.querySelector("iframe.elapse-modal-frame") as HTMLIFrameElement | null;
-  /** A result as the framed Elapse page sends it (FR-RCT-043). */
+  const windowUrl = () => new URL((open.mock.calls[0] as unknown as [string])[0]);
+  /** A result as the Elapse window sends it (FR-RCT-043 amended 2026-09-20). */
   const post = (data: Record<string, unknown>) => {
-    const nonce = new URL(frame()!.src).searchParams.get("nonce");
-    window.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce, ...data }, origin: "https://elapse.finance", source: frame()!.contentWindow }));
+    const nonce = windowUrl().searchParams.get("nonce");
+    target.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce, ...data }, origin: "https://elapse.finance", source: popup }));
   };
   const onStopped = vi.fn();
   render(
@@ -65,7 +66,7 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
       <Meter session="cs_1" onStopped={onStopped} {...props} />
     </ElapseProvider>,
   );
-  return { fetchFn, open, post, frame, onStopped };
+  return { fetchFn, open, post, frame, windowUrl, onStopped };
 }
 
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -98,15 +99,15 @@ describe("<Meter> · FR-RCT-020 the live meter", () => {
 
 describe("<Meter> · FR-RCT-021 controls follow the start mode", () => {
   it("FR_RCT_021_checkout_mode_has_stop_and_pause_which_open_elapse", async () => {
-    const { open, post, frame, onStopped } = mount(wire(sub(), { allow_pause: true }));
+    const { open, post, frame, windowUrl, onStopped } = mount(wire(sub(), { allow_pause: true }));
     await settle();
     expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-    // FR-RCT-043: in the frame on the merchant's page, not a window.
-    expect(open).not.toHaveBeenCalled();
-    const url = new URL(frame()!.src);
+    // FR-RCT-043 amended 2026-09-20: the Elapse window, never a frame.
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(frame()).toBeNull();
+    const url = windowUrl();
     expect(url.searchParams.get("action")).toBe("cancel");
-    expect(url.searchParams.get("mode")).toBe("frame");
     await act(async () => { post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
     expect(onStopped).toHaveBeenCalledWith({ subscription: "sub_1", txHash: "0xabc", explorerUrl: "https://testnet.monadscan.com/tx/0xabc" });
   });
@@ -254,10 +255,12 @@ describe("FR-RCT-050 cues on the meter", () => {
     expect(cuesPlayed.length).toBeGreaterThan(0);
 
     cuesPlayed.length = 0;
+    // The first meter stays mounted otherwise, and its buttons answer to getAllByRole first.
+    cleanup();
     const second = mount(wire(sub()), { sound: true });
     await settle();
-    fireEvent.click(screen.getAllByRole("button", { name: /Turn meter sounds off/ })[0]!);
-    fireEvent.click(screen.getAllByRole("button", { name: "Stop" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: /Turn meter sounds off/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await act(async () => { second.post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
     expect(cuesPlayed).toEqual([]);
   });

@@ -67,3 +67,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-19 | [The keeper may pause and resume, so a merchant can bill only while its resource is working](./2026-09-19-keeper-may-pause.md) | Furqaan |
 | 2026-09-19 | [Authorise happens in a modal frame on the merchant's page, with the popup as the escape hatch](./2026-09-19-authorise-in-an-iframe-modal.md) | Furqaan |
 | 2026-09-19 | [Only the merchant stops a merchant-started meter, including before it starts](./2026-09-19-only-the-merchant-stops-a-held-meter.md) | Furqaan |
+| 2026-09-20 | [Authorise in a window only; the modal frame is withdrawn](./2026-09-20-authorise-in-a-window-only.md) | Furqaan |

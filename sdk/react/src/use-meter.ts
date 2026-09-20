@@ -42,7 +42,7 @@ export interface MeterReceipt {
 export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   const config = useElapseConfig();
   // FR-RCT-043: every signature — stop, pause, resume — happens in the frame or its fallback window.
-  const { request, modal } = useSignature(sessionId);
+  const { request } = useSignature(sessionId);
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -174,7 +174,6 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
         : [];
 
   return {
-    modal,
     proof,
     view,
     session,
