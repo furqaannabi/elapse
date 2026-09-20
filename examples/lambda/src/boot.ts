@@ -79,14 +79,6 @@ export async function boot(config: Config, io: BootIO) {
     },
     // endregion
     // region:meter
-    // FR-EXM-153: the meter runs only while code runs — resumed before each invocation, paused the
-    // moment it returns, so the subscriber pays for compute and not for thinking time.
-    pauseSubscription: async (sub) => {
-      await elapse.subscriptions.pause(sub);
-    },
-    resumeSubscription: async (sub) => {
-      await elapse.subscriptions.resume(sub);
-    },
     // endregion
     // region:end
     // BR-EXM-110: the server ends the session; the canceled webhook confirms it.

@@ -79,15 +79,20 @@ describe("FR-RCT-045 the proof drop", () => {
     expect(proof()).toBeNull();
   });
 
-  it("replaces itself when the meter ends rather than stacking", async () => {
+  it("keeps the start beside the stop when the meter ends, so both transactions are there", async () => {
     const ended = "0x" + "ab".repeat(32);
     mount(wire(sub()), { proof: true });
     await settle();
     server = wire(sub({ status: "canceled", canceled_at: NOW / 1000, ended_reason: "canceled", seconds_elapsed: 3, settled_usd: "0.012", end_tx: ended }));
     await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
-    expect(document.querySelectorAll(".elapse-proof")).toHaveLength(1);
+
+    // Amended 2026-09-20: a session can start and end between two reads, so the end never hides the start.
+    expect(document.querySelectorAll(".elapse-proof")).toHaveLength(2);
+    expect(screen.getByText("Meter started")).toBeTruthy();
     expect(screen.getByText("Meter stopped")).toBeTruthy();
-    expect(screen.getByRole("link").getAttribute("href")).toContain(ended);
+    const hrefs = [...document.querySelectorAll(".elapse-proof a")].map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs.some((h) => h.includes(HASH))).toBe(true);
+    expect(hrefs.some((h) => h.includes(ended))).toBe(true);
   });
 
   it("stays quiet through a pause and a resume, which happen around every run", async () => {
@@ -97,5 +102,34 @@ describe("FR-RCT-045 the proof drop", () => {
     server = wire(sub({ status: "paused", paused_at: NOW / 1000 }));
     await act(async () => { await vi.advanceTimersByTimeAsync(5_100); });
     expect(proof()).toBeNull();
+  });
+});
+
+describe("FR-RCT-045 amended: a run too short to watch still proves both ends", () => {
+  const END = "0xfeeb1f2c3d4e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b";
+
+  it("shows the start and the end together once the meter has ended", async () => {
+    mount(
+      wire(sub({ status: "canceled", canceled_at: NOW / 1000, ended_reason: "canceled", settled_usd: "0.006", seconds_elapsed: 3, start_tx: HASH, end_tx: END })),
+      { proof: true },
+    );
+    await settle();
+
+    const drops = document.querySelectorAll(".elapse-proof");
+    expect(drops).toHaveLength(2);
+    expect(drops[0]!.textContent).toContain("Meter started");
+    expect(drops[1]!.textContent).toContain("Meter stopped");
+
+    const links = document.querySelectorAll(".elapse-proof a");
+    expect(links[0]!.getAttribute("href")).toContain(HASH);
+    expect(links[1]!.getAttribute("href")).toContain(END);
+  });
+
+  it("shows only the start while the meter is still running", async () => {
+    mount(wire(sub({ start_tx: HASH, end_tx: null })), { proof: true });
+    await settle();
+    const drops = document.querySelectorAll(".elapse-proof");
+    expect(drops).toHaveLength(1);
+    expect(drops[0]!.textContent).toContain("Meter started");
   });
 });

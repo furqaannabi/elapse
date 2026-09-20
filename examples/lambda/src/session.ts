@@ -15,7 +15,7 @@
  * code runs. `pausing` and `resuming` are the windows where the platform has been asked and the
  * chain has not answered; nothing may be invoked in either.
  */
-export type SessionState = "authorised" | "starting" | "active" | "pausing" | "paused" | "resuming" | "ended";
+export type SessionState = "authorised" | "starting" | "active" | "paused" | "ended";
 
 export interface Session {
   state: SessionState;
@@ -124,21 +124,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
       sessions.set(sub, { ...prev, state: "starting", active: false, lastSeen: nowMs, updatedAt: nowMs });
     },
 
-    /** FR-EXM-153: `subscriptions.pause` was accepted; the meter is no longer safe to run against. */
-    markPausing(sub: string, nowMs: number): void {
-      const prev = sessions.get(sub);
-      if (!prev) return;
-      sessions.set(sub, { ...prev, state: "pausing", active: false, updatedAt: nowMs });
-    },
-
-    /** FR-EXM-153: `subscriptions.resume` was accepted; wait for the chain before invoking. */
-    markResuming(sub: string, nowMs: number): void {
-      const prev = sessions.get(sub);
-      if (!prev) return;
-      sessions.set(sub, { ...prev, state: "resuming", active: false, updatedAt: nowMs });
-    },
-
-    /** FR-EXM-133/153: `subscription.updated` with `status: "paused"` — accrual has stopped. */
+    /** FR-EXM-133: `subscription.updated` with `status: "paused"` — a merchant paused it elsewhere. */
     applyPaused(sub: string, info: { nowMs: number }): void {
       const prev = sessions.get(sub);
       if (!prev) return;
@@ -211,8 +197,9 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
         if (!s.seen) continue;
         if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, reason: "left" });
         // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
-        // FR-EXM-154: after it, the timeout is cleanup rather than billing (a paused session costs
-        // nothing either), so it applies to every state that has a stream running or paused.
+        // FR-EXM-154 (amended 2026-09-20): a session ends with its run, so the timeout no longer
+        // governs a running meter. It is cleanup for one left running because its cancel was
+        // refused — `noteCancelFailure` clears the guard above, and this picks it up.
         else if (s.state !== "authorised" && s.state !== "starting" && nowMs - s.lastRun > windows.idleTimeoutMs) {
           due.push({ sub, reason: "idle" });
         }

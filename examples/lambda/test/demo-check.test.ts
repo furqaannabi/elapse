@@ -20,8 +20,6 @@ async function serve(secret: string) {
     logJson: false,
     createCheckoutSession: async () => ({ id: "cs_1" }),
     startSubscription: async () => {},
-    pauseSubscription: async () => {},
-    resumeSubscription: async () => {},
     cancelSubscription: async () => {},
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
     elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },

@@ -158,13 +158,20 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   /**
    * FR-RCT-045: the two moments worth a proof, and the transaction behind each. Pause and resume
    * are deliberately absent — with per-run billing they land every few seconds.
+   *
+   * **Amended 2026-09-20:** an ended meter shows both. A session can now begin and end between two
+   * reads of the server (`examples/lambda` ends the session with its run, FR-EXM-153), so a page
+   * that only ever saw `ended` would otherwise never show the transaction that started the meter.
    */
-  const proof: { step: "started" | "stopped"; txHash: string } | null =
-    view === "ended" && sub?.endTx
-      ? { step: "stopped", txHash: sub.endTx }
+  const proof: Array<{ step: "started" | "stopped"; txHash: string }> =
+    view === "ended"
+      ? [
+          ...(sub?.startTx ? [{ step: "started" as const, txHash: sub.startTx }] : []),
+          ...(sub?.endTx ? [{ step: "stopped" as const, txHash: sub.endTx }] : []),
+        ]
       : (view === "running" || view === "paused") && sub?.startTx
-        ? { step: "started", txHash: sub.startTx }
-        : null;
+        ? [{ step: "started" as const, txHash: sub.startTx }]
+        : [];
 
   return {
     modal,

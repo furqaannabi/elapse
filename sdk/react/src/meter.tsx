@@ -60,8 +60,12 @@ export function Meter({
   // held session still refunds by itself (worker FR-WRK-075) and the merchant can still cancel.
   // BR-RCT-001: no hash reaches a subscriber unless the merchant asked for one.
   const drop =
-    proof && m.proof && m.session?.subscription ? (
-      <ProofDrop step={m.proof.step} txHash={m.proof.txHash} chainId={m.session.subscription.chainId} />
+    proof && m.proof.length > 0 && m.session?.subscription ? (
+      <>
+        {m.proof.map((p) => (
+          <ProofDrop key={p.txHash} step={p.step} txHash={p.txHash} chainId={m.session!.subscription!.chainId} />
+        ))}
+      </>
     ) : null;
   const canStop = controls && m.canStop;
   const canPause = controls && m.canPause;

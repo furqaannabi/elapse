@@ -23,9 +23,6 @@ export interface ServerDeps {
   createCheckoutSession: () => Promise<{ id: string }>;
   /** `subscriptions.start`, behind a function (FR-EXM-125). */
   startSubscription: (sub: string) => Promise<void>;
-  /** `subscriptions.pause` / `resume` (FR-EXM-153): the meter runs only while code runs. */
-  pauseSubscription: (sub: string) => Promise<void>;
-  resumeSubscription: (sub: string) => Promise<void>;
   /** FR-EXM-125: how long the first Run waits for the chain before refunding. Default 30 s. */
   startTimeoutMs?: number;
   /** How long a Run waits for `subscription.created` to arrive for a subscription it does not know. Default 15 s. */
@@ -84,7 +81,11 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     // can easily arrive before `subscription.created` has been delivered. Answering "unknown
     // session" there would send the subscriber back to authorise a second one, so wait for it.
     const state = (await knownState(sub, deps)) ?? deps.sessions.state(sub);
-    if (state === undefined || state === "ended") {
+    // FR-EXM-153 (amended 2026-09-20): one session per execution. A session whose cancel is in
+    // flight is spent even though `subscription.canceled` has not landed yet, so the next Run
+    // opens a new one rather than invoking on a dying meter.
+    const spent = deps.sessions.get(sub)?.canceling === true;
+    if (state === undefined || state === "ended" || spent) {
       // FR-EXM-114 (amended): no session yet — open one and hand back its id. The console renders
       // <Authorize session> in place (FR-EXM-152); nobody leaves this page.
       let session;
@@ -263,8 +264,8 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
   }
   const now = deps.now();
   if (!deps.sessions.tryConsumeRun(now)) {
-    // The meter is on and nothing will run: stop it again rather than bill the refusal.
-    await pauseAfterRun(sub, deps);
+    // The meter is on and nothing will run: end it rather than bill the refusal.
+    await endSession(sub, "run", deps);
     return { status: 429, body: { error: "daily execution limit reached" } };
   }
   deps.sessions.touch(sub, now, { run: true });
@@ -272,8 +273,9 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
   try {
     result = await deps.executor.run(code);
   } finally {
-    // FR-EXM-153: the meter stops the moment the run does, whether it returned or threw.
-    await pauseAfterRun(sub, deps);
+    // FR-EXM-153 (amended 2026-09-20): the session ends the moment the run does, whether it
+    // returned or threw. One session per execution; the next Run authorises a new one.
+    await endSession(sub, "run", deps);
   }
   // FR-EXM-120: one line per run, so the terminal shows what the meter is being paid for.
   const outcome = result.ok ? JSON.stringify(result.result) : result.error;
@@ -287,25 +289,6 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
  * and left alone — the session stays active, the idle sweep still ends it, and the subscriber is
  * never billed for a pause we failed to make rather than for seconds they used.
  */
-async function pauseAfterRun(sub: string, deps: ServerDeps): Promise<void> {
-  deps.sessions.markPausing(sub, deps.now());
-  try {
-    await deps.pauseSubscription(sub);
-  } catch (err) {
-    deps.sessions.applyActive(sub, { startedAt: deps.sessions.get(sub)?.startedAt ?? deps.now(), nowMs: deps.now() });
-    deps.log(`✗ pause ${sub}: ${(err as Error).message}`);
-  }
-}
-
-/**
- * FR-EXM-125: start the meter for an authorised session and wait for the chain to confirm it.
- *
- * The session is marked `starting` **before** `subscriptions.start` is awaited, so a second Run
- * arriving in the meantime waits on this same start instead of issuing another. `active` only ever
- * arrives from `subscription.updated` (FR-EXM-133), so this polls the store the webhook writes to.
- * If it does not arrive in time the session is cancelled — nothing accrued, so the subscriber is
- * refunded in full — and the caller answers 503.
- */
 async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps): Promise<boolean> {
   if (state === "authorised") {
     deps.sessions.markStarting(sub, deps.now());
@@ -316,17 +299,6 @@ async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps)
       // The start never happened: put the session back so the next Run can try again.
       deps.sessions.applyAuthorised(sub, { nowMs: deps.now() });
       deps.log(`✗ start ${sub}: ${(err as Error).message}`);
-      return false;
-    }
-  } else if (state === "paused") {
-    // FR-EXM-153: the meter was paused when the last run finished; this one turns it back on.
-    deps.sessions.markResuming(sub, deps.now());
-    try {
-      await deps.resumeSubscription(sub);
-      deps.log(`▶ resuming meter ${sub}`);
-    } catch (err) {
-      deps.sessions.applyPaused(sub, { nowMs: deps.now() });
-      deps.log(`✗ resume ${sub}: ${(err as Error).message}`);
       return false;
     }
   }
@@ -377,13 +349,13 @@ const MAX_CANCEL_ATTEMPTS = 5;
  * the await so a second beacon or the next sweep tick cannot issue a second cancel while the
  * chain confirms; the `subscription.canceled` webhook is what finally closes it (BR-EXM-110).
  */
-export async function endSession(sub: string, reason: "left" | "idle", deps: ServerDeps): Promise<void> {
+export async function endSession(sub: string, reason: "left" | "idle" | "run", deps: ServerDeps): Promise<void> {
   const session = deps.sessions.get(sub);
   // FR-EXM-126: an authorised or starting session is cancelled too — a full refund, since
   // nothing has accrued yet.
   if (!session || session.state === "ended" || session.canceling) return;
   deps.sessions.markCanceling(sub);
-  deps.log(`⏹ auto-ended (${reason}) ${sub}`);
+  deps.log(reason === "run" ? `⏹ ended with the run ${sub}` : `⏹ auto-ended (${reason}) ${sub}`);
   try {
     await deps.cancelSubscription(sub);
   } catch (err) {

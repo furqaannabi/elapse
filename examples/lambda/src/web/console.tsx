@@ -77,7 +77,7 @@ export function Console({ merchant }: { merchant: string }) {
         return;
       }
       setOut(outcome.body.ok ? { body: outcome.body } : { error: outcome.body.error ?? "run failed" });
-      // FR-EXM-153: by the time the answer is here the meter is already paused again.
+      // FR-EXM-153 (amended): by the time the answer is here the session has already ended.
       setStatus(BETWEEN_RUNS);
     },
     [],
@@ -154,7 +154,7 @@ export function Console({ merchant }: { merchant: string }) {
 
       <p className="note">
         Write JavaScript and Run it on real AWS Lambda. fetch, node builtins via require, anything you like — the longer it
-        runs, the more seconds you pay for. Between runs the meter is paused, so thinking time is free.
+        runs, the more seconds you pay for. The session ends with the run, so thinking time is free — the next Run opens a new one.
       </p>
 
       <div className="screen" id="editor" style={{ height: "190px", padding: 0 }} ref={editor.hostRef}>
