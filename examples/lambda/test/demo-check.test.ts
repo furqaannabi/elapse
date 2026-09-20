@@ -22,6 +22,7 @@ async function serve(secret: string) {
     startSubscription: async () => {},
     cancelSubscription: async () => {},
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
+    maxDurationSeconds: 3600,
     elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     now: () => Date.now(),
   });

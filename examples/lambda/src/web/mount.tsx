@@ -9,10 +9,10 @@ import { Console } from "./console";
 
 const el = document.getElementById("root");
 if (el) {
-  const { publishableKey, apiUrl, appUrl, merchant } = el.dataset as Record<string, string>;
+  const { publishableKey, apiUrl, appUrl, merchant, maxDuration } = el.dataset as Record<string, string>;
   createRoot(el).render(
     <ElapseProvider publishableKey={publishableKey!} baseUrl={apiUrl!} appOrigin={appUrl!}>
-      <Console merchant={merchant ?? "The merchant"} />
+      <Console merchant={merchant ?? "The merchant"} cap={Number(maxDuration ?? 3600)} />
     </ElapseProvider>,
   );
 }

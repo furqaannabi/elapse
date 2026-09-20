@@ -88,6 +88,7 @@ export async function boot(config: Config, io: BootIO) {
     // endregion
     product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second },
     // FR-EXM-152: what the console page hands to <ElapseProvider>.
+    maxDurationSeconds: config.maxDurationSeconds,
     elapse: { publishableKey: config.publishableKey, apiUrl: config.apiUrl, appUrl: config.appUrl },
     now: () => Date.now(),
   };

@@ -21,7 +21,7 @@ function resultLine(body: RunBody): string {
   return `${head}  (${body.ms}ms on Lambda)${body.logs?.length ? `\n${body.logs.join("\n")}` : ""}`;
 }
 
-export function Console({ merchant }: { merchant: string }) {
+export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   const [phase, setPhase] = useState<Phase>({ k: "idle" });
   const [status, setStatus] = useState(IDLE_STATUS);
   const [out, setOut] = useState<{ pending?: boolean; body?: RunBody; error?: string }>({});
@@ -123,6 +123,8 @@ export function Console({ merchant }: { merchant: string }) {
         <div className="screen">
           <Authorize
             session={phase.session}
+            // FR-RCT-010 amended: Northwind chooses the cap, so Run opens the Elapse window at once.
+            cap={cap}
             onAuthorised={(e) => void authorised(phase.session, e.subscription)}
             onStarted={(e) => void authorised(phase.session, e.subscription)}
             onError={(e) => {

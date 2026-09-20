@@ -59,6 +59,7 @@ async function start(over: Record<string, unknown> = {}) {
       canceled.push(sub);
     },
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
+    maxDurationSeconds: 3600,
     elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     now: () => NOW,
     ...over,
@@ -438,6 +439,8 @@ describe("FR-EXM-110/111/112 the pages", () => {
     expect(html).toContain('data-publishable-key="pk_test_abc"');
     expect(html).toContain('data-api-url="https://api.elapse.finance"');
     expect(html).toContain('data-app-url="https://elapse.finance"');
+    // FR-RCT-010 amended: the merchant chooses the cap, so the console never shows a cap step.
+    expect(html).toContain('data-max-duration="3600"');
     expect(html).not.toContain("sk_test");
 
     // No hosted checkout anywhere, and no Start or Stop for the subscriber (FR-CHK-037).

@@ -16,7 +16,7 @@ function wireSession(over: { startMode?: "checkout" | "merchant" } = {}) {
   };
 }
 
-function setup(opts: { startMode?: "checkout" | "merchant"; blocked?: boolean } = {}) {
+function setup(opts: { startMode?: "checkout" | "merchant"; blocked?: boolean; cap?: number } = {}) {
   const fetchFn = vi.fn(async () => new Response(JSON.stringify(wireSession(opts)), { status: 200 }));
   const target = new EventTarget();
   const popup = { closed: false, close() { this.closed = true; } };
@@ -43,7 +43,7 @@ function setup(opts: { startMode?: "checkout" | "merchant"; blocked?: boolean } 
   const onAuthorised = vi.fn();
   render(
     <ElapseProvider publishableKey="pk_test_1" baseUrl="https://api.test" fetch={fetchFn as unknown as typeof fetch} popupHost={host}>
-      <Authorize session="cs_1" onStarted={onStarted} onAuthorised={onAuthorised} />
+      <Authorize session="cs_1" onStarted={onStarted} onAuthorised={onAuthorised} {...(opts.cap === undefined ? {} : { cap: opts.cap })} />
     </ElapseProvider>,
   );
   return { fetchFn, open, popup, post, needsWindow, postFromWindow, frame, onStarted, onAuthorised };
@@ -131,5 +131,32 @@ describe("<Authorize> · FR-RCT-011/013/014/031", () => {
     popup.closed = true;
     expect(await screen.findByText("Nothing was charged.", undefined, { timeout: 2000 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Authorise" })).toBeTruthy();
+  });
+});
+
+describe("<Authorize cap> · FR-RCT-010 amended 2026-09-20", () => {
+  it("skips the cap step and asks for the signature at once", async () => {
+    const { frame } = setup({ cap: 3600, startMode: "merchant" });
+
+    await waitFor(() => expect(frame()).toBeTruthy());
+    // The merchant chose the cap, so the subscriber is not asked to.
+    expect(screen.queryByText("How long may the meter run?")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Authorise" })).toBeNull();
+    // ...and it is that cap the permit is asked for.
+    expect(new URL(frame()!.src).searchParams.get("cap")).toBe("3600");
+  });
+
+  it("asks only once, however many times it re-renders", async () => {
+    const { frame, fetchFn } = setup({ cap: 3600 });
+    await waitFor(() => expect(frame()).toBeTruthy());
+    await act(async () => { await Promise.resolve(); });
+    expect(document.querySelectorAll("iframe.elapse-modal-frame")).toHaveLength(1);
+    void fetchFn;
+  });
+
+  it("still offers the cap step when no cap is given", async () => {
+    setup();
+    expect(await screen.findByRole("button", { name: "Authorise" })).toBeTruthy();
+    expect(screen.getByText("How long may the meter run?")).toBeTruthy();
   });
 });

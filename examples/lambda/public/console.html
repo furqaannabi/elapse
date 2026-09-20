@@ -24,10 +24,11 @@
        data-publishable-key="{{publishable_key}}"
        data-api-url="{{api_url}}"
        data-app-url="{{app_url}}"
-       data-merchant="{{merchant}}"></div>
+       data-merchant="{{merchant}}"
+       data-max-duration="{{max_duration_seconds}}"></div>
   <script type="module" src="/web.js"></script>
 
-  <p class="note">You pay for the seconds your code runs. The meter is paused between runs, and when the session closes you are shown the exact amount settled.</p>
+  <p class="note">You pay for the seconds your code runs. The session ends with the run, and you are shown the exact amount settled.</p>
 
   <footer class="tag">{{merchant}} · demo merchant</footer>
 </main>

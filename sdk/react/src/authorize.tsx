@@ -5,17 +5,24 @@
  *
  * Maps to: FR-RCT-010/011/013/014; checkout FR-CHK-003/034/035/037 copy; BR-RCT-001 (no chain words).
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CAP_PRESETS_SECONDS, escrowNano, formatAmount, formatCap } from "./money";
 import { useAuthorize, type StepEvent } from "./use-authorize";
 
 export function Authorize({
   session,
+  cap: fixedCap,
   onAuthorised,
   onStarted,
   onError,
 }: {
   session: string;
+  /**
+   * FR-RCT-010 (amended 2026-09-20): the merchant chooses the cap and the subscriber is not asked.
+   * No cap step renders and the signature is asked for as soon as the session is read — one accept,
+   * in the Elapse window, instead of two. `examples/lambda` passes `MAX_DURATION_SECONDS`.
+   */
+  cap?: number;
   onAuthorised?: (e: StepEvent) => void;
   onStarted?: (e: StepEvent) => void;
   onError?: (e: Error) => void;
@@ -26,6 +33,14 @@ export function Authorize({
     ...(onError ? { onError } : {}),
   });
   const [cap, setCap] = useState<number>(CAP_PRESETS_SECONDS[0]);
+
+  // Asked once: a re-render must not open a second window (FR-RCT-011).
+  const asked = useRef(false);
+  useEffect(() => {
+    if (fixedCap === undefined || asked.current || state.kind !== "ready") return;
+    asked.current = true;
+    authorise(fixedCap);
+  }, [fixedCap, state.kind, authorise]);
 
   if (state.kind === "loading") return <>{modal}<div className="elapse elapse-card" aria-busy="true" /></>;
   if (state.kind === "error") return <>{modal}<div className="elapse elapse-card" role="alert">{state.message}</div></>;
@@ -48,6 +63,28 @@ export function Authorize({
         {modal}
         <div className="elapse elapse-card" aria-live="polite">
           <h2 className="elapse-title">Your meter is running</h2>
+        </div>
+      </>
+    );
+  }
+
+  // With a merchant-chosen cap there is nothing to ask: the Elapse window is the only accept.
+  if (fixedCap !== undefined) {
+    const blockedNow = state.kind === "ready" && state.notice !== null && state.notice.startsWith("Your browser blocked");
+    return (
+      <>
+        {modal}
+        <div className="elapse elapse-card" aria-live="polite" {...(blockedNow ? {} : { "aria-busy": true })}>
+          {blockedNow ? (
+            <>
+              <p className="elapse-notice" role="status">{state.notice}</p>
+              <button type="button" className="elapse-primary" onClick={() => authorise(fixedCap)}>
+                Try again
+              </button>
+            </>
+          ) : (
+            <p className="elapse-muted">Waiting for Face ID&hellip;</p>
+          )}
         </div>
       </>
     );

@@ -36,6 +36,8 @@ export interface ServerDeps {
   product: { name: string; rateUsdPerSecond: string };
   /** What the console page hands to <ElapseProvider> (FR-EXM-152). */
   elapse: { publishableKey: string; apiUrl: string; appUrl: string };
+  /** FR-RCT-010 amended: the cap the merchant authorises for, so the console shows no cap step. */
+  maxDurationSeconds: number;
   now: () => number;
 }
 
@@ -124,7 +126,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
       res,
       200,
       "text/html; charset=utf-8",
-      fill(CONSOLE, { ...vars, publishable_key: deps.elapse.publishableKey, api_url: deps.elapse.apiUrl, app_url: deps.elapse.appUrl }),
+      fill(CONSOLE, { ...vars, max_duration_seconds: String(deps.maxDurationSeconds), publishable_key: deps.elapse.publishableKey, api_url: deps.elapse.apiUrl, app_url: deps.elapse.appUrl }),
     );
   }
   // FR-EXM-152: the console's bundle, with React and @elapse/react inside it.
