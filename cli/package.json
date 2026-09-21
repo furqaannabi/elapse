@@ -27,7 +27,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@elapse/sdk": "^0.3.0"
+    "@elapse/sdk": "^0.3.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

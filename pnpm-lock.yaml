@@ -10,6 +10,9 @@ importers:
 
   api:
     dependencies:
+      '@elapse/sdk':
+        specifier: ^0.3.1
+        version: 0.3.1
       '@hono/zod-openapi':
         specifier: ^1.1.5
         version: 1.6.3(hono@4.13.5)(zod@4.5.4)
@@ -23,9 +26,6 @@ importers:
         specifier: ^4.1.0
         version: 4.5.4
     devDependencies:
-      '@elapse/sdk':
-        specifier: ^0.3.0
-        version: 0.3.0
       '@types/bun':
         specifier: ^1.2.0
         version: 1.4.1
@@ -36,8 +36,8 @@ importers:
   cli:
     dependencies:
       '@elapse/sdk':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -55,8 +55,8 @@ importers:
   docs-site:
     devDependencies:
       '@elapse/sdk':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
@@ -82,8 +82,8 @@ importers:
         specifier: ^0.4.1
         version: 0.4.1(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@elapse/sdk':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
       dotenv:
         specifier: ^17.2.0
         version: 17.4.2
@@ -122,8 +122,8 @@ importers:
         specifier: ^0.4.1
         version: 0.4.1(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@elapse/sdk':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.1
+        version: 0.3.1
       dotenv:
         specifier: ^17.2.0
         version: 17.4.2
@@ -730,8 +730,8 @@ packages:
       react: '>=18 <20'
       react-dom: '>=18 <20'
 
-  '@elapse/sdk@0.3.0':
-    resolution: {integrity: sha512-sNTuOXxO+K85RnlAf8n/33bGwnozM7eyO6Z1dnOGZnjrM60zXuJBw5w7bXgikiWLmW6hfvu+bjkFpXQJosZGQQ==}
+  '@elapse/sdk@0.3.1':
+    resolution: {integrity: sha512-pEq9ZgujBVKruNAaKtgvY+cvkXTfTr7kZ2iWMicf7GPEGlhSk5t+Ie3gul4eue6ShYOoj08VDvT5MiRmkdm9Yg==}
     engines: {node: '>=20'}
 
   '@emnapi/core@1.10.0':
@@ -9908,7 +9908,7 @@ snapshots:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
 
-  '@elapse/sdk@0.3.0': {}
+  '@elapse/sdk@0.3.1': {}
 
   '@emnapi/core@1.10.0':
     dependencies:

@@ -31,7 +31,8 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --clean --target node20",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

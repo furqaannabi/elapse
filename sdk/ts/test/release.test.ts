@@ -54,3 +54,14 @@ describe("the published package resolves under every runtime it claims", () => {
     }
   });
 });
+
+describe("the package cannot ship something that was never built", () => {
+  it("FR_SDK_001_publishing_rebuilds_and_retests_first", () => {
+    // @elapse/react@0.4.0 shipped the previous version's dist because nothing forced a build.
+    // This package had the same gap.
+    const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+      scripts: Record<string, string>;
+    };
+    expect(pkg.scripts.prepublishOnly).toMatch(/build/);
+  });
+});
