@@ -47,9 +47,9 @@ describe("FR-EXM-122 the runner executes submitted JavaScript", () => {
     // It burns a real second of CPU rather than sleeping: that is what the meter is billing for.
     expect(Date.now() - started).toBeGreaterThanOrEqual(950);
     expect(r.result).toMatchObject({ seconds: 1 });
-    expect((r.result as { hashes: number }).hashes).toBeGreaterThan(0);
+    expect((r.result as { rounds: number }).rounds).toBeGreaterThan(0);
     expect(r.logs).toHaveLength(1);
-    expect(r.logs[0]).toMatch(/^\s*1s · [\d,]+ hashes$/);
+    expect(r.logs[0]).toMatch(/^\s*1s · [\d,]+ rounds$/);
   });
 
   it("ships a default that runs for thirty seconds, so the meter is legible", async () => {
@@ -97,5 +97,19 @@ describe("FR-EXM-122 general-purpose JavaScript", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) throw new Error(r.error);
     expect(String(r.result)).toMatch(/^[0-9a-f]{8}$/);
+  });
+});
+
+describe("FR-EXM-122 the default snippet runs on any build of the runner", () => {
+  it("needs nothing but console and return, so it works on the deployed runner too", async () => {
+    // The runner deployed to AWS predates `require` support: it passes only `console` to
+    // new Function. A default that reaches for node:crypto dies there with "require is not
+    // defined" — which is exactly what happened. The default must stay portable.
+    const { defaultSnippet } = (await import("../runner/snippet.mjs")) as unknown as { defaultSnippet: (s?: number) => string };
+    const logs: string[] = [];
+    const bare = new Function("console", `"use strict"; return (async () => { ${defaultSnippet(1)} })();`);
+    const result = await bare({ log: (...a: unknown[]) => logs.push(a.map(String).join(" ")) });
+    expect(result).toMatchObject({ seconds: 1 });
+    expect(logs).toHaveLength(1);
   });
 });

@@ -11,6 +11,11 @@
 /**
  * FR-EXM-122 (amended 2026-09-21): the console opens on **thirty real seconds** of Lambda.
  *
+ * It uses nothing but `Date.now`, arithmetic and `console.log` — no `require`. The runner deployed
+ * to AWS predates this file's `require` support and passes only `console`, so anything reaching for
+ * a node builtin dies there with "require is not defined". A test runs the default through a
+ * console-only `new Function` to keep it that way.
+ *
  * The old default returned "Hello, world!" in about a millisecond, so the meter never moved and
  * the thing the console exists to demonstrate was invisible. This one burns CPU in one-second
  * slices and prints a line per slice: thirty log lines beside thirty ticks of the meter, and a
@@ -23,22 +28,23 @@
  */
 export function defaultSnippet(seconds = 30) {
   return `// Runs on real AWS Lambda for ${seconds} seconds. You pay for the seconds this session is open.
-const { createHash } = require("node:crypto");
-
 const SECONDS = ${seconds};
 const started = Date.now();
-let hashes = 0, digest = "elapse";
+let rounds = 0, hash = 2166136261;
 
 for (let s = 1; s <= SECONDS; s++) {
   const until = started + s * 1000;
   while (Date.now() < until) {
-    for (let i = 0; i < 5000; i++) digest = createHash("sha256").update(digest).digest("hex");
-    hashes += 5000;
+    for (let i = 0; i < 100000; i++) {
+      hash ^= i;
+      hash = Math.imul(hash, 16777619) >>> 0;
+    }
+    rounds += 100000;
   }
-  console.log(\`\${String(s).padStart(2)}s · \${hashes.toLocaleString()} hashes\`);
+  console.log(\`\${String(s).padStart(2)}s · \${rounds.toLocaleString()} rounds\`);
 }
 
-return { seconds: SECONDS, hashes, digest: digest.slice(0, 16) };
+return { seconds: SECONDS, rounds, checksum: hash.toString(16) };
 `;
 }
 
