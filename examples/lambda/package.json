@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-lambda": "^3.658.0",
-    "@elapse/react": "^0.2.0",
+    "@elapse/react": "^0.3.0",
     "@elapse/sdk": "^0.3.0",
     "dotenv": "^17.2.0",
     "react": "19.2.8",

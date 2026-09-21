@@ -79,8 +79,8 @@ importers:
         specifier: ^3.658.0
         version: 3.1131.0
       '@elapse/react':
-        specifier: ^0.2.0
-        version: 0.2.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^0.3.0
+        version: 0.3.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@elapse/sdk':
         specifier: ^0.3.0
         version: 0.3.0
@@ -119,8 +119,8 @@ importers:
   examples/saas:
     dependencies:
       '@elapse/react':
-        specifier: ^0.2.0
-        version: 0.2.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: ^0.3.0
+        version: 0.3.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@elapse/sdk':
         specifier: ^0.3.0
         version: 0.3.0
@@ -725,6 +725,13 @@ packages:
 
   '@elapse/react@0.2.0':
     resolution: {integrity: sha512-SFrQk0spQm9bDB3g9lvHk7v8QR9dXnTLjzag35IWDfE2+CGjmzBU4Cmmi1z5s61z8VFqChaz/2DiKmJj8PaB4A==}
+    peerDependencies:
+      motion: ^13
+      react: '>=18 <20'
+      react-dom: '>=18 <20'
+
+  '@elapse/react@0.3.0':
+    resolution: {integrity: sha512-6s6zS1Loomm3CjwjIKk3Yf5knzJ8DLPiMD3N6Al2BPbENXZqc9wbdV6Y/QS4rkmZ176SkaUxYjmSteXdTTGVxQ==}
     peerDependencies:
       motion: ^13
       react: '>=18 <20'
@@ -9903,6 +9910,12 @@ snapshots:
       '@noble/ciphers': 1.3.0
 
   '@elapse/react@0.2.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+    dependencies:
+      motion: 13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react: 19.2.8
+      react-dom: 19.2.8(react@19.2.8)
+
+  '@elapse/react@0.3.0(motion@13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       motion: 13.2.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react: 19.2.8
