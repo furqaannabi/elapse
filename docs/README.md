@@ -20,19 +20,21 @@ Elapse is Stripe Billing for things that should charge by the second. A merchant
 
 ## Status board
 
-| Piece | Path | Spec | State (2026-09-09) |
+| Piece | Path | Spec | State (2026-09-21) |
 | --- | --- | --- | --- |
-| Contracts | `contracts/` | `specs/contracts-frd.md` | Built and deployed on Monad testnet 10143 (factory `0x4B76…2840`, 7 Sep): escrow, start, pause and resume by signed relay, cancel, settle with 2 % fee, cap end. Kill gate passed 5 Sep. Mainnet record pending (William deploys). |
-| Platform API | `api/` | `specs/api-frd.md` | Hosted at api.elapse.finance (Railway, Neon Postgres). Every FR-API built including dashboard routes, account routes, CLI sessions, search. Auth audit of all routes clean 9 Sep. |
-| Indexer | `indexer/` | `specs/indexer-frd.md` | Hosted on Envio Cloud, endpoint `2adf0f0`, ingesting into the API. `pnpm reconcile` still deferred. |
-| Webhook worker | `api/src/worker/` | `specs/worker-frd.md` | Hosted as the second Railway process: deliveries with retries and auto-disable, keeper (hourly settle, cap ends), reconcile, heartbeat, CLI sweep, expiry notices and emails. |
-| SDK (TS) | `sdk/ts/` | `specs/sdk-frd.md` | `@elapse/sdk@0.1.3` on npm: ten methods, `manage_url`, invoice and product filters. |
+| Contracts | `contracts/` | `specs/contracts-frd.md` | Built and deployed on Monad testnet 10143 (factory `0x9Df0…8052`, 20 Sep, Sourcify-verified): escrow, start, cancel, settle with 2 % fee, cap end, pause and resume for the merchant and the keeper only. Kill gate passed 5 Sep. Mainnet record pending (William deploys). |
+| Platform API | `api/` | `specs/api-frd.md` | Hosted at api.elapse.finance (EC2, Docker Compose behind nginx; `docker-compose.ec2.yml`). Every FR-API built including dashboard routes, account routes, CLI sessions, search. Auth audit of all routes clean 9 Sep. |
+| Indexer | `indexer/` | `specs/indexer-frd.md` | Hosted on Envio Cloud, endpoint `fd175e5` on the 20 Sep factory, synced and ingesting into the API. `pnpm reconcile` still deferred. |
+| Webhook worker | `api/src/worker/` | `specs/worker-frd.md` | Hosted as the second process beside the API: deliveries with retries and auto-disable, keeper (hourly settle, cap ends), reconcile, heartbeat, CLI sweep, expiry notices and emails. |
+| SDK (TS) | `sdk/ts/` | `specs/sdk-frd.md` | `@elapse/sdk@0.3.0` on npm: `manage_url`, invoice and product filters, and the merchant's `subscriptions.start / pause / resume / cancel`. |
+| SDK (React) | `sdk/react/` | `specs/react-sdk-frd.md` | `@elapse/react@0.3.0` on npm: `<Authorize>`, `<Meter>` in the homepage's instrument UI, `useAuthorize` / `useMeter`, pause as a request to the merchant. |
 | CLI | `cli/` | `specs/cli-frd.md` | `@elapse/cli@0.1.3` on npm: `listen --forward`, `events`, `products`, `checkout`. |
 | Web (landing, checkout, account, dashboard) | `web/` | `specs/landing-frd.md`, `specs/checkout-frd.md`, `specs/dashboard-frd.md` | Hosted at elapse.finance (Vercel) on the real API: landing, checkout with Privy and add money, account page, full dashboard with paging, search as you type, notifications. |
 | Docs site | `docs-site/` (Mintlify, site in `docs-site/site/`) | `specs/docs-site-frd.md` | Hosted at docs.elapse.finance: Quickstart, guides, generated API reference, snippets synced from code, CI. |
 | Example merchant | `examples/saas/` | `specs/examples-frd.md` | Proven against production twice on 9 Sep: through the CLI and through a dashboard-added endpoint via a tunnel. |
+| Example (merchant-started) | `examples/lambda/` | `specs/examples-lambda-frd.md` | The Northwind console: a merchant-started meter that runs only while the invocation does. Runs locally against production through `elapse listen --forward`; hosting undecided. |
 
-Judge pass on the hosted app in test mode completed 9 Sep. Remaining before 13 Oct: demo video, mainnet decision, submission.
+Judge pass on the hosted app in test mode completed 9 Sep. Remaining before 13 Oct: a checkout against the 20 Sep factory end to end, credential rotation, `examples/lambda` hosting, demo video, mainnet decision, submission.
 
 ## Decisions log
 

@@ -77,7 +77,7 @@ runs React, install the package instead and use the components — you keep one 
 | --- | --- |
 | `<ElapseProvider publishableKey baseUrl? appOrigin? sound?>` | Configuration for everything below it. A key starting with `sk_` throws. |
 | `<Authorize session onAuthorised onStarted onError>` | The cap step, then the Elapse window. |
-| `<Meter session dock? controls? proof? onStopped onPaused onResumed onError>` | The live meter, its controls, and the receipt. |
+| `<Meter session dock? controls? proof? onStopped onPauseRequest? onResumeRequest? onError>` | The live meter, its controls, and the receipt. |
 | `<TxLink hash chainId?>` | A transaction as `0x4cbe…9143`, linked to the explorer. Nothing renders it for you. |
 
 ### `<Meter>` options
@@ -85,9 +85,9 @@ runs React, install the package instead and use the components — you keep one 
 | Prop | Default | What it does |
 | --- | --- | --- |
 | `dock` | *(none)* | `"bottom-right"` or `"bottom-left"` floats the meter as a small capsule — a live dot, the clock, the amount — instead of a card in your layout. On a phone it spans the gutter. |
-| `controls` | `true` | `false` hides Stop, Pause and Resume entirely, for a meter only you stop. |
+| `controls` | `true` | `false` hides Stop and the pause requests entirely, for a meter only you stop. |
 | `proof` | `false` | Drops a card when the meter starts and when it ends, carrying that transaction. Off by default: most subscribers should never see a hash. |
-| `onPauseRequest`, `onResumeRequest` | — | Show Pause and Resume as **requests to you**. A subscriber cannot pause a meter (only the merchant can), so the button calls your handler — nothing is signed, nothing reaches Elapse — and your server pauses with `subscriptions.pause`. Omit them and no such control renders. |
+| `onPauseRequest`, `onResumeRequest` | — | Show Pause and Resume as **requests to you**. A subscriber cannot pause a meter (only the merchant can), so the button calls your handler — nothing is signed, nothing reaches Elapse — and your server pauses with `subscriptions.pause`. Pause renders only on a Product that allows pausing; omit the props and neither control renders. |
 
 Sound is on by default: two short synthesised notes when a meter starts and when it stops, never
 one per second, with a mute the subscriber controls and the browser remembers. `sound={false}` on

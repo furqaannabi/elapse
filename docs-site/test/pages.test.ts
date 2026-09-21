@@ -61,12 +61,16 @@ describe("FR-DOC-010/013 quickstart", () => {
 });
 
 describe("FR-DOC-022 subscriptions", () => {
-  it("has the state diagram and the manage-their-meter section on manage_url (ADR 2026-09-09)", () => {
+  it("has the state diagram, and says who pauses and who stops (ADR 2026-09-20)", () => {
     const src = read("subscriptions.mdx");
     expect(src).toContain("active --> paused: pause");
-    expect(src).toContain("## Let subscribers manage their meter");
+    expect(src).toContain("## Who pauses, who stops");
     expect(src).toContain("sub.manage_url");
-    expect(src).toMatch(/no pause endpoint/);
+    // The subscriber cannot pause: the page must send merchants to their own endpoint, and must
+    // describe the React controls as requests rather than as something the subscriber performs.
+    expect(src).toMatch(/A subscriber cannot pause/);
+    expect(src).toMatch(/`subscriptions\.pause`/);
+    expect(src).toMatch(/onPauseRequest/);
     expect(src).toMatch(/create a new Checkout session/);
   });
 });

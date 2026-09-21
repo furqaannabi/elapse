@@ -62,8 +62,8 @@ const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w
 const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2);
 
 export function createServer(deps: ServerDeps) {
-  // FR-EXM-153: runs are serialised per subscription. Each one resumes the meter and pauses it
-  // again, so two overlapping runs would fight over the same stream.
+  // FR-EXM-153 (amended): runs are serialised per subscription. Each one starts a meter and ends
+  // it, so two overlapping runs would fight over the same stream.
   const queues = new Map<string, Promise<unknown>>();
   return createHttpServer((req, res) => {
     route(req, res, deps, queues).catch((err: Error) => {
@@ -253,7 +253,7 @@ async function queued<T>(queues: Map<string, Promise<unknown>>, key: string, fn:
 }
 
 /**
- * One run: make sure the meter is on (FR-EXM-125/153), invoke, pause again, and answer. The daily
+ * One run: make sure the meter is on (FR-EXM-125), invoke, end the session, and answer. The daily
  * cap (BR-EXM-109) is consumed only once the runner is actually about to be called.
  */
 async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ status: number; body: unknown }> {
@@ -287,9 +287,9 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
 }
 
 /**
- * FR-EXM-153: stop the meter now that the run is over. A pause that the platform refuses is logged
- * and left alone — the session stays active, the idle sweep still ends it, and the subscriber is
- * never billed for a pause we failed to make rather than for seconds they used.
+ * Make sure the meter is running before anything is invoked (FR-EXM-125). An `authorised` session is
+ * started here and the chain is waited on; a start that never confirms cancels the session, so the
+ * subscriber is refunded rather than left holding a meter that never ran.
  */
 async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps): Promise<boolean> {
   if (state === "authorised") {

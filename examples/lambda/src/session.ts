@@ -11,9 +11,9 @@
  * and the money is escrowed but nothing is accruing; `starting` means the merchant asked the
  * platform to start the meter and the chain has not confirmed yet; `active` means it is accruing.
  *
- * FR-EXM-153: between runs the meter is paused, so the subscriber pays only for the seconds their
- * code runs. `pausing` and `resuming` are the windows where the platform has been asked and the
- * chain has not answered; nothing may be invoked in either.
+ * FR-EXM-153 (amended 2026-09-20): the session **ends** with the run, so the subscriber pays for
+ * the seconds their code ran plus the confirmations either side. `paused` survives only because a
+ * merchant may pause a meter from its own server; this example never does.
  */
 export type SessionState = "authorised" | "starting" | "active" | "paused" | "ended";
 

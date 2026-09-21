@@ -58,9 +58,11 @@ curl -X POST "$ELAPSE_API_URL/v1/subscriptions/sub_…/cancel" \
 
 The call answers `202`. Treat the webhook as the truth, not the response.
 
-## Let subscribers manage their meter
+## Who pauses, who stops
 
-Pause, resume and stop are the subscriber's actions, taken on the hosted meter page with their own signature. Your server cannot pause on their behalf, and there is no pause endpoint. Instead, link them there: every Subscription carries `manage_url`, the same page they checked out on. While the meter runs it shows the counter, **Stop**, and **Pause** if the Product allows it; after a stop it shows the receipt. Put the link where you would put "Manage subscription".
+**Pausing is yours, stopping is theirs.** A subscriber cannot pause a meter — a paused meter costs them nothing while your resource stays allocated, so only you can, with `subscriptions.pause`. Stopping is different: it returns their unused escrow and your resource together, so a subscriber may stop any meter they started (a merchant-started one is yours to stop too).
+
+In your own page, `<Meter>` from `@elapse/react` shows the counter and Stop. Pass `onPauseRequest` and `onResumeRequest` and it also shows Pause and Resume as **requests to you**: the button calls your handler, nothing is signed, and your server decides and calls `subscriptions.pause`. Every Subscription also carries `manage_url`, the subscriber's own page of meters and receipts across merchants — put that where you would put "Manage subscription".
 
 <CodeGroup>
 ```ts TypeScript
@@ -73,7 +75,7 @@ curl "$ELAPSE_API_URL/v1/subscriptions/sub_…" \
 ```
 </CodeGroup>
 
-You find out what they did through webhooks: `subscription.updated` for a pause or resume, `subscription.canceled` for a stop. A stopped meter is final. To bill them again, create a new Checkout session.
+Webhooks tell you either way: `subscription.canceled` when a subscriber stops, and `subscription.updated` when a pause or resume of your own confirms on chain. A stopped meter is final. To bill them again, create a new Checkout session.
 
 ## Build the meter in your own product
 
