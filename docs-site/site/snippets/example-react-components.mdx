@@ -1,11 +1,22 @@
 ```tsx mount.tsx
+/** Ask your own server, which holds the secret key. A refusal throws; that is how `<Meter>` knows. */
+const askAcme = (what: "pause" | "resume", session: string) => async () => {
+  const res = await fetch(`/${what}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ session }),
+  });
+  if (res.status !== 202) throw new Error(`Acme answered ${res.status}`);
+};
+
 function Checkout({ session }: { session: string }) {
   const [started, setStarted] = useState(false);
   return started ? (
     <Meter
       session={session}
-      dock="bottom-right"
       proof
+      onPauseRequest={askAcme("pause", session)}
+      onResumeRequest={askAcme("resume", session)}
       onStopped={(e) => console.log("meter stopped", e.txHash)}
     />
   ) : (

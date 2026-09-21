@@ -19,7 +19,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 // region:react-components
-/** FR-EXM-033: ask Acme's own server. A refusal throws, which is how `<Meter>` learns to say so. */
+/** Ask your own server, which holds the secret key. A refusal throws; that is how `<Meter>` knows. */
 const askAcme = (what: "pause" | "resume", session: string) => async () => {
   const res = await fetch(`/${what}`, {
     method: "POST",

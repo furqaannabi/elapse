@@ -27,8 +27,8 @@ export async function boot(config: Config, io: BootIO) {
   // endregion
 
   // region:product
-  // FR-EXM-003 (amended 2026-09-21): reuse needs `allow_pause` too. Without it FR-EXM-033's Pause
-  // never renders, and the SDK has no products.update, so a Product made before this is left alone.
+  // Reuse a Product only if it allows pausing: the meter renders Pause from that flag, and there is
+  // no products.update, so a Product created without it is left alone and a new one made beside it.
   const existing = (await elapse.products.list({ limit: 100 })).data.find((p) => p.name === PRODUCT.name && p.active && p.allow_pause);
   const product = existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond, allowPause: true }));
   // endregion
