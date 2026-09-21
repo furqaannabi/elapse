@@ -36,13 +36,26 @@ describe("FR-EXM-122 the runner executes submitted JavaScript", () => {
     expect(r.result).toBeNull();
   });
 
-  it("runs the default snippet the console opens on", async () => {
-    const { DEFAULT_SNIPPET } = (await import("../runner/snippet.mjs")) as unknown as { DEFAULT_SNIPPET: string };
-    const r = await handler({ code: DEFAULT_SNIPPET });
+  it("runs the default snippet the console opens on, shortened so the suite does not wait", async () => {
+    // FR-EXM-122 amended 2026-09-21: the console opens on 30 real seconds. The snippet takes the
+    // count so this runs one second instead of thirty; the shipped default is asserted below.
+    const { defaultSnippet } = (await import("../runner/snippet.mjs")) as unknown as { defaultSnippet: (s?: number) => string };
+    const started = Date.now();
+    const r = await handler({ code: defaultSnippet(1) });
     expect(r.ok).toBe(true);
     if (!r.ok) throw new Error(r.error);
-    expect(r.result).toBe("Hello, world!");
-    expect(r.logs).toContain("Hello from Lambda");
+    // It burns a real second of CPU rather than sleeping: that is what the meter is billing for.
+    expect(Date.now() - started).toBeGreaterThanOrEqual(950);
+    expect(r.result).toMatchObject({ seconds: 1 });
+    expect((r.result as { hashes: number }).hashes).toBeGreaterThan(0);
+    expect(r.logs).toHaveLength(1);
+    expect(r.logs[0]).toMatch(/^\s*1s · [\d,]+ hashes$/);
+  });
+
+  it("ships a default that runs for thirty seconds, so the meter is legible", async () => {
+    const m = (await import("../runner/snippet.mjs")) as unknown as { DEFAULT_SNIPPET: string; defaultSnippet: (s?: number) => string };
+    expect(m.DEFAULT_SNIPPET).toBe(m.defaultSnippet());
+    expect(m.DEFAULT_SNIPPET).toContain("SECONDS = 30");
   });
 
   it("runs the heavier Mandelbrot example to a real PNG", async () => {

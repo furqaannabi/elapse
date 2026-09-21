@@ -8,11 +8,41 @@
  * which is what makes the per-second meter legible. It needs a runner that passes `require`.
  */
 
-export const DEFAULT_SNIPPET = `// Runs on real AWS Lambda. You pay for the seconds this session is open.
-console.log("Hello from Lambda");
+/**
+ * FR-EXM-122 (amended 2026-09-21): the console opens on **thirty real seconds** of Lambda.
+ *
+ * The old default returned "Hello, world!" in about a millisecond, so the meter never moved and
+ * the thing the console exists to demonstrate was invisible. This one burns CPU in one-second
+ * slices and prints a line per slice: thirty log lines beside thirty ticks of the meter, and a
+ * figure at the end for what thirty seconds of Lambda actually bought. It hashes rather than
+ * sleeping on purpose — a subscriber being asked to accept per-second billing should see the
+ * seconds doing work, not the clock running on an idle machine.
+ *
+ * `seconds` is a parameter so the test suite can run one second instead of thirty; the console is
+ * always served the default.
+ */
+export function defaultSnippet(seconds = 30) {
+  return `// Runs on real AWS Lambda for ${seconds} seconds. You pay for the seconds this session is open.
+const { createHash } = require("node:crypto");
 
-return "Hello, world!";
+const SECONDS = ${seconds};
+const started = Date.now();
+let hashes = 0, digest = "elapse";
+
+for (let s = 1; s <= SECONDS; s++) {
+  const until = started + s * 1000;
+  while (Date.now() < until) {
+    for (let i = 0; i < 5000; i++) digest = createHash("sha256").update(digest).digest("hex");
+    hashes += 5000;
+  }
+  console.log(\`\${String(s).padStart(2)}s · \${hashes.toLocaleString()} hashes\`);
+}
+
+return { seconds: SECONDS, hashes, digest: digest.slice(0, 16) };
 `;
+}
+
+export const DEFAULT_SNIPPET = defaultSnippet();
 
 export const MANDELBROT_SNIPPET = `// Renders a Mandelbrot tile on real AWS Lambda and returns it as a PNG.
 // More pixels or more iterations means more compute — and more seconds.
