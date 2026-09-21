@@ -1,5 +1,4 @@
 import { parseArgs } from "node:util";
-import { pathToFileURL } from "node:url";
 import { ElapseAuthenticationError, ElapseError } from "@elapse/sdk";
 import { DEFAULT_BASE_URL, defaultConfigDir, deleteProfile, readProfile, resolveBaseUrl, resolveSecretKey, saveProfile } from "./config";
 import { CLI_VERSION } from "./forward";
@@ -252,20 +251,4 @@ function help(io: MainIO, text: string, code: 0 | 2 = 0): 0 | 2 {
 
 function liveBanner(livemode: boolean, say: (l: string) => void, p: ReturnType<typeof paint>) {
   if (livemode) say(p.red(p.bold("LIVE")) + " mode: this key is live.");
-}
-
-// Run when invoked as the `elapse` binary (dist/elapse.js); not when imported by tests.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const ac = new AbortController();
-  process.on("SIGINT", () => {
-    process.stderr.write("\n");
-    ac.abort();
-  });
-  main(process.argv.slice(2), {
-    env: process.env,
-    stdout: (l) => process.stdout.write(l + "\n"),
-    stderr: (l) => process.stderr.write(l + "\n"),
-    isTTY: process.stdout.isTTY === true,
-    signal: ac.signal,
-  }).then((code) => process.exit(code));
 }

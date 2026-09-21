@@ -1,6 +1,6 @@
 {
   "name": "@elapse/cli",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "elapse listen --forward: receive your Elapse webhooks on localhost. You only pay what elapsed.",
   "license": "MIT",
   "repository": {
