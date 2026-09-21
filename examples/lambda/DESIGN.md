@@ -30,6 +30,10 @@ typography:
     fontSize: "10px"
     fontWeight: 700
     letterSpacing: "0.16em"
+  fine:
+    fontFamily: "Barlow Semi Condensed, Arial Narrow, Helvetica Neue, Arial, sans-serif"
+    fontSize: "12px"
+    fontWeight: 400
 rounded:
   case: "10px"
   screen: "4px"
@@ -54,10 +58,15 @@ engraved readout on the casing — always visible, never shouting.
 **Rules.**
 - Phone first, designed at 390px. One column; the screen never scrolls the page sideways.
 - The meter uses tabular numerals and ticks at 100ms. It does not pulse, flash, or animate.
-- There is **no Start and no Stop control** — the session begins on the first Run and ends by
-  itself. The casing says so in small engraved type.
+- There is **no Start control** — the session begins on the first Run. Since the 2026-09-21
+  decision it does not end by itself while you are at the terminal, so the casing carries exactly
+  two other controls: **End session**, engraved into the case at the far end of the key row, and
+  the **Pause / Resume** pair the meter itself offers. Only Run is amber. A control that stops the
+  money must not look like the control you press all day.
 - No chain words anywhere: "session", "seconds", "$". Never a token, address or transaction.
 - Two Google Fonts with system fallbacks; offline the pages still render.
 
-**Design note.** CLAUDE.md asks for `/impeccable` before visual work. That skill is not installed
-in this repo, so this world was chosen and recorded here directly; the mandated step did not run.
+**Design note.** This world was originally chosen and recorded directly, because `/impeccable` was
+not installed in this repo when the pages were first built. The skill has since been installed and
+run over these pages (2026-09-21, the End session and Pause/Resume controls); the world itself was
+preserved rather than replaced.

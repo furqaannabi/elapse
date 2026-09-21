@@ -55,6 +55,29 @@ h1.long { font-size: clamp(20px, 6vw, 26px); }
 .screen pre { white-space: pre-wrap; word-break: break-word; min-height: 22px; color: var(--screen-dim); overflow-x: auto; }
 .screen pre.has { color: var(--screen-ink); }
 
+/* An engraved heading: the casing's own voice, for a section that is part of the machine rather
+   than a page about it. Small, tracked, and never competing with the display type. */
+.engraved { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; margin: 18px 0 8px; }
+
+/* The three beats of a session. Numbered because the order is the information — you cannot press
+   End before Run — and engraved in the casing's label type so the numerals read as machined marks
+   rather than decoration. */
+.steps { list-style: none; counter-reset: step; margin: 0 0 18px; padding: 0; }
+.steps li { position: relative; counter-increment: step; padding: 0 0 0 30px; margin: 0 0 10px; color: var(--dim); }
+.steps li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 1px;
+  font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em;
+  color: var(--key);
+}
+.steps b { color: var(--ink); font-weight: 700; }
+
+/* The join between what the machine does and the merchant's own story. A machined seam, not a
+   hairline: the case is two pieces and this is where they meet. */
+.seam { height: 0; border: 0; border-top: 1px solid var(--case-lo); border-bottom: 1px solid #3d4248; margin: 26px 0 22px; }
+
+code { font-family: var(--mono); font-size: 0.86em; color: var(--ink); }
+
 /* the tariff plate: what the machine charges, engraved on the casing rather than printed on it.
    Money is amber wherever it appears on this terminal — the same ink as `.meter .amt`. */
 .plate { margin: 20px 0 24px; border: 1px solid var(--rule); border-radius: 3px; }
@@ -97,7 +120,56 @@ a.key { display: inline-flex; align-items: center; justify-content: center; text
 .back { display: inline-block; margin-top: 14px; min-height: 44px; line-height: 44px; color: var(--dim); font-family: var(--mono); font-size: 12px; }
 .tag { margin-top: 18px; padding-top: 10px; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; }
 
+/*
+ * The meter's slot. The editor leads this page, so the readout cannot simply scroll away above the
+ * work — it sticks to the bottom of the viewport for as long as there is page beneath it, which is
+ * the whole time a subscriber is reading output or the runner's source. The card inside is the
+ * component Furqaan signed (FR-EXM-152); only its position belongs to Northwind.
+ */
+.gauge { position: sticky; bottom: 0; z-index: 2; }
+.gauge:empty { display: none; }
+.gauge .screen { margin-bottom: 0; box-shadow: 0 2px 10px rgba(0,0,0,.5) inset, 0 -10px 24px rgba(21,23,26,.72); }
+
+/* The work surface. Monaco measures its container when it mounts, so the height is set here rather
+   than inline and the narrow breakpoint gets its own. */
+#editor { height: 300px; padding: 0; }
+@media (max-width: 430px) { #editor { height: 220px; } }
+
+/* The one control that stops the money. It is engraved into the casing rather than moulded as a
+   second amber key: Run is pressed all day, this is pressed once, and a terminal whose two controls
+   look alike is a terminal you press the wrong one on. `margin-left: auto` holds it at the far end
+   of the row so the gap itself does the separating (FR-EXM-155). */
+.switch {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--case-lo);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.switch:hover { border-color: var(--dim); }
+.switch:active { transform: translateY(1px); }
+.switch:focus-visible { outline: 2px solid var(--screen-ink); outline-offset: 3px; }
+.switch[disabled] { opacity: .55; cursor: default; }
+
+/* Engraved fine print: the line that says whose policy an auto-end is. Smaller and dimmer than
+   `.note`, because it answers a question rather than instructing. */
+.fine { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--dim); }
+
+/* Below the narrowest useful column the switch stops sharing a line with the key. */
+@media (max-width: 430px) {
+  .switch { margin-left: 0; width: 100%; }
+}
+
 @media (prefers-reduced-motion: reduce) { .key:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .switch:active { transform: none; } }
 
 /*
  * The Elapse components inside the console (FR-EXM-152). @elapse/react ships its own stylesheet;

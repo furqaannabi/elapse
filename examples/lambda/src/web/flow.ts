@@ -59,3 +59,29 @@ export async function resolveSub(
   }
   return null;
 }
+
+/** What a poll of `/access` tells the console to do (FR-EXM-111/154). */
+export type SessionSignal = "running" | "paused" | "ended" | "ignore";
+
+/**
+ * Read one `/access` answer. A session can end without this page doing anything — the merchant's
+ * dashboard, the idle sweep, or a `sk_` call from anywhere — and the `subscription.canceled`
+ * webhook closes it on the server before `<Meter>` notices. The console has to follow the server
+ * rather than only its own component, or it goes on offering to end a session that is already
+ * settled.
+ *
+ * Anything unrecognised is `ignore`, never `ended`: a failed poll or a restarting server must not
+ * be able to tell a subscriber their meter stopped when it did not.
+ */
+export function readAccess(body: { active?: boolean; reason?: string } | null): SessionSignal {
+  switch (body?.reason) {
+    case "ended":
+      return "ended";
+    case "paused":
+      return "paused";
+    case "running":
+      return "running";
+    default:
+      return "ignore";
+  }
+}

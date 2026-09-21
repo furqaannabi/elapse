@@ -195,6 +195,10 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     // FR-EXM-133: before the meter starts the console is told which side of the start it is on.
     if (session.state === "authorised" || session.state === "starting")
       return send(res, 200, "application/json", JSON.stringify({ active: false, reason: session.state }));
+    // FR-EXM-154 (amended 2026-09-21): paused is its own answer. It is not ended — the escrow and
+    // the authorisation both stand, and the next Run resumes rather than opening a new session.
+    if (session.state === "paused")
+      return send(res, 200, "application/json", JSON.stringify({ active: false, reason: "paused" }));
     if (session.active)
       return send(
         res,

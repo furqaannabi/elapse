@@ -3,7 +3,7 @@
  * → resolve the subscription → auto-run. No navigation to a hosted page anywhere in here.
  */
 import { describe, expect, it, vi } from "vitest";
-import { postRun, resolveSub } from "../src/web/flow";
+import { postRun, readAccess, resolveSub } from "../src/web/flow";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -52,5 +52,41 @@ describe("FR-EXM-114 resolveSub", () => {
     const fetchFn = vi.fn(async () => json(404, { error: "not found" }));
     expect(await resolveSub(fetchFn as unknown as typeof fetch, "cs_7", { attempts: 3, sleep: async () => {} })).toBeNull();
     expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+});
+
+/**
+ * FR-EXM-111/154: what a poll of `/access` tells the console to do.
+ *
+ * William, 2026-09-21: "i ended a session from dashboard but i still see end session button on the
+ * console despite it ended already". The console only left session state when `<Meter>` reported a
+ * stop, so a meter cancelled anywhere else — the merchant's dashboard, the idle sweep, a `sk_` call
+ * — left the page offering to end a session that was already settled. The server knew: the
+ * `subscription.canceled` webhook had already closed it and `/access` was saying so on every tick.
+ *
+ * This is the second time this example has shipped a console that ignored its own `/access`; the
+ * first was 2026-09-13, when the meter ticked forever after an auto-end. The decision is a pure
+ * function this time so it has a regression seam that does not need a browser (BR-EXM-104 rules
+ * Playwright out).
+ */
+describe("FR-EXM-111 readAccess", () => {
+  it("says the session is over however it ended, so the page stops offering to end it", () => {
+    expect(readAccess({ active: false, reason: "ended" })).toBe("ended");
+  });
+
+  it("distinguishes a paused meter from an ended one", () => {
+    // A paused session still has escrow and an authorisation behind it; treating it as ended would
+    // send the subscriber off to authorise a second session they already have.
+    expect(readAccess({ active: false, reason: "paused" })).toBe("paused");
+    expect(readAccess({ active: true, reason: "running" })).toBe("running");
+  });
+
+  it("ignores an answer it cannot read rather than guessing the session away", () => {
+    // A failed poll, a restarting server, or a state this build does not know about must never
+    // close a running session: the cost of a wrong "ended" is a subscriber who thinks they stopped
+    // paying and has not.
+    for (const body of [null, {}, { reason: "authorised" }, { reason: "starting" }, { reason: "unknown session" }]) {
+      expect(readAccess(body)).toBe("ignore");
+    }
   });
 });

@@ -15,13 +15,30 @@ const read = (p: string) => readFileSync(new URL(p, import.meta.url), "utf8");
 const console_ = read("../src/web/console.tsx");
 const northwind = read("../public/northwind.css");
 
-/** The JSX the console renders once a session is open, from `phase.k === "session"` to its close. */
+/**
+ * The JSX guarded by `phase.k === "session"` that renders the meter. There is more than one such
+ * branch — the End session control is guarded the same way (FR-EXM-155) — so this finds the one
+ * that actually contains `<Meter>` rather than whichever comes first, and closes it by counting
+ * brackets instead of matching a fixed indent, since the meter's nesting depth is not the test's
+ * business.
+ */
 function sessionBranch(src: string): string {
-  const start = src.indexOf('{phase.k === "session" && (');
-  expect(start, 'the console should have a `phase.k === "session"` branch').toBeGreaterThan(-1);
-  const end = src.indexOf("\n      )}", start);
-  expect(end, "the session branch should close").toBeGreaterThan(start);
-  return src.slice(start, end);
+  const guard = '{phase.k === "session" && (';
+  // The JSX tag, not the prose: this file's own header comment mentions `<Meter>` too.
+  const meter = src.search(/<Meter\n/);
+  expect(meter, "the console should render a meter").toBeGreaterThan(-1);
+  let start = -1;
+  for (let i = src.indexOf(guard); i > -1 && i < meter; i = src.indexOf(guard, i + 1)) start = i;
+  expect(start, "the meter should sit behind a session guard").toBeGreaterThan(-1);
+  let depth = 0;
+  for (let i = start; i < src.length; i += 1) {
+    if (src[i] === "(") depth += 1;
+    if (src[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return src.slice(start, i);
+    }
+  }
+  throw new Error("the session branch never closes");
 }
 
 describe("FR-EXM-152 the console's meter wears Northwind's colours", () => {
@@ -33,7 +50,7 @@ describe("FR-EXM-152 the console's meter wears Northwind's colours", () => {
     }
   });
 
-  it("renders <Meter> inside .screen, where <Authorize> stood", () => {
+  it("renders <Meter> inside .screen, so Northwind's rules reach it", () => {
     const branch = sessionBranch(console_);
     expect(branch, "the session branch should render the meter").toContain("<Meter");
     const screen = branch.indexOf('className="screen"');

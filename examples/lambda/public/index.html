@@ -14,30 +14,61 @@
     <span class="loc">Field terminal<br>Unit 07</span>
   </header>
 
-  <h1>{{product}}</h1>
-  <p class="sub">Write JavaScript, run it on real AWS Lambda, pay only for the seconds it runs.</p>
+  <!-- FR-EXM-110 (amended 2026-09-21): say what this is before quoting a price. The headline states
+       the mechanism rather than the brand, because a first-time visitor does not know what Northwind
+       is and does not care yet.
 
-  <!-- FR-EXM-110 requires the rate verbatim; the two rows under it are what a visitor actually
-       asked — what one run costs, and what the meter is counting. The tariff is the reason to
-       trust the product, so it is engraved on a plate rather than set as a line of body copy. -->
+       Nothing on this page counts. A meter that runs before a subscriber has agreed to anything
+       reads as a charge already in progress, whatever the caption underneath it says — on a page
+       whose whole claim is billing honesty that is the one thing worth getting right. The meter
+       lives on the console, where it is real. -->
+  <h1>Compute you pay for by the second.</h1>
+  <p class="sub">Write JavaScript, run it on real AWS Lambda, and pay for the seconds your session is
+  open — not per month, not per request, not rounded up to the hour.</p>
+
+  <h2 class="engraved">How it works</h2>
+  <ol class="steps">
+    <li><b>Write JavaScript</b> in the console. Editing is free and takes as long as you like.</li>
+    <li><b>Press Run.</b> That is what opens the meter, and it runs from that second.</li>
+    <li><b>Press End</b> when you are done. You pay for the seconds it was open, and the rest of your
+    deposit comes back.</li>
+  </ol>
+
   <dl class="plate">
     <div>
       <dt>Rate</dt>
       <dd class="lead">{{price}}</dd>
     </div>
     <div>
-      <dt>A typical run</dt>
+      <dt>A short session</dt>
       <dd>{{typical_run}}</dd>
     </div>
     <div>
       <dt>Billed</dt>
-      <dd>only while your code runs</dd>
+      <dd>every second it is open</dd>
+    </div>
+    <div>
+      <dt>Ends</dt>
+      <dd>when you press End</dd>
     </div>
   </dl>
 
   <a class="key" href="/console">Open console &rarr;</a>
+  <p class="fine">Opening the console charges nothing, and nothing on this page is metered. Your
+  first Run is what starts a real meter.</p>
 
-  <p class="note">Nothing to start. Press Run and the meter opens with it, then closes the moment your code returns. Editing costs nothing.</p>
+  <hr class="seam">
+
+  <!-- Below the seam: the merchant's own story, for someone deciding whether to use Northwind
+       rather than someone deciding whether per-second billing is real. -->
+  <h2 class="engraved">What Northwind runs</h2>
+  <p class="sub">A sandboxed Node runtime on real AWS Lambda. <code>fetch</code>, node builtins via
+  <code>require</code>, and anything you can write in a function body. Results come back with the
+  Lambda's own duration, so you can see what you are paying for.</p>
+
+  <p class="fine">{{merchant}} ends your meter when you close the tab, because you are paying for
+  compute. A subscription meant to outlive the tab simply never calls cancel — that is the
+  merchant's choice, not a rule of the billing.</p>
 
   <footer class="tag">{{merchant}} · demo merchant</footer>
 </main>

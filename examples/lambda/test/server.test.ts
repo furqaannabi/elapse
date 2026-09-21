@@ -243,6 +243,19 @@ describe("FR-EXM-153 the meter runs only while code runs", () => {
 
 });
 
+describe("FR-EXM-113 /access and a paused meter", () => {
+  it("reports a paused meter as paused, not as ended", async () => {
+    const { base, sessions } = await start();
+    sessions.applyOpen("sub_1", { startedAt: NOW, nowMs: NOW });
+    sessions.applyPaused("sub_1", { nowMs: NOW + 60_000 });
+
+    // A paused session has not ended. Nothing is accruing, but the authorisation and the escrow are
+    // both still live and a Run resumes it — telling the console "ended" would send the subscriber
+    // off to authorise a second session they do not need.
+    expect(await (await fetch(`${base}/access/sub_1`)).json()).toMatchObject({ active: false, reason: "paused" });
+  });
+});
+
 describe("FR-EXM-156 Northwind pauses and resumes for the subscriber", () => {
   it("pauses the viewer's meter when asked, and resumes it", async () => {
     const { base, sessions, pausedSubs, resumedSubs } = await start();
