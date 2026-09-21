@@ -8,8 +8,20 @@ import { app } from "../src/app";
 
 /** Truncate every merchant-scoped table (cascades from merchants) and the unscoped samples. */
 export async function resetDb(): Promise<void> {
-  await sql`TRUNCATE merchants CASCADE`;
-  await sql`TRUNCATE relayer_balance_samples`;
+  // A CLI stream loop cancelled by the previous test can still be mid-SELECT: it notices the
+  // cancellation only on its next poll. TRUNCATE wants AccessExclusiveLock, that SELECT holds
+  // AccessShare, and Postgres calls it a deadlock after deadlock_timeout (1 s) — which is why the
+  // flake always cost almost exactly 1000 ms and always landed on whichever test ran after a
+  // streaming one. Retrying is enough: by the time we are back, the loop has seen the cancel.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await sql`TRUNCATE merchants CASCADE`;
+      await sql`TRUNCATE relayer_balance_samples`;
+      return;
+    } catch (e) {
+      if (attempt >= 2 || (e as { errno?: string }).errno !== "40P01") throw e;
+    }
+  }
 }
 
 export interface Fixture {

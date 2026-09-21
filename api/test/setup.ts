@@ -7,6 +7,10 @@
 // see the dev database, the dev ingest token, or a relayer key.
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://elapse:elapse@localhost:55434/elapse_test";
 process.env.NODE_ENV = "test";
+// Let a cancelled CLI stream notice it was cancelled promptly. The production default is 500 ms,
+// which leaves a wide window for its next SELECT to collide with the following test's TRUNCATE.
+// `??=` here, unlike the assignments above: this one is a knob, not a safety rail.
+process.env.CLI_STREAM_POLL_MS ??= "25";
 process.env.INGEST_TOKEN = "ingest-test-token";
 // Test-only key-encryption key (32 zero-ish bytes, base64). Real environments use `openssl rand -base64 32`.
 process.env.WEBHOOK_SECRET_KEK = "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s=";
