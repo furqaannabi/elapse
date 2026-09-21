@@ -69,3 +69,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-19 | [Only the merchant stops a merchant-started meter, including before it starts](./2026-09-19-only-the-merchant-stops-a-held-meter.md) | Furqaan |
 | 2026-09-20 | [Authorise in a window only; the modal frame is withdrawn](./2026-09-20-authorise-in-a-window-only.md) | Furqaan |
 | 2026-09-20 | [The subscriber never pauses a meter; they ask the merchant](./2026-09-20-subscriber-cannot-pause.md) | Furqaan |
+| 2026-09-21 | [The Lambda example's meter runs until the subscriber ends it](./2026-09-21-the-lambda-meter-runs-until-you-end-it.md) | William |
