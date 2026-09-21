@@ -60,7 +60,7 @@ type WireEvent = { id: string; type: EventType; created: number; livemode: boole
 type WireProduct = { id: string; name: string; description: string | null; rate_usd_per_second: string; allow_pause: boolean; active: boolean; livemode: boolean; created: number; active_subscriptions: number };
 type WireSubscription = {
   id: string; status: Subscription["status"]; product: string; customer: string; checkout_session: string | null; rate_usd_per_second: string;
-  started_at: number | null; paused_at: number | null; canceled_at: number | null; ended_reason: "canceled" | "cap_reached" | null;
+  started_at: number | null; paused_at: number | null; paused_seconds?: number; canceled_at: number | null; ended_reason: "canceled" | "cap_reached" | null;
   max_duration_seconds: number; max_escrow_usd: string; funded_usd: string; settled_usd: string; seconds_elapsed: number; stream_address: string | null;
   chain_id: number; livemode: boolean; created: number; product_name: string; customer_email: string | null;
 };
@@ -211,6 +211,8 @@ export function mapSubscription(w: WireSubscription): Subscription {
     rateUsdPerSecond: w.rate_usd_per_second,
     startedAt: ms(w.started_at),
     pausedAt: ms(w.paused_at),
+    // A platform predating FR-API-143 sends none; zero is the old behaviour, not NaN.
+    pausedMs: (w.paused_seconds ?? 0) * 1000,
     canceledAt: ms(w.canceled_at),
     ...(w.status === "paused" ? { pauseReason: "user" as const } : {}),
     ...(w.ended_reason ? { endedReason: w.ended_reason } : {}),

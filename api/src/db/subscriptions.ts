@@ -124,6 +124,11 @@ export function serializeSubscription(row: SubscriptionRow, now = Math.floor(Dat
     rate_usd_per_second: baseUnitsToDecimal(BigInt(row.rate_per_second_wei), d),
     started_at: startedAt,
     paused_at: epoch(row.paused_at),
+    // FR-API-143: seconds already spent in pauses that have **ended**. The meter ticks client-side
+    // from `rate × (now − started_at)`, so without this it has no way to leave paused time out and
+    // every resume hands the whole pause back in one jump — a readout claiming more than the chain
+    // will ever settle. `paused_at` covers the pause in progress; this covers the finished ones.
+    paused_seconds: row.paused_seconds,
     canceled_at: epoch(row.canceled_at),
     ended_reason: row.ended_reason,
     max_duration_seconds: row.max_duration_seconds,

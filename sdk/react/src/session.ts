@@ -9,6 +9,11 @@ export interface PublicSubscription {
   status: "incomplete" | "active" | "paused" | "canceled";
   startedAt: number | null;
   pausedAt: number | null;
+  /**
+   * Milliseconds already spent in pauses that have **ended** (FR-API-143 `paused_seconds`). The
+   * chain bills none of it, so the meter subtracts it; `pausedAt` covers only the pause in progress.
+   */
+  pausedMs: number;
   maxDurationSeconds: number;
   fundedUsd: string;
   maxEscrowUsd: string;
@@ -52,6 +57,10 @@ export function mapSession(w: any): PublicSession {
           status: s.status,
           startedAt: s.started_at === null ? null : s.started_at * 1000,
           pausedAt: s.paused_at === null ? null : s.paused_at * 1000,
+          // A platform that predates FR-API-143 sends no `paused_seconds`; zero is what the meter
+          // assumed before this field existed, so an older API degrades to the old behaviour
+          // rather than to NaN.
+          pausedMs: (s.paused_seconds ?? 0) * 1000,
           maxDurationSeconds: s.max_duration_seconds,
           fundedUsd: s.funded_usd,
           maxEscrowUsd: s.max_escrow_usd,

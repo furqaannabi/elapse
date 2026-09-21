@@ -54,6 +54,38 @@ describe("elapsedMs", () => {
     expect(elapsedMs({ startedAt: started, now: started - 500 })).toBe(0);
   });
 
+  /**
+   * William, 2026-09-21: "during resume after pause it seems not to jump and not resuming from
+   * exact place". It jumped by exactly the time spent paused. The meter was wall-clock from
+   * `startedAt`, so the moment `pausedAt` cleared, every paused second came back at once — and the
+   * chain does not bill those (BR-CON-003), so the readout claimed more than the subscriber would
+   * ever be charged. On a product whose whole claim is "you only pay what elapsed", over-reporting
+   * is the one direction that cannot be shipped.
+   */
+  it("does not count time spent paused once the meter resumes", () => {
+    // Ran 60s, paused 5 minutes, resumed and ran 10s more. The subscriber owes 70 seconds.
+    expect(
+      elapsedMs({
+        startedAt: started,
+        pausedMs: 300_000,
+        now: started + 60_000 + 300_000 + 10_000,
+      }),
+    ).toBe(70_000);
+  });
+
+  it("excludes earlier pauses while it is paused again", () => {
+    // Paused a second time: `pausedMs` carries the completed pauses, `pausedAt` freezes this one,
+    // so the two must not double-count.
+    expect(
+      elapsedMs({
+        startedAt: started,
+        pausedMs: 300_000,
+        pausedAt: started + 60_000 + 300_000 + 10_000,
+        now: started + 900_000,
+      }),
+    ).toBe(70_000);
+  });
+
   it("freezes at pausedAt when paused, ignoring now", () => {
     expect(
       elapsedMs({

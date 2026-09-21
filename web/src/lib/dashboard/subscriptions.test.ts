@@ -51,6 +51,10 @@ describe("mock dashboard api — subscriptions", () => {
     const { subscription, receipt } = await api.cancelSubscription(active.id, { idempotencyKey: "c1" });
     expect(subscription.status).toBe("canceled");
     expect(subscription.canceledAt).toBe(now);
+    // The mock settles as it is asked, so a receipt exists here. Against the real platform it does
+    // not until ingest confirms (BR-API-005), which is why `receipt` is nullable at all.
+    expect(receipt, "an instantly-settled cancel should carry its receipt").not.toBeNull();
+    if (!receipt) return;
     const rate = parseRate(active.rateUsdPerSecond);
     const seconds = Math.floor((now - active.startedAt!) / 1000);
     expect(receipt.secondsElapsed).toBe(seconds);

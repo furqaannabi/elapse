@@ -45,14 +45,23 @@ export type ElapsedInput = {
   now: number;
   /** Epoch ms when the meter was paused or canceled; freezes elapsed. */
   pausedAt?: number | null;
+  /**
+   * Milliseconds the meter has already spent paused, across pauses that have **ended**. The chain
+   * bills none of it (BR-CON-003), so it never belongs in elapsed. Without it the meter is plain
+   * wall-clock from `startedAt`, and every resume hands back the whole pause in one jump.
+   */
+  pausedMs?: number;
 };
 
 /**
- * Milliseconds the meter has run. Never negative; frozen at `pausedAt`.
+ * Milliseconds the meter has run — wall-clock since it started, less every second it spent paused.
+ * Never negative; frozen at `pausedAt` while a pause is in progress.
  */
-export function elapsedMs({ startedAt, now, pausedAt }: ElapsedInput): number {
+export function elapsedMs({ startedAt, now, pausedAt, pausedMs = 0 }: ElapsedInput): number {
+  // `pausedAt` freezes the pause that is happening now; `pausedMs` carries the ones that finished.
+  // They never overlap, so subtracting both is correct in either state.
   const end = pausedAt ?? now;
-  return Math.max(0, end - startedAt);
+  return Math.max(0, end - startedAt - pausedMs);
 }
 
 /** Whole seconds elapsed — what the contract settles on. */

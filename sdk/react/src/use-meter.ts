@@ -104,7 +104,7 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
 
   const rateNano = session ? parseRate(session.product.rateUsdPerSecond) : 0n;
   const capMs = sub ? sub.maxDurationSeconds * 1000 : 0;
-  const ms = sub?.startedAt ? Math.min(elapsedMs({ startedAt: sub.startedAt, now, pausedAt: sub.pausedAt }), capMs) : 0;
+  const ms = sub?.startedAt ? Math.min(elapsedMs({ startedAt: sub.startedAt, now, pausedAt: sub.pausedAt, pausedMs: sub.pausedMs }), capMs) : 0;
 
   // FR-RCT-020 (amended 2026-09-19): the platform decides, in every state. A merchant-started
   // meter is the merchant's to stop before it starts as well as after (contracts FR-CON-057), and

@@ -141,7 +141,7 @@ describe("SubscriptionsList · FR-DSH-126 paging", () => {
     const m = await signIn(api);
     const rows: Subscription[] = Array.from({ length: 120 }, (_, i) => ({
       id: `sub_big${120 - i}` as const, livemode: false, status: "active", product: { id: "prod_big", name: "Big" }, customer: { id: "cus_big", email: "big@x.test" },
-      rateUsdPerSecond: "0.004", startedAt: 1_757_000_000_000 - i * 60_000, pausedAt: null, canceledAt: null, fundedUsd: "14.4", settledUsd: "0", checkoutSession: "cs_big", createdAt: 1_757_000_000_000 - i * 60_000,
+      rateUsdPerSecond: "0.004", startedAt: 1_757_000_000_000 - i * 60_000, pausedAt: null, pausedMs: 0, canceledAt: null, fundedUsd: "14.4", settledUsd: "0", checkoutSession: "cs_big", createdAt: 1_757_000_000_000 - i * 60_000,
     }));
     const big: MockDashboardApi = {
       ...api,

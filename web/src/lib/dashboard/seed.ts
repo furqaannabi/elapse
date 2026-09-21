@@ -337,6 +337,8 @@ export function seedMerchantData(opts: {
       id: id("sub") as Subscription["id"],
       livemode,
       status,
+      // Seeded meters have never been paused; a real one carries the seconds from FR-API-143.
+      pausedMs: 0,
       product: { id: product.id, name: product.name },
       customer: { id: customer.id, email: customer.email },
       rateUsdPerSecond: product.rateUsdPerSecond,

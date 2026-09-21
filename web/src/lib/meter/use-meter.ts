@@ -29,6 +29,11 @@ export type UseMeterInput = {
   startedAt?: number | null;
   /** Epoch ms; freezes the meter when set. */
   pausedAt?: number | null;
+  /**
+   * Milliseconds already spent in pauses that have ended (FR-API-143). The chain bills none of it,
+   * so leaving it out makes the meter jump the whole pause forward the moment it resumes.
+   */
+  pausedMs?: number;
   /** Re-render cadence in ms. Default 100. */
   tickMs?: number;
 };
@@ -49,6 +54,7 @@ export function useMeter({
   rate,
   startedAt,
   pausedAt,
+  pausedMs = 0,
   tickMs = 100,
 }: UseMeterInput): MeterState {
   const rateNano = useMemo(() => parseRate(rate), [rate]);
@@ -78,7 +84,7 @@ export function useMeter({
   }, [running, tickMs]);
 
   const ms = startedAt
-    ? elapsedMs({ startedAt, now: running ? now : (pausedAt ?? now), pausedAt })
+    ? elapsedMs({ startedAt, now: running ? now : (pausedAt ?? now), pausedAt, pausedMs })
     : 0;
   const nano = accruedNano(rateNano, ms);
 
