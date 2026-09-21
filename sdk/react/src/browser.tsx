@@ -28,8 +28,12 @@ export interface MountOptions {
   onAuthorised?: (e: StepEvent) => void;
   onStarted?: (e: StepEvent) => void;
   onStopped?: (e: StepEvent) => void;
-  onPaused?: (e: StepEvent) => void;
-  onResumed?: (e: StepEvent) => void;
+  /**
+   * FR-RCT-021 (amended 2026-09-20): pass these and the meter shows Pause and Resume as requests to
+   * you — nothing is signed and nothing reaches Elapse. Your server pauses with `subscriptions.pause`.
+   */
+  onPauseRequest?: () => void;
+  onResumeRequest?: () => void;
   onError?: (e: Error) => void;
   /** @internal Testing seams; merchants never set these. */
   fetch?: typeof fetch;
@@ -50,8 +54,8 @@ function Flow(o: MountOptions): ReactElement {
     <Meter
       session={o.session}
       {...(o.onStopped ? { onStopped: o.onStopped } : {})}
-      {...(o.onPaused ? { onPaused: o.onPaused } : {})}
-      {...(o.onResumed ? { onResumed: o.onResumed } : {})}
+      {...(o.onPauseRequest ? { onPauseRequest: o.onPauseRequest } : {})}
+      {...(o.onResumeRequest ? { onResumeRequest: o.onResumeRequest } : {})}
       {...(o.onError ? { onError: o.onError } : {})}
     />
   ) : (

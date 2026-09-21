@@ -229,7 +229,7 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
   /** Prepare → sign (EIP-191 over the 32 bytes) → submit, for cancel, pause and resume (FR-CON-017/018). */
   type Submitted = { subscription: string; pending_tx: string };
 
-  async function relay(id: string, action: "cancel" | "pause" | "resume"): Promise<Submitted> {
+  async function relay(id: string, action: "cancel"): Promise<Submitted> {
     const w = wallet();
     const auth = await bindingCall<{ message: `0x${string}`; deadline: string }>(`/v1/checkout/sessions/${id}/${action}/prepare`, {});
     const signature = await w.signMessage(auth.message);
@@ -291,14 +291,6 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
     },
 
     // FR-CHK-030: pause and resume are relayed like cancel (contracts FR-CON-018); no money moves.
-    async pause(id) {
-      await relay(id, "pause");
-      return mapSession(await waitFor(id, (s) => s.subscription?.status === "paused" || s.subscription?.status === "canceled"), local);
-    },
-    async resume(id) {
-      await relay(id, "resume");
-      return mapSession(await waitFor(id, (s) => s.subscription?.status === "active" || s.subscription?.status === "canceled"), local);
-    },
 
     async cancel(id) {
       await relay(id, "cancel");

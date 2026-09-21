@@ -1,5 +1,6 @@
 /**
- * FR-CHK-037 on /account: a merchant-mode meter the merchant has started has no Stop or Pause.
+ * FR-CHK-037 on /account: a merchant-mode meter has no Stop, and since FR-CHK-030 was withdrawn
+ * (2026-09-20) no meter of any mode has Pause.
  */
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -21,15 +22,16 @@ const meter = (over: Partial<AccountMeter> = {}): AccountMeter => ({
 
 describe("MeterRow · FR-CHK-037", () => {
   it("FR_CHK_037_a_merchant_controlled_meter_has_no_stop_or_pause", () => {
-    render(<MeterRow meter={meter({ merchantControlled: true })} onStop={vi.fn()} onPause={vi.fn()} onResume={vi.fn()} />);
+    render(<MeterRow meter={meter({ merchantControlled: true })} onStop={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /stop this meter/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /pause this meter/i })).toBeNull();
     expect(screen.getByText("Northwind Compute stops this meter")).toBeInTheDocument();
   });
 
-  it("FR_CHK_037_an_ordinary_meter_keeps_stop_and_pause", () => {
-    render(<MeterRow meter={meter()} onStop={vi.fn()} onPause={vi.fn()} onResume={vi.fn()} />);
+  it("FR_CHK_030_withdrawn_an_ordinary_meter_keeps_stop_and_never_pause", () => {
+    render(<MeterRow meter={meter()} onStop={vi.fn()} />);
     expect(screen.getByRole("button", { name: /stop this meter/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /pause this meter/i })).toBeInTheDocument();
+    // FR-CHK-030 withdrawn 2026-09-20: pausing is the merchant's; the subscriber asks.
+    expect(screen.queryByRole("button", { name: /pause this meter/i })).toBeNull();
   });
 });

@@ -101,8 +101,6 @@ export interface CheckoutApi {
   /** The signed-in wallet's balance and whether it must be funded by the subscriber (FR-CHK-031). */
   getBalance(id: string): Promise<CheckoutBalance>;
   start(id: string): Promise<CheckoutSession>;
-  pause(id: string): Promise<CheckoutSession>;
-  resume(id: string): Promise<CheckoutSession>;
   cancel(id: string): Promise<{ session: CheckoutSession; receipt: Receipt }>;
   /** The receipt for a stopped session, however it stopped. */
   getReceipt(id: string): Promise<Receipt>;
@@ -117,7 +115,8 @@ export interface CheckoutApi {
   submit(id: string, action: SubmitAction): Promise<{ subscription: string; txHash: string }>;
 }
 
-export type SubmitAction = "authorise" | "cancel" | "pause" | "resume";
+/** FR-CHK-030 withdrawn 2026-09-20: a subscriber authorises and stops, and never pauses. */
+export type SubmitAction = "authorise" | "cancel";
 
 export const SEEDED_SESSION_IDS = [
   "cs_demo",
@@ -367,42 +366,7 @@ export function createMockCheckoutApi(
       return next;
     },
 
-    async pause(id) {
-      await wait();
-      const s = get(id);
-      if (s.subscription?.status !== "active") {
-        throw new CheckoutApiError("invalid_state", "Nothing to pause");
-      }
-      const next = put({
-        ...s,
-        subscription: { ...s.subscription, status: "paused", pausedAt: now(), pauseReason: "user" },
-      });
-      record(id, "subscription.updated");
-      return next;
-    },
 
-    async resume(id) {
-      await wait();
-      const s = get(id);
-      const sb = s.subscription;
-      if (sb?.status !== "paused" || sb.startedAt === null || sb.pausedAt === null) {
-        throw new CheckoutApiError("invalid_state", "Nothing to resume");
-      }
-      // Shift start forward by the paused span so elapsed excludes the pause.
-      const shifted = sb.startedAt + (now() - sb.pausedAt);
-      const next = put({
-        ...s,
-        subscription: {
-          ...sb,
-          status: "active",
-          startedAt: shifted,
-          pausedAt: null,
-          pauseReason: undefined,
-        },
-      });
-      record(id, "subscription.updated");
-      return next;
-    },
 
     async cancel(id) {
       await wait();
@@ -485,8 +449,6 @@ export function createMockCheckoutApi(
     async submit(id, action) {
       if (action === "authorise") await api.start(id);
       else if (action === "cancel") await api.cancel(id);
-      else if (action === "pause") await api.pause(id);
-      else await api.resume(id);
       const sub = get(id).subscription;
       if (!sub) throw new CheckoutApiError("invalid_state", "Nothing to submit.");
       tx += 1;

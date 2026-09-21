@@ -145,7 +145,7 @@ export function createRealAccountApi(o: RealAccountOptions): AccountApi {
    * Prepare → sign (EIP-191 over the 32 bytes) → submit one relayed action (FR-CON-017/018),
    * then poll the list until the subscription's row satisfies `done`.
    */
-  async function relay(subscription: string, action: "cancel" | "pause" | "resume", done: (r: WireAccountSubscription) => boolean) {
+  async function relay(subscription: string, action: "cancel", done: (r: WireAccountSubscription) => boolean) {
     const w = o.wallet();
     if (!w) throw new SignedOut();
     const auth = await call<{ message: `0x${string}`; deadline: string }>("POST", `/v1/account/subscriptions/${subscription}/${action}/prepare`, {});
@@ -185,12 +185,6 @@ export function createRealAccountApi(o: RealAccountOptions): AccountApi {
     },
 
     // FR-CHK-030: the same prepare → sign → submit → poll as cancel; no money moves.
-    async pause(subscription) {
-      return viewFrom((await relay(subscription, "pause", (r) => r.status !== "active")).rows);
-    },
-    async resume(subscription) {
-      return viewFrom((await relay(subscription, "resume", (r) => r.status !== "paused")).rows);
-    },
 
     async emailReceipt(subscription) {
       return call<{ sent: true }>("POST", `/v1/account/subscriptions/${subscription}/receipt/email`, {});

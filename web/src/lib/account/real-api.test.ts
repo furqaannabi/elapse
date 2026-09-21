@@ -90,38 +90,7 @@ describe("real account api", () => {
     expect(v.status).toBe("signed_in");
   });
 
-  it("FR_CHK_030_meters_carry_allowPause_and_pause_then_resume_relay_through_the_account_routes_and_poll_the_list", async () => {
-    responses = [{ object: "list", data: [row({ product: { name: "GPU · 4090", rate_usd_per_second: "0.004", allow_pause: true } })] }];
-    const v = await api().getView();
-    expect(v.status === "signed_in" && v.meters[0]).toMatchObject({ subscription: "sub_1", allowPause: true });
 
-    responses = [
-      { subscription: "sub_1", stream_address: "0x1", chain_id: 10143, nonce: "1", deadline: String(T0 + 600), message: "0x" + "ee".repeat(32) },
-      { subscription: "sub_1", pending_tx: "0x" + "33".repeat(32) },
-      { object: "list", data: [row()] },
-      { object: "list", data: [row({ status: "paused", paused_at: T0 + 30 })] },
-    ];
-    calls = [];
-    const paused = await api().pause("sub_1");
-    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/account/subscriptions/sub_1/pause/prepare` });
-    expect(calls[1]).toMatchObject({ method: "POST", url: `${BASE}/v1/account/subscriptions/sub_1/pause`, body: { signature: "0x" + "cd".repeat(65), deadline: String(T0 + 600) } });
-    expect(paused.status === "signed_in" && paused.meters[0]).toMatchObject({ subscription: "sub_1", status: "paused", pausedAt: (T0 + 30) * 1000 });
-
-    responses = [
-      { subscription: "sub_1", stream_address: "0x1", chain_id: 10143, nonce: "2", deadline: String(T0 + 700), message: "0x" + "ff".repeat(32) },
-      { subscription: "sub_1", pending_tx: "0x" + "44".repeat(32) },
-      { object: "list", data: [row()] },
-    ];
-    calls = [];
-    const resumed = await api().resume("sub_1");
-    expect(calls[1]).toMatchObject({ method: "POST", url: `${BASE}/v1/account/subscriptions/sub_1/resume` });
-    expect(resumed.status === "signed_in" && resumed.meters[0]).toMatchObject({ status: "active", pausedAt: null });
-  });
-
-  it("FR_CHK_030_a_pause_rate_limit_reads_as_too_many_changes", async () => {
-    responses = [{ __status: 429, error: { type: "rate_limit_error", code: "rate_limited", message: "Too many changes. Try again in a bit." } }];
-    await expect(api().pause("sub_1")).rejects.toMatchObject({ code: "rate_limited", message: "Too many changes. Try again in a bit." });
-  });
 });
 
 import { viewFrom, type WireAccountSubscription } from "./real-api";

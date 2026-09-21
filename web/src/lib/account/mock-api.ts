@@ -39,10 +39,6 @@ export interface AccountApi {
   /** Passkey / Face ID sign-in; the mock resolves after the confirm sheet. */
   signIn(): Promise<AccountView>;
   cancel(subscription: string): Promise<{ receipt: AccountReceipt; view: AccountView }>;
-  /** Pause a running meter the product allows to pause; nothing is charged while paused (FR-CHK-030). */
-  pause(subscription: string): Promise<AccountView>;
-  /** Resume a paused meter; the paused span is never billed (FR-CHK-030). */
-  resume(subscription: string): Promise<AccountView>;
   emailReceipt(subscription: string): Promise<{ sent: true }>;
 }
 
@@ -257,26 +253,7 @@ export function createMockAccountApi(
       return { receipt, view: view() };
     },
 
-    async pause(subscription) {
-      await wait();
-      const m = state.meters.find((x) => x.subscription === subscription);
-      if (!m || !m.allowPause) throw new AccountApiError("invalid_state", "This meter cannot be paused.");
-      if (m.status === "paused") throw new AccountApiError("invalid_state", "The meter is already paused.");
-      m.status = "paused";
-      m.pausedAt = now();
-      return view();
-    },
 
-    async resume(subscription) {
-      await wait();
-      const m = state.meters.find((x) => x.subscription === subscription);
-      if (!m || m.status !== "paused" || m.pausedAt === null) throw new AccountApiError("invalid_state", "The meter is not paused.");
-      // Shift start forward by the paused span so elapsed excludes the pause.
-      m.startedAt += now() - m.pausedAt;
-      m.status = "active";
-      m.pausedAt = null;
-      return view();
-    },
 
 
     async emailReceipt(subscription) {

@@ -25,8 +25,6 @@ export type MeterView = "loading" | "error" | "waiting" | "held" | "running" | "
 
 export interface MeterHandlers {
   onStopped?: (e: StepEvent) => void;
-  onPaused?: (e: StepEvent) => void;
-  onResumed?: (e: StepEvent) => void;
   onError?: (e: Error) => void;
 }
 
@@ -41,7 +39,7 @@ export interface MeterReceipt {
 
 export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   const config = useElapseConfig();
-  // FR-RCT-043: every signature — stop, pause, resume — happens in the frame or its fallback window.
+  // FR-RCT-043 amended: every signature — authorise and stop — happens in the Elapse window.
   const { request } = useSignature(sessionId);
   const [session, setSession] = useState<PublicSession | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,24 +110,22 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   // meter is the merchant's to stop before it starts as well as after (contracts FR-CON-057), and
   // `subscriber_can_stop` already carries that — the component does not keep its own rule.
   const canStop = (view === "held" || view === "running" || view === "paused") && !!sub?.subscriberCanStop;
-  const canPause = view === "running" && !!session?.product.allowPause && !!sub?.subscriberCanStop;
-  const canResume = view === "paused" && !!sub?.subscriberCanStop;
+  // FR-RCT-021 amended 2026-09-20: no subscriber pause on any product; a paused meter is the
+  // merchant's doing and the subscriber only watches it (ADR 2026-09-20).
 
   const act = useCallback(
     (action: Exclude<SignAction, "authorise">) => {
       if (!sub) return;
       setNotice(null);
-      // FR-RCT-043: in the frame on this page, or a window if the frame cannot do Face ID.
+      // FR-RCT-043 amended: in the Elapse window.
       // Synchronous, because a window must open inside the click that asked for it.
       const result = request({ action });
       setBusy(action);
       result.then(
         (r) => {
           const event = { subscription: r.subscription, txHash: r.txHash, explorerUrl: explorerUrl(r.txHash, sub.chainId) };
-          config.cues.play(r.step === "resumed" ? "started" : "stopped");
+          config.cues.play("stopped");
           if (r.step === "stopped") handlersRef.current.onStopped?.(event);
-          if (r.step === "paused") handlersRef.current.onPaused?.(event);
-          if (r.step === "resumed") handlersRef.current.onResumed?.(event);
           setBusy(null);
           read();
         },
@@ -184,12 +180,8 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
     accrued: formatUsd(accruedNano(rateNano, ms), 3),
     held: held && sub ? { amount: formatAmount(parseRate(sub.fundedUsd)), startBy: sub.startBy } : null,
     canStop,
-    canPause,
-    canResume,
     merchantControlled: !!sub && !sub.subscriberCanStop && (view === "running" || view === "paused"),
     stop: () => act("cancel"),
-    pause: () => act("pause"),
-    resume: () => act("resume"),
     receipt,
   };
 }

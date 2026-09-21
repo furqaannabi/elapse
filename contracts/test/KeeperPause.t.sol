@@ -100,13 +100,20 @@ contract KeeperPauseTest is BaseTest {
     }
 
     /// The subscriber keeps pause and resume on their own checkout-mode meter.
-    function test_FR_CON_074_subscriber_keeps_pause_on_a_checkout_stream() public {
+    /// Withdrawn 2026-09-20 (ADR 2026-09-20): the subscriber never pauses, checkout mode included.
+    /// They ask the merchant, who pauses through the keeper.
+    function test_FR_CON_018_subscriber_cannot_pause_a_checkout_stream_either() public {
         AccrualStream s = stream();
         vm.prank(sub);
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
+        s.pause();
+
+        vm.prank(keeper);
         s.pause();
         vm.prank(sub);
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
         s.resume();
-        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active));
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Paused));
     }
 
     /// BR-CON-003 / the money invariant: whoever drives pause and resume, the subscriber pays for

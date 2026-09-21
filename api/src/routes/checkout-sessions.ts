@@ -517,55 +517,6 @@ checkoutSessions.openapi(
 
 // ─── Subscriber pause / resume (contracts FR-CON-018, FR-API-044/045/047, checkout FR-CHK-030) ─────
 
-for (const action of ["pause", "resume"] as const) {
-  const verb = action === "pause" ? "pause" : "resume";
-  checkoutSessions.openapi(
-    createRoute({
-      method: "post",
-      path: `/checkout/sessions/{id}/${action}/prepare`,
-      operationId: `checkout.sessions.${action}.prepare`,
-      tags: ["Checkout"],
-      hide: true,
-      middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
-      request: { params: z.object({ id: z.string() }) },
-      responses: { 200: { description: `The message the subscriber's wallet signs to ${verb} the meter.`, content: { "application/json": { schema: CancelPrepareResponse } } } },
-    }),
-    async (c) => {
-      const { id } = c.req.valid("param");
-      const session = await loadSession(c.get("auth"), id);
-      const who = await subscriberIdentity(c);
-      try {
-        return c.json(await prepareRelay(action, { session, walletAddress: who.walletAddress }), 200);
-      } catch (e) {
-        mapCheckoutError(e);
-      }
-    },
-  );
-
-  checkoutSessions.openapi(
-    createRoute({
-      method: "post",
-      path: `/checkout/sessions/{id}/${action}`,
-      operationId: `checkout.sessions.${action}`,
-      tags: ["Checkout"],
-      hide: true,
-      middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
-      request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: CancelBody } }, required: true } },
-      responses: { 202: { description: `Submitted; the ${action === "pause" ? "paused" : "active"} status arrives when the chain confirms. No money moves.`, content: { "application/json": { schema: StartResponse } } } },
-    }),
-    async (c) => {
-      const { id } = c.req.valid("param");
-      const { signature, deadline } = c.req.valid("json");
-      const session = await loadSession(c.get("auth"), id);
-      try {
-        return c.json(await submitRelay(action, { session, signature, deadline, ip: clientIp(c) }), 202);
-      } catch (e) {
-        mapCheckoutError(e);
-      }
-    },
-  );
-}
-
 // ─── Start again (FR-API-126, ADR 2026-09-07 start again) ───────────────────────────────
 
 // FR-API-140(a): no hosted page to link to; the merchant's app authorises the new id with @elapse/react.

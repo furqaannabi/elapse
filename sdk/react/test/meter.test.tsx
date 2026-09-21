@@ -98,10 +98,11 @@ describe("<Meter> · FR-RCT-020 the live meter", () => {
 });
 
 describe("<Meter> · FR-RCT-021 controls follow the start mode", () => {
-  it("FR_RCT_021_checkout_mode_has_stop_and_pause_which_open_elapse", async () => {
+  it("FR_RCT_021_checkout_mode_has_stop_and_no_pause_which_opens_elapse", async () => {
     const { open, post, frame, windowUrl, onStopped } = mount(wire(sub(), { allow_pause: true }));
     await settle();
-    expect(screen.getByRole("button", { name: "Pause" })).toBeTruthy();
+    // FR-RCT-021 amended 2026-09-20 (ADR 2026-09-20): a subscriber never pauses, even here.
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     // FR-RCT-043 amended 2026-09-20: the Elapse window, never a frame.
     expect(open).toHaveBeenCalledTimes(1);
@@ -263,5 +264,34 @@ describe("FR-RCT-050 cues on the meter", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await act(async () => { second.post({ step: "stopped", subscription: "sub_1", txHash: "0xabc" }); await vi.advanceTimersByTimeAsync(0); });
     expect(cuesPlayed).toEqual([]);
+  });
+});
+
+describe("FR-RCT-021 amended: Pause asks the merchant", () => {
+  it("renders Pause only when the merchant accepts requests, and clicking asks rather than signs", async () => {
+    const onPauseRequest = vi.fn();
+    const { open } = mount(wire(sub(), { allow_pause: true }), { onPauseRequest });
+    await settle();
+
+    const pause = screen.getByRole("button", { name: "Pause" });
+    fireEvent.click(pause);
+
+    expect(onPauseRequest).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled(); // no signature: the subscriber is asking, not acting
+  });
+
+  it("offers Resume the same way once the merchant has paused it", async () => {
+    const onResumeRequest = vi.fn();
+    mount(wire(sub({ status: "paused", paused_at: NOW / 1000 }), { allow_pause: true }), { onResumeRequest });
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(onResumeRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows no Pause when the merchant passes no handler", async () => {
+    mount(wire(sub(), { allow_pause: true }));
+    await settle();
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
   });
 });

@@ -67,8 +67,8 @@ describe("requestSignature · FR-RCT-011/012", () => {
 
   it("BR_RCT_004_keeps_only_the_step_subscription_and_hash_from_the_message", async () => {
     const { host, post } = fakeHost();
-    const { result } = requestSignature({ host, appOrigin: APP, session: "cs_1", action: "pause", nonce: "n1" });
-    post({ type: "elapse:result", step: "paused", subscription: "sub_1", txHash: "0xabc", nonce: "n1", signature: "0xdead", token: "privy" });
+    const { result } = requestSignature({ host, appOrigin: APP, session: "cs_1", action: "cancel", nonce: "n1" });
+    post({ type: "elapse:result", step: "stopped", subscription: "sub_1", txHash: "0xabc", nonce: "n1", signature: "0xdead", token: "privy" });
     const r = await result;
     expect(Object.keys(r).sort()).toEqual(["step", "subscription", "txHash"]);
   });

@@ -118,20 +118,6 @@ describe("mock checkout api", () => {
     expect(receipt.endedReason).toBe("canceled");
   });
 
-  it("pause and resume freeze and continue elapsed time", async () => {
-    await api.signIn("cs_demo", {});
-    await api.setCap("cs_demo", 2500);
-    await api.start("cs_demo");
-    now += 10_000;
-    let s = await api.pause("cs_demo");
-    expect(s.subscription?.status).toBe("paused");
-    expect(s.subscription?.pauseReason).toBe("user");
-    now += 60_000;
-    s = await api.resume("cs_demo");
-    expect(s.subscription?.status).toBe("active");
-    // startedAt shifted forward by the paused duration so elapsed stays 10 s
-    expect(now - (s.subscription?.startedAt ?? 0)).toBe(10_000);
-  });
 
   it("email receipt resolves (mocked send)", async () => {
     await expect(api.emailReceipt("cs_done", "ada@example.com")).resolves.toEqual({ sent: true });

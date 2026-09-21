@@ -9,8 +9,9 @@
  * is dropped.
  */
 
-export type SignAction = "authorise" | "cancel" | "pause" | "resume";
-export type SignStep = "authorised" | "stopped" | "paused" | "resumed";
+/** FR-CON-018 withdrawn 2026-09-20: a subscriber authorises and stops, and never pauses. */
+export type SignAction = "authorise" | "cancel";
+export type SignStep = "authorised" | "stopped";
 
 export interface PopupResult {
   step: SignStep;
@@ -39,7 +40,7 @@ export interface PopupHost {
 
 const WIDTH = 480;
 const HEIGHT = 720;
-const STEPS: readonly SignStep[] = ["authorised", "stopped", "paused", "resumed"];
+const STEPS: readonly SignStep[] = ["authorised", "stopped"];
 
 function newNonce(): string {
   const bytes = new Uint8Array(16);

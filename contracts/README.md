@@ -57,7 +57,19 @@ FR-CON-073 **passed 2026-09-05**: a fresh `envio dev` in `indexer/` synced from 
 `Stream.status == Canceled`, `settledSeconds 220`, `settledAmount 880000`, `settledFee 8800`,
 `refunded 13520000`, four ledger rows, all five logs `ingestStatus: sent` to the local API.
 
-## Current testnet deployment (2026-09-19, only the merchant stops a held meter)
+## Current testnet deployment (2026-09-20, the subscriber never pauses)
+
+| | |
+| --- | --- |
+| Factory | [`0x9Df0003Bd18733a730Db709B55e0ff08824b8052`](https://testnet.monadscan.com/address/0x9Df0003Bd18733a730Db709B55e0ff08824b8052) · Sourcify exact match |
+| Implementation | `0x373fc259A328aEC212435eA0D5B3936d31086A45` · Sourcify exact match |
+| Owner | `0x35134987bB541607Cd45e62Dd1feA4F587607817` (the `hackathons` keystore) |
+| Keeper (relayer) | `0x54669B09A651a72Bd0367caB21cdAd0bEC0a7d35`, set in the deploy run |
+| Fee | 200 bps from the constructor (FR-CON-006 amended 2026-09-17) |
+| Block | 64160177, tx `0xf233bfb4…c95832` |
+| Why | FR-CON-018 withdrawn ([ADR 2026-09-20](../docs/decisions/2026-09-20-subscriber-cannot-pause.md)): `pauseFor`/`resumeFor` and their digests are gone, and `pause()`/`resume()` refuse the subscriber on every product. `cancelFor` stays — Stop is still the subscriber's |
+
+## Previous testnet deployment (2026-09-19, only the merchant stops a held meter)
 
 | | |
 | --- | --- |

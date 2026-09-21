@@ -131,53 +131,6 @@ account.openapi(
 
 // ─── Pause / resume from the account (FR-API-046, checkout FR-CHK-018/030) ────────────────────
 
-for (const action of ["pause", "resume"] as const) {
-  account.openapi(
-    createRoute({
-      method: "post",
-      path: `/account/subscriptions/{id}/${action}/prepare`,
-      operationId: `account.subscriptions.${action}.prepare`,
-      tags: ["Account"],
-      hide: true,
-      request: { params: z.object({ id: z.string() }) },
-      responses: { 200: { description: `The message the subscriber's wallet signs to ${action} the meter.`, content: { "application/json": { schema: CancelPrepareResponse } } } },
-    }),
-    async (c) => {
-      const who = await subscriberIdentity(c);
-      const { session } = await ownSubscription(who.walletAddress, c.req.valid("param").id);
-      if (!session) throw new ApiError(409, "invalid_request_error", "There is no running meter on this subscription.", undefined, "not_running");
-      try {
-        return c.json(await prepareRelay(action, { session, walletAddress: who.walletAddress }), 200);
-      } catch (e) {
-        mapCheckoutError(e);
-      }
-    },
-  );
-
-  account.openapi(
-    createRoute({
-      method: "post",
-      path: `/account/subscriptions/{id}/${action}`,
-      operationId: `account.subscriptions.${action}`,
-      tags: ["Account"],
-      hide: true,
-      request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: CancelBody } }, required: true } },
-      responses: { 202: { description: `Submitted; the new status arrives when the chain confirms. No money moves.`, content: { "application/json": { schema: StartResponse } } } },
-    }),
-    async (c) => {
-      const who = await subscriberIdentity(c);
-      const { signature, deadline } = c.req.valid("json");
-      const { session } = await ownSubscription(who.walletAddress, c.req.valid("param").id);
-      if (!session) throw new ApiError(409, "invalid_request_error", "There is no running meter on this subscription.", undefined, "not_running");
-      try {
-        return c.json(await submitRelay(action, { session, signature, deadline, ip: clientIp(c) }), 202);
-      } catch (e) {
-        mapCheckoutError(e);
-      }
-    },
-  );
-}
-
 /** The receipt in the subscriber's words (checkout FR-CHK-008/029): seconds, paid, returned. No fee, no chain words. */
 export function receiptEmail(s: ReturnType<typeof serializeAccountSubscription>): Mail {
   const origin = new URL(config.checkoutBaseUrl).origin;

@@ -35,7 +35,7 @@ export interface ChainClient {
   readNativeBalance(chainId: number, owner: Address): Promise<bigint>;
   /** Submits `StreamFactory.createWithPermit`; resolves with the tx hash as soon as it is broadcast. */
   createWithPermit(args: CreateWithPermitArgs): Promise<Hex>;
-  /** Per-stream replay nonce shared by `cancelFor`, `pauseFor` and `resumeFor` (FR-CON-017/018). */
+  /** Per-stream replay nonce for `cancelFor` (FR-CON-017). */
   readRelayNonce(chainId: number, stream: Address): Promise<bigint>;
   /**
    * Gas for `settle()` called directly on one stream (FR-WRK-072). Rejects when the call would
@@ -65,10 +65,6 @@ export interface ChainClient {
   resume(chainId: number, stream: Address): Promise<Hex>;
   /** Submits `AccrualStream.cancelFor(deadline, signature)`; resolves with the tx hash at broadcast. */
   cancelFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
-  /** Submits `AccrualStream.pauseFor(deadline, signature)` (FR-CON-018); no money moves. */
-  pauseFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
-  /** Submits `AccrualStream.resumeFor(deadline, signature)` (FR-CON-018). */
-  resumeFor(chainId: number, stream: Address, deadline: bigint, signature: Hex): Promise<Hex>;
 }
 
 export interface StreamState {
@@ -219,14 +215,6 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     async cancelFor(chainId, stream, deadline, signature) {
       assertChain(chainId);
       return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancelFor", args: [deadline, signature] });
-    },
-    async pauseFor(chainId, stream, deadline, signature) {
-      assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "pauseFor", args: [deadline, signature] });
-    },
-    async resumeFor(chainId, stream, deadline, signature) {
-      assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "resumeFor", args: [deadline, signature] });
     },
   };
 }

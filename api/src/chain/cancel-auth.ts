@@ -7,9 +7,10 @@
  */
 import { encodeAbiParameters, hashMessage, isHex, keccak256, recoverMessageAddress, type Address, type Hex } from "viem";
 
-export type RelayAction = "cancel" | "pause" | "resume";
+/** FR-CON-018 withdrawn 2026-09-20: pause and resume are no longer relayed for anyone. */
+export type RelayAction = "cancel";
 
-const TAG: Record<RelayAction, string> = { cancel: "ElapseCancel", pause: "ElapsePause", resume: "ElapseResume" };
+const TAG: Record<RelayAction, string> = { cancel: "ElapseCancel" };
 
 export function relayInnerHash(action: RelayAction, input: { chainId: number; stream: Address | string; nonce: bigint; deadline: bigint }): Hex {
   return keccak256(

@@ -126,26 +126,6 @@ describe("AccountPage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(/left of your 1 hour/i);
   });
 
-  it("FR_CHK_030_pause_appears_only_on_meters_whose_product_allows_it_and_resume_takes_a_paused_meter_back", async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    mount();
-    const rows = await screen.findAllByRole("group");
-    // Nimbus allows pause; Halcyon does not. Stop stays on both, with no confirmation for pause.
-    expect(within(rows[0]!).getByRole("button", { name: /pause/i })).toBeInTheDocument();
-    expect(within(rows[1]!).queryByRole("button", { name: /pause/i })).toBeNull();
-    expect(within(rows[1]!).getByRole("button", { name: /stop/i })).toBeInTheDocument();
-    await user.click(within(rows[0]!).getByRole("button", { name: /pause/i }));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    const paused = (await screen.findAllByRole("group"))[0]!;
-    expect(await within(paused).findByRole("button", { name: /resume/i })).toBeInTheDocument();
-    expect(within(paused).getByText(/paused/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 meter running · 1 paused/i)).toBeInTheDocument();
-    expect(within(paused).getByRole("button", { name: /stop/i })).toBeInTheDocument();
-    await user.click(within(paused).getByRole("button", { name: /resume/i }));
-    const back = (await screen.findAllByRole("group"))[0]!;
-    expect(await within(back).findByRole("button", { name: /pause/i })).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/wallet|transaction|signature|chain/i);
-  });
 
   it("FR_CHK_018_a_test_mode_meter_carries_a_Test_tag_and_a_live_one_does_not", async () => {
     const api = createMockAccountApi({ latencyMs: 0, seed: "two-merchants", now: () => Date.now() });

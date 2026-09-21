@@ -320,7 +320,7 @@ contract SecurityTest is BaseTest {
         a.cancelFor(deadline, abi.encodePacked(r, s_, v));
     }
 
-    // ─── Relayed pause / resume (FR-CON-018) ────────────────────────────────
+    // ─── Pause is the merchant's (FR-CON-018 withdrawn 2026-09-20) ──────────
 
     function _startedStream(address sub) internal returns (AccrualStream s) {
         usd.mint(sub, ESCROW);
@@ -337,90 +337,27 @@ contract SecurityTest is BaseTest {
         return abi.encodePacked(r, s_, v);
     }
 
-    function test_FR_CON_018_pauseFor_freezes_and_resumeFor_restarts_without_billing_the_gap() public {
+    /// FR-CON-018 withdrawn 2026-09-20 (ADR 2026-09-20): a subscriber never pauses, on any product.
+    /// Without this, a checkout-mode subscriber could freeze billing from their own wallet while the
+    /// merchant's resource kept running.
+    function test_FR_CON_018_subscriber_cannot_pause_or_resume_even_in_checkout_mode() public {
         address sub = vm.addr(SUB_KEY);
-        AccrualStream s = _startedStream(sub);
-        vm.warp(block.timestamp + 10);
-
-        uint256 deadline = block.timestamp + 300;
-        bytes memory pauseSig = _sign(SUB_KEY, s.pauseDigest(s.relayNonce(), deadline));
-        vm.prank(stranger); // the relayer
-        s.pauseFor(deadline, pauseSig);
-        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Paused));
-        assertEq(s.relayNonce(), 1);
-        assertEq(usd.balanceOf(merchant), 0); // no money moved
-        assertEq(usd.balanceOf(sub), 0);
-
-        vm.warp(block.timestamp + 100);
-        assertEq(s.accruedSeconds(), 10);
-
-        deadline = block.timestamp + 300;
-        bytes memory resumeSig = _sign(SUB_KEY, s.resumeDigest(s.relayNonce(), deadline));
-        vm.prank(stranger);
-        s.resumeFor(deadline, resumeSig);
-        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active));
-        assertEq(s.relayNonce(), 2);
-
+        AccrualStream s = _startedStream(sub); // checkout mode: merchantStarted is false
         vm.warp(block.timestamp + 5);
-        assertEq(s.accruedSeconds(), 15);
-    }
 
-    function test_FR_CON_018_relayed_pause_rejects_cross_action_replay_expiry_and_strangers() public {
-        address sub = vm.addr(SUB_KEY);
-        AccrualStream s = _startedStream(sub);
-        uint256 deadline = block.timestamp + 300;
-
-        // A cancel signature does not pause (tag is in the digest).
-        bytes memory cancelSig = _sign(SUB_KEY, s.cancelDigest(0, deadline));
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.pauseFor(deadline, cancelSig);
-
-        // A pause signature does not resume, nor cancel.
-        bytes memory pauseSig = _sign(SUB_KEY, s.pauseDigest(0, deadline));
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.resumeFor(deadline, pauseSig);
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.cancelFor(deadline, pauseSig);
-
-        // Expired.
-        bytes memory expired = _sign(SUB_KEY, s.pauseDigest(0, block.timestamp - 1));
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.pauseFor(block.timestamp - 1, expired);
-
-        // A stranger's signature.
-        bytes memory strangerSig = _sign(0xBAD, s.pauseDigest(0, deadline));
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.pauseFor(deadline, strangerSig);
-
-        // FR-CON-074: the keeper needs no signature to pause; a *stranger* still does, which is
-        // what this suite is about. (Left here so the contrast stays visible.)
-        vm.prank(stranger);
-        vm.expectRevert(AccrualStream.NotParty.selector);
+        vm.prank(sub);
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
         s.pause();
 
-        // Valid once; replay fails because the nonce moved.
-        s.pauseFor(deadline, pauseSig);
-        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Paused));
-        vm.expectRevert(AccrualStream.BadSignature.selector);
-        s.pauseFor(deadline, pauseSig);
-
-        // Resume needs Paused; a second valid resume reverts InvalidState.
-        bytes memory resumeSig = _sign(SUB_KEY, s.resumeDigest(1, deadline));
-        s.resumeFor(deadline, resumeSig);
-        bytes memory resumeAgain = _sign(SUB_KEY, s.resumeDigest(2, deadline));
-        vm.expectRevert(AccrualStream.InvalidState.selector);
-        s.resumeFor(deadline, resumeAgain);
-    }
-
-    function test_FR_CON_018_pauseFor_at_the_cap_ends_the_stream_like_pause() public {
-        address sub = vm.addr(SUB_KEY);
-        AccrualStream s = _startedStream(sub);
-        vm.warp(block.timestamp + s.maxSeconds() + 50);
-        uint256 deadline = block.timestamp + 300;
-        bytes memory sig = _sign(SUB_KEY, s.pauseDigest(0, deadline));
-        s.pauseFor(deadline, sig);
-        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Canceled));
-        assertEq(usd.balanceOf(merchant) + usd.balanceOf(factory.treasury()) + usd.balanceOf(sub), ESCROW);
+        // the merchant may still pause, and the subscriber still may not lift it
+        vm.prank(merchant);
+        s.pause();
+        vm.prank(sub);
+        vm.expectRevert(AccrualStream.MerchantControlled.selector);
+        s.resume();
+        vm.prank(merchant);
+        s.resume();
+        assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active));
     }
 }
 
@@ -471,4 +408,5 @@ contract ReentrantToken is ERC20 {
         }
         return super.transfer(to, amount);
     }
+
 }

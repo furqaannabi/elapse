@@ -82,22 +82,6 @@ export function AccountPage({
       .finally(() => setBusy(false));
   }, [api]);
 
-  // FR-CHK-030: one tap, no sheet — nothing is charged or refunded and it reverses.
-  const toggle = useCallback(
-    async (m: AccountMeter, action: "pause" | "resume") => {
-      setBusy(true);
-      setPending({ subscription: m.subscription, action });
-      try {
-        setView(await (action === "pause" ? api.pause(m.subscription) : api.resume(m.subscription)));
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : `Could not ${action} the meter`);
-      } finally {
-        setBusy(false);
-        setPending(null);
-      }
-    },
-    [api],
-  );
 
   const confirmStop = useCallback(async () => {
     if (!stopping) return;
@@ -191,8 +175,6 @@ export function AccountPage({
                   busy={busy}
                   pending={pending?.subscription === m.subscription ? pending.action : null}
                   onStop={() => setStopping(m)}
-                  onPause={() => toggle(m, "pause")}
-                  onResume={() => toggle(m, "resume")}
                 />
               ))}
             </section>

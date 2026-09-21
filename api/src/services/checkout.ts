@@ -212,9 +212,9 @@ async function runningSubscription(session: CheckoutSessionRow): Promise<Subscri
 }
 
 /**
- * The Subscription a relayed action may apply to (FR-API-044/045): cancel takes any running
- * meter; pause needs `active` on a Product that allows it; resume needs `paused`. `allow_pause`
- * is not re-checked on resume: a meter paused while the flag was on may always resume.
+ * The Subscription a relayed action may apply to. Cancel is the only one left: the subscriber's
+ * pause and resume were withdrawn 2026-09-20 (ADR 2026-09-20), so pausing is the merchant's and
+ * goes through the keeper (FR-API-141/142), never a signature from the subscriber.
  */
 async function actionableSubscription(session: CheckoutSessionRow, action: RelayAction): Promise<SubscriptionRow> {
   const current = session.subscription_id ? await findSubscription(session.merchant_id, session.livemode, session.subscription_id) : null;
@@ -225,15 +225,7 @@ async function actionableSubscription(session: CheckoutSessionRow, action: Relay
     const merchant = (await getMerchantBranding(session.merchant_id))?.name ?? "the merchant";
     throw new CheckoutStateError("merchant_controlled", `Only ${merchant} can stop this meter.`);
   }
-  const sub = await runningSubscription(session);
-  if (action === "pause") {
-    if (sub.status !== "active") throw new CheckoutStateError("invalid_state", "The meter is already paused.");
-    const product = await findProduct(session.merchant_id, session.livemode, session.product_id);
-    if (!product?.allow_pause) throw new CheckoutStateError("pause_not_allowed", "This product cannot be paused.");
-  } else if (action === "resume" && sub.status !== "paused") {
-    throw new CheckoutStateError("invalid_state", "The meter is not paused.");
-  }
-  return sub;
+  return runningSubscription(session);
 }
 
 /**
@@ -287,8 +279,7 @@ export async function submitRelay(action: RelayAction, input: { session: Checkou
       WHERE action IN ('subscription.pause', 'subscription.resume') AND target = ${sub.id} AND at > now() - interval '1 hour'`;
     if (n >= PAUSE_RESUME_PER_HOUR) throw new CheckoutStateError("rate_limited", "Too many changes. Try again in a bit.");
   }
-  const submit = action === "cancel" ? chain.cancelFor : action === "pause" ? chain.pauseFor : chain.resumeFor;
-  const pendingTx = await submit.call(chain, sub.chain_id, stream, deadline, input.signature as Hex);
+  const pendingTx = await chain.cancelFor(sub.chain_id, stream, deadline, input.signature as Hex);
   // Since FR-API-137's 2026-09-19 amendment a subscriber never reaches here with a held session —
   // `actionableSubscription` refuses one — so there is no held cancel to stamp against the sweep.
   await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;

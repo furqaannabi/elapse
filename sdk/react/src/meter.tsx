@@ -48,8 +48,23 @@ export function Meter({
   dock,
   controls = true,
   proof = false,
+  onPauseRequest,
+  onResumeRequest,
   ...handlers
-}: { session: string; dock?: MeterDock; controls?: boolean; proof?: boolean } & MeterHandlers) {
+}: {
+  session: string;
+  dock?: MeterDock;
+  controls?: boolean;
+  proof?: boolean;
+  /**
+   * FR-RCT-021 (amended 2026-09-20): a subscriber cannot pause a meter — only the merchant can
+   * (ADR 2026-09-20). Pass these and the meter offers Pause and Resume as **requests**: the button
+   * calls your handler, nothing is signed and nothing reaches Elapse. Your server decides and
+   * pauses with `subscriptions.pause`. Omit them and no such control renders.
+   */
+  onPauseRequest?: () => void;
+  onResumeRequest?: () => void;
+} & MeterHandlers) {
   const m = useMeter(session, handlers);
   // FR-RCT-042 (amended 2026-09-19, Furqaan: "no stop button"): a merchant whose meter is its own
   // to stop can turn the subscriber's controls off entirely. The escrow is untouched by this — the
@@ -64,8 +79,9 @@ export function Meter({
       </>
     ) : null;
   const canStop = controls && m.canStop;
-  const canPause = controls && m.canPause;
-  const canResume = controls && m.canResume;
+  // Asking is not doing: these render only because the merchant offered to listen (FR-RCT-021 amended).
+  const canAskPause = controls && !!onPauseRequest && m.view === "running" && !!m.session?.product.allowPause;
+  const canAskResume = controls && !!onResumeRequest && m.view === "paused";
   const { cues } = useElapseConfig();
   const [muted, setMuted] = useState(() => cues.muted());
   // FR-RCT-050: the subscriber's own switch, remembered by the browser.
@@ -114,16 +130,16 @@ export function Meter({
             </>
           )}
         </div>
-        {(canStop || canPause || canResume) && (
+        {(canStop || canAskPause || canAskResume) && (
           <div className="elapse-capsule elapse-capsule-actions">
-            {canResume && (
-              <button type="button" className="elapse-capsule-button" onClick={m.resume} disabled={m.busy !== null}>
-                {m.busy === "resume" ? "Resuming…" : "Resume"}
+            {canAskResume && (
+              <button type="button" className="elapse-capsule-button" onClick={onResumeRequest}>
+                Resume
               </button>
             )}
-            {canPause && (
-              <button type="button" className="elapse-capsule-button" onClick={m.pause} disabled={m.busy !== null}>
-                {m.busy === "pause" ? "Pausing…" : "Pause"}
+            {canAskPause && (
+              <button type="button" className="elapse-capsule-button" onClick={onPauseRequest}>
+                Pause
               </button>
             )}
             {canStop && (
@@ -224,14 +240,14 @@ export function Meter({
       {notice}
       <div className="elapse-actions">
         {mute}
-        {canResume && (
-          <button type="button" className="elapse-primary" onClick={m.resume} disabled={m.busy !== null}>
-            {m.busy === "resume" ? "Resuming…" : "Resume"}
+        {canAskResume && (
+          <button type="button" className="elapse-primary" onClick={onResumeRequest}>
+            Resume
           </button>
         )}
-        {canPause && (
-          <button type="button" className="elapse-outline" onClick={m.pause} disabled={m.busy !== null}>
-            {m.busy === "pause" ? "Pausing…" : "Pause"}
+        {canAskPause && (
+          <button type="button" className="elapse-outline" onClick={onPauseRequest}>
+            Pause
           </button>
         )}
         {canStop && (

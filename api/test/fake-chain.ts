@@ -107,16 +107,6 @@ export function fakeChain(opts: { chainId?: number; balances?: Record<string, bi
       cancelNonces.set(stream.toLowerCase(), (cancelNonces.get(stream.toLowerCase()) ?? 0n) + 1n);
       return hash();
     },
-    async pauseFor(_c, stream, deadline, signature) {
-      pauses.push({ stream: stream.toLowerCase(), deadline, signature });
-      cancelNonces.set(stream.toLowerCase(), (cancelNonces.get(stream.toLowerCase()) ?? 0n) + 1n);
-      return hash();
-    },
-    async resumeFor(_c, stream, deadline, signature) {
-      resumes.push({ stream: stream.toLowerCase(), deadline, signature });
-      cancelNonces.set(stream.toLowerCase(), (cancelNonces.get(stream.toLowerCase()) ?? 0n) + 1n);
-      return hash();
-    },
   };
   return {
     client, creates, cancels, pauses, resumes, keeperCancels,

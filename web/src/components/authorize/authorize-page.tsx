@@ -24,7 +24,7 @@ import type { CheckoutBalance, CheckoutSession } from "@/lib/checkout/types";
 import { postResult, resultTargetOrigin, type ResultStep } from "@/lib/authorize/result";
 import { parseRate } from "@/lib/meter/math";
 
-const STEP: Record<SubmitAction, ResultStep> = { authorise: "authorised", cancel: "stopped", pause: "paused", resume: "resumed" };
+const STEP: Record<SubmitAction, ResultStep> = { authorise: "authorised", cancel: "stopped" };
 const ACTIONS = Object.keys(STEP) as SubmitAction[];
 
 type Opener = { postMessage(message: unknown, targetOrigin: string): void } | null;

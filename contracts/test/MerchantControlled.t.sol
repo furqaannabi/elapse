@@ -99,18 +99,12 @@ contract MerchantControlledTest is BaseTest {
         assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active), "still running");
     }
 
-    function test_FR_CON_057_subscriber_pause_and_pauseFor_revert_once_started() public {
+    function test_FR_CON_057_subscriber_pause_reverts_once_started() public {
         AccrualStream s = merchantStream(true);
 
         vm.prank(sub);
         vm.expectRevert(AccrualStream.MerchantControlled.selector);
         s.pause();
-
-        uint256 deadline = block.timestamp + 300;
-        bytes memory sig = sign(SUB_KEY, s.pauseDigest(s.relayNonce(), deadline));
-        vm.prank(stranger);
-        vm.expectRevert(AccrualStream.MerchantControlled.selector);
-        s.pauseFor(deadline, sig);
     }
 
     function test_FR_CON_057_a_paused_merchant_started_meter_is_still_the_merchants() public {
@@ -121,12 +115,6 @@ contract MerchantControlledTest is BaseTest {
         vm.prank(sub);
         vm.expectRevert(AccrualStream.MerchantControlled.selector);
         s.resume();
-
-        uint256 deadline = block.timestamp + 300;
-        bytes memory sig = sign(SUB_KEY, s.resumeDigest(s.relayNonce(), deadline));
-        vm.prank(stranger);
-        vm.expectRevert(AccrualStream.MerchantControlled.selector);
-        s.resumeFor(deadline, sig);
 
         vm.prank(sub);
         vm.expectRevert(AccrualStream.MerchantControlled.selector);

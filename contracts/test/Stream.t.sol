@@ -26,9 +26,11 @@ contract StreamTest is BaseTest {
         s.deposit(ESCROW / 2);
         s.start();
         s.deposit(ESCROW / 4); // active
-        s.pause();
-        s.deposit(ESCROW / 4); // paused
         vm.stopPrank();
+        vm.prank(merchant); // pausing is the merchant's (FR-CON-018 withdrawn 2026-09-20)
+        s.pause();
+        vm.prank(subscriber);
+        s.deposit(ESCROW / 4); // paused
         assertEq(s.deposited(), ESCROW);
     }
 
@@ -99,16 +101,21 @@ contract StreamTest is BaseTest {
         AccrualStream s = fundedStream();
         assertEq(uint8(s.status()), uint8(AccrualStream.Status.Created));
 
-        vm.startPrank(subscriber);
+        vm.startPrank(merchant);
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.pause(); // Created → Paused is illegal
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.resume(); // Created → resume is illegal
+        vm.stopPrank();
 
+        vm.startPrank(subscriber);
         s.start();
         assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active));
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.start(); // Active → start is illegal
+        vm.stopPrank();
+
+        vm.startPrank(merchant);
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.resume(); // Active → resume is illegal
 
@@ -119,7 +126,9 @@ contract StreamTest is BaseTest {
 
         s.resume();
         assertEq(uint8(s.status()), uint8(AccrualStream.Status.Active));
+        vm.stopPrank();
 
+        vm.startPrank(subscriber);
         s.cancel();
         assertEq(uint8(s.status()), uint8(AccrualStream.Status.Canceled));
         vm.stopPrank();
@@ -151,7 +160,8 @@ contract StreamTest is BaseTest {
     function test_FR_CON_022_pause_freezes_accrual_and_emits_reason_zero() public {
         AccrualStream s = runningStream();
         vm.warp(block.timestamp + 10);
-        vm.prank(subscriber);
+        vm.prank(merchant);
+        
         vm.expectEmit();
         emit AccrualStream.StreamPaused(block.timestamp, 0);
         s.pause();
@@ -164,10 +174,11 @@ contract StreamTest is BaseTest {
     function test_FR_CON_023_resume_does_not_bill_paused_time() public {
         AccrualStream s = runningStream();
         vm.warp(block.timestamp + 10);
-        vm.prank(subscriber);
+        vm.prank(merchant);
         s.pause();
         vm.warp(block.timestamp + 100);
-        vm.prank(subscriber);
+        vm.prank(merchant);
+        
         vm.expectEmit();
         emit AccrualStream.StreamResumed(block.timestamp);
         s.resume();
@@ -224,10 +235,14 @@ contract StreamTest is BaseTest {
         s.deposit(1);
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.start();
+        vm.stopPrank();
+        vm.startPrank(merchant);
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.pause();
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.resume();
+        vm.stopPrank();
+        vm.startPrank(subscriber);
         vm.expectRevert(AccrualStream.AlreadyCanceled.selector);
         s.cancel();
         vm.expectRevert(AccrualStream.AlreadyCanceled.selector);
@@ -301,13 +316,13 @@ contract StreamTest is BaseTest {
     function test_FR_CON_031_accrued_counts_only_active_time() public {
         AccrualStream s = runningStream();
         vm.warp(block.timestamp + 20);
-        vm.prank(subscriber);
+        vm.prank(merchant);
         s.pause();
         vm.warp(block.timestamp + 500);
-        vm.prank(subscriber);
+        vm.prank(merchant);
         s.resume();
         vm.warp(block.timestamp + 30);
-        vm.prank(subscriber);
+        vm.prank(merchant);
         s.pause();
         vm.warp(block.timestamp + 500);
         assertEq(s.accruedSeconds(), 50);
@@ -357,7 +372,7 @@ contract StreamTest is BaseTest {
         vm.warp(block.timestamp + 10_000);
         vm.prank(subscriber);
         a.cancel();
-        vm.prank(subscriber);
+        vm.prank(merchant);
         b.pause();
         assertEq(uint8(a.status()), uint8(AccrualStream.Status.Canceled));
         assertEq(uint8(b.status()), uint8(AccrualStream.Status.Canceled));
@@ -367,7 +382,7 @@ contract StreamTest is BaseTest {
         AccrualStream s = runningStream();
         vm.warp(block.timestamp + 10_000);
         s.settle();
-        vm.prank(subscriber);
+        vm.prank(merchant); // resuming is the merchant's (FR-CON-018 withdrawn 2026-09-20)
         vm.expectRevert(AccrualStream.InvalidState.selector);
         s.resume();
     }

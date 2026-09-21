@@ -1,7 +1,7 @@
 /**
  * `MeterRow` — one running meter in the account list: who is charging,
  * for what, the live figure, how much of the cap is left, and one way to
- * stop; Pause or Resume beside it when the product allows pause
+ * stop. FR-CHK-030 withdrawn 2026-09-20: a subscriber never pauses; they ask the merchant
  * (FR-CHK-030). Deliberately compact: a subscriber may have several running, and
  * three tall cards would push the newest one off a phone screen.
  *
@@ -14,7 +14,6 @@
  */
 "use client";
 
-import { Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Readout } from "@/components/meter/readout";
 import {
@@ -38,8 +37,6 @@ export function MeterRow({
   busy,
   pending,
   onStop,
-  onPause,
-  onResume,
 }: {
   meter: AccountMeter;
   busy?: boolean;
@@ -47,8 +44,6 @@ export function MeterRow({
   pending?: "pause" | "resume" | null;
   onStop: () => void;
   /** Present only when the product allows pause. */
-  onPause?: () => void;
-  onResume?: () => void;
 }) {
   const paused = m.status === "paused";
   const meter = useMeter({
@@ -104,18 +99,6 @@ export function MeterRow({
         )}
       </div>
 
-      {m.allowPause && !m.merchantControlled && (paused ? onResume : onPause) && (
-        <button
-          type="button"
-          onClick={paused ? onResume : onPause}
-          disabled={busy}
-          aria-label={`${paused ? "Resume" : "Pause"} this meter at ${m.merchant.name}`}
-          className="flex min-h-11 items-center justify-center gap-2 border-t border-border text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60"
-        >
-          {paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
-          {pending === "pause" ? "Pausing…" : pending === "resume" ? "Resuming…" : paused ? "Resume" : "Pause"}
-        </button>
-      )}
 
       {low && (
         <p role="status" className="mt-auto border-t border-live/30 bg-live-soft px-4 py-2 text-xs">

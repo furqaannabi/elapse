@@ -87,6 +87,7 @@ runs React, install the package instead and use the components — you keep one 
 | `dock` | *(none)* | `"bottom-right"` or `"bottom-left"` floats the meter as a small capsule — a live dot, the clock, the amount — instead of a card in your layout. On a phone it spans the gutter. |
 | `controls` | `true` | `false` hides Stop, Pause and Resume entirely, for a meter only you stop. |
 | `proof` | `false` | Drops a card when the meter starts and when it ends, carrying that transaction. Off by default: most subscribers should never see a hash. |
+| `onPauseRequest`, `onResumeRequest` | — | Show Pause and Resume as **requests to you**. A subscriber cannot pause a meter (only the merchant can), so the button calls your handler — nothing is signed, nothing reaches Elapse — and your server pauses with `subscriptions.pause`. Omit them and no such control renders. |
 
 Sound is on by default: two short synthesised notes when a meter starts and when it stops, never
 one per second, with a mute the subscriber controls and the browser remembers. `sound={false}` on

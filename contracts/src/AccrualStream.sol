@@ -74,8 +74,8 @@ contract AccrualStream is ReentrancyGuard {
     uint256 public settledAmount;
     /// The fee part of `settledAmount`.
     uint256 public settledFee;
-    /// Replay protection shared by every relayed action: `cancelFor`, `pauseFor`,
-    /// `resumeFor` (FR-CON-017, FR-CON-018). The digest tag tells them apart.
+    /// Replay protection for the one relayed action left: `cancelFor` (FR-CON-017). The relayed
+    /// pause/resume pair was withdrawn 2026-09-20 with the subscriber's pause.
     uint256 public relayNonce;
     /// Funded through `createWithPermitNoStart` (FR-CON-019). Once such a stream is running, only the
     /// merchant or the keeper can stop or pause it (FR-CON-057). Declared last so no earlier slot moves.
@@ -234,40 +234,20 @@ contract AccrualStream is ReentrancyGuard {
     ///         merchant can bill only while its resource is working without holding a key. No
     ///         money moves here, and `_refuseSubscriber` still applies (FR-CON-057).
     function pause() external nonReentrant onlyPartyOrKeeper {
-        _refuseSubscriber(msg.sender);
+        _refusePauser(msg.sender);
         _pause();
     }
 
-    /// @notice Pause on behalf of a party who signed for it; the relayer submits and
-    ///         pays gas (FR-CON-018). No money moves. The keeper does not need this path:
-    ///         since FR-CON-074 it calls `pause()` directly.
-    function pauseFor(uint256 deadline, bytes calldata signature) external nonReentrant {
-        _refuseSubscriber(_consumeRelay(pauseDigest(relayNonce, deadline), deadline, signature));
-        _pause();
-    }
 
     /// @notice Resume a manually paused meter (FR-CON-023). The keeper may resume on the same
     ///         terms as `pause()` (FR-CON-074).
     function resume() external onlyPartyOrKeeper {
-        _refuseSubscriber(msg.sender);
+        _refusePauser(msg.sender);
         _resume();
     }
 
-    /// @notice Resume on behalf of a party who signed for it (FR-CON-018).
-    function resumeFor(uint256 deadline, bytes calldata signature) external nonReentrant {
-        _refuseSubscriber(_consumeRelay(resumeDigest(relayNonce, deadline), deadline, signature));
-        _resume();
-    }
 
-    /// @notice The message a party signs for `pauseFor` (EIP-191 personal sign).
-    function pauseDigest(uint256 nonce, uint256 deadline) public view returns (bytes32) {
-        return _relayDigest("ElapsePause", nonce, deadline);
-    }
 
-    /// @notice The message a party signs for `resumeFor` (EIP-191 personal sign).
-    function resumeDigest(uint256 nonce, uint256 deadline) public view returns (bytes32) {
-        return _relayDigest("ElapseResume", nonce, deadline);
-    }
 
     function _pause() internal {
         if (status != Status.Active) revert InvalidState();
@@ -306,6 +286,14 @@ contract AccrualStream is ReentrancyGuard {
     /// (ADR 2026-09-19 only the merchant stops a held meter).
     function _refuseSubscriber(address who) internal view {
         if (merchantStarted && who == subscriber && who != merchant) revert MerchantControlled();
+    }
+
+    /// FR-CON-018 withdrawn 2026-09-20 ([ADR](../../docs/decisions/2026-09-20-subscriber-cannot-pause.md)):
+    /// pausing is the merchant's on **every** product, not only merchant-started ones. A subscriber
+    /// who could pause would freeze billing while the merchant's resource kept running; stopping is
+    /// different, since it returns the escrow and the resource together, so `cancelFor` stays.
+    function _refusePauser(address who) internal view {
+        if (who == subscriber && who != merchant) revert MerchantControlled();
     }
 
     /// @notice Stop the meter: settle unsettled whole seconds, refund the rest

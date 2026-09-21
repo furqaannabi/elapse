@@ -9,7 +9,8 @@
  * id, the transaction hash and the nonce: never a signature, identity token or key.
  */
 
-export type ResultStep = "authorised" | "stopped" | "paused" | "resumed";
+/** FR-CHK-030 withdrawn 2026-09-20: the Elapse window reports an authorisation or a stop, nothing else. */
+export type ResultStep = "authorised" | "stopped";
 
 export function resultTargetOrigin(successUrl: string): string | null {
   let u: URL;

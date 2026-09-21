@@ -84,18 +84,4 @@ export const streamAbi = [
     inputs: [{ name: "deadline", type: "uint256" }, { name: "signature", type: "bytes" }],
     outputs: [],
   },
-  {
-    type: "function",
-    name: "pauseFor",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "deadline", type: "uint256" }, { name: "signature", type: "bytes" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "resumeFor",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "deadline", type: "uint256" }, { name: "signature", type: "bytes" }],
-    outputs: [],
-  },
 ] as const;
