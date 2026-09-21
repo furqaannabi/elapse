@@ -57,8 +57,13 @@
           "webhooks/delivery"
         ]
       },
-      "sdks",
-      "react",
+      {
+        "group": "SDKs",
+        "pages": [
+          "sdks/typescript",
+          "sdks/react"
+        ]
+      },
       {
         "group": "API reference",
         "openapi": "openapi.json",
@@ -71,6 +76,16 @@
       "testing"
     ]
   },
+  "redirects": [
+    {
+      "source": "/sdks",
+      "destination": "/sdks/typescript"
+    },
+    {
+      "source": "/react",
+      "destination": "/sdks/react"
+    }
+  ],
   "api": {
     "playground": {
       "display": "interactive"

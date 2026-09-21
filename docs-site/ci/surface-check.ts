@@ -21,7 +21,7 @@ export function sdkMethods(): string[] {
   return ["products", "checkout", "subscriptions", "customers", "invoices"].flatMap((r) => walk(client[r] as Record<string, unknown>, `${r}.`)).sort();
 }
 
-export function documentedMethods(mdx = readFileSync(`${site}sdks.mdx`, "utf8")): string[] {
+export function documentedMethods(mdx = readFileSync(`${site}sdks/typescript.mdx`, "utf8")): string[] {
   return [...mdx.matchAll(/^### `([a-z]+(?:\.[a-zA-Z]+)+)`/gm)].map((m) => m[1]!).filter((m) => !m.startsWith("webhooks.")).sort();
 }
 
@@ -49,7 +49,7 @@ export function reactExports(source = readFileSync(fileURLToPath(new URL("../../
 }
 
 /** `## <Meter>` / `## useMeter` headings on the React page. */
-export function documentedReact(mdx = readFileSync(`${site}react.mdx`, "utf8")): string[] {
+export function documentedReact(mdx = readFileSync(`${site}sdks/react.mdx`, "utf8")): string[] {
   return [...mdx.matchAll(/`<([A-Z][A-Za-z]*)>`|`(use[A-Z][A-Za-z]*)\(/g)]
     .map((m) => m[1] ?? m[2]!)
     .filter((v, i, all) => all.indexOf(v) === i)

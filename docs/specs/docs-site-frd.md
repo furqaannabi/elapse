@@ -1,6 +1,6 @@
 # Docs site — FRD
 
-Status: **FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Merchant developer docs (public, desktop-first) · Sources: detailed doc §4.1–§4.4, §5.1–§5.3, §6, §9, §10 step 1, §11 (Agora page), §12 Weeks 3, 4, 6, §13, §14, §15; design brief (direction, Landing CTA "Read the docs"); `docs/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md); [ADR 2026-09-06 CLI](../decisions/2026-09-06-cli-transport-and-session.md) (test clocks out).
+Status: **FR-DOC-002 amendment (SDKs is a group) Signed 2026-09-21 (William)** · **FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Merchant developer docs (public, desktop-first) · Sources: detailed doc §4.1–§4.4, §5.1–§5.3, §6, §9, §10 step 1, §11 (Agora page), §12 Weeks 3, 4, 6, §13, §14, §15; design brief (direction, Landing CTA "Read the docs"); `docs/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md); [ADR 2026-09-06 CLI](../decisions/2026-09-06-cli-transport-and-session.md) (test clocks out).
 
 ## Problem
 
@@ -33,7 +33,7 @@ A Mintlify site under `docs-site/site/` with nine pages, an API reference render
 | Id | Requirement | Acceptance |
 | --- | --- | --- |
 | FR-DOC-001 | The site is a **Mintlify** project in `docs-site/site/` (`docs.json` + MDX), hosted by Mintlify from the GitHub repo and deploying independently of `web/`, `api/`, and `contracts/`. It is served on Mintlify's own subdomain until `docs.elapse.finance` is pointed at it (Open item); the hackathon write-up carries whichever URL is final. `mintlify dev` runs the site locally. | Deploy preview per PR from the Mintlify GitHub app; `web` outage does not affect docs (separate host). |
-| FR-DOC-002 | Left nav has exactly these ten top-level entries in this order: Introduction, Quickstart, Checkout, Subscriptions, Payouts (FR-DOC-046), Webhooks, SDKs, API reference, Contracts, **Testing**. "Testing" replaces the detailed doc's "Test clocks" because no test-clock resource ships for 13 October (API FR-API-090/091 not built). | `docs.json` navigation snapshot test. |
+| FR-DOC-002 | Left nav has exactly these ten top-level entries in this order: Introduction, Quickstart, Checkout, Subscriptions, Payouts (FR-DOC-046), Webhooks, SDKs, API reference, Contracts, **Testing**. "Testing" replaces the detailed doc's "Test clocks" because no test-clock resource ships for 13 October (API FR-API-090/091 not built). **SDKs is a group, not a page** (amended 2026-09-21): it holds **TypeScript** (`sdks/typescript`, the `@elapse/sdk` reference) and **React** (`sdks/react`), because one product now ships two packages a merchant installs and neither is the default. FR-DOC-047's React page moves under it from the top level, so the count stays at ten. The old paths `/sdks` and `/react` redirect to the new ones rather than 404. | `docs.json` navigation snapshot test; the redirect pair is asserted with it. |
 | FR-DOC-003 | Every page has a title, a one-sentence description, and headings that appear in the right-hand "On this page" list; Mintlify search covers all pages. | Lint: MDX frontmatter `title` and `description` required on every page. |
 | FR-DOC-004 | Light and dark themes from DESIGN.md tokens through `docs.json` (`colors`, `font`, logo per theme), tabular monospaced numerals in code and tables, the Elapse wordmark, and a footer with GitHub and npm links. Mintlify's own layout is accepted as is; no custom CSS beyond numerals. | Screenshot review at 1440 and 390. |
 
@@ -114,11 +114,13 @@ A good test asserts external behaviour, not structure: the committed file equals
 
 ```
 docs-site/site/docs.json          nav (FR-DOC-002), theme (FR-DOC-004), "openapi": "../../api/openapi.json"
-docs-site/site/*.mdx              nine pages
+docs-site/site/*.mdx              the pages
+docs-site/site/sdks/typescript.mdx  the `@elapse/sdk` reference (FR-DOC-040)
+docs-site/site/sdks/react.mdx     the `@elapse/react` reference (FR-DOC-047)
 docs-site/site/snippets/*.mdx     synced, committed, never edited by hand
 docs-site/scripts/sync-snippets.ts  regions + deployments + constants → snippets; --check
 docs-site/ci/quickstart.sh        FR-DOC-012 against a local API
-docs-site/ci/surface-check.ts     SDK exports ⇄ SDKs page ⇄ operationIds
+docs-site/ci/surface-check.ts     SDK exports ⇄ sdks/typescript ⇄ operationIds, and @elapse/react ⇄ sdks/react
 api/openapi.json             committed by `bun run openapi` (FR-API-085)
 contracts/deployments/       input to the Contracts snippet
 examples/saas/src/*.ts       region source
@@ -164,3 +166,5 @@ examples/saas/src/*.ts       region source
 | 2026-09-17 | Furqaan | **Signed** FR-DOC-047 and the FR-DOC-010/040/042 amendments (React SDK). |
 | 2026-09-19 | Claude (for Furqaan) | **Built FR-DOC-047.** A React page documents `<ElapseProvider>`, `<Authorize>`, `<Meter>` and its options, `<TxLink>`, the hooks, theme variables, sound and the CDN build, with its integration snippets synced from `examples/saas`'s own island rather than typed. The Quickstart's step 4 stops printing a URL and step 7 renders the components. The surface check now also diffs `@elapse/react`'s exports against the page — read from the package's export list, not by importing it, because pulling React into the docs site crashes Mintlify's own. `<Receipt>` is not documented: it is named in FR-DOC-047 but the package does not export it, and the check would fail on a doc without a component. 21 docs tests, validate and broken-links green. |
 | 2026-09-20 | Claude (for Furqaan) | **The docs catch up with the retired hosted checkout and the published packages.** `checkout.mdx` still taught `redirect(session.url)` — `url` left the SDK in 0.2.0 (FR-SDK-043) and `/c` was deleted on 2026-09-17 (FR-CHK-040), so the page now describes creating a session server-side and rendering `<Authorize>`/`<Meter>` in the merchant's own page, and records that `success_url`'s origin is the only one Elapse posts a signature result to. `introduction.mdx` and `api-reference/authentication.mdx` lose their hosted-checkout paragraphs; the root, web and lambda READMEs follow. No spec decision changes here — the docs were simply behind signed ones. 21 tests, surface and snippet checks green. |
+| 2026-09-21 | Claude (for William) | **FR-DOC-002 amended, awaiting sign-off.** SDKs becomes a group holding TypeScript (`sdks/typescript`) and React (`sdks/react`). Two reasons: FR-DOC-047 added a top-level React page and never amended this row, so the nav has carried eleven entries against a signed ten since 2026-09-19; and a merchant now installs two packages, so neither `@elapse/sdk` nor `@elapse/react` should sit above the other. William chose moving the files over grouping in place, so `/sdks` and `/react` gain redirects. |
+| 2026-09-21 | William | **Signed** the FR-DOC-002 amendment (SDKs is a group holding TypeScript and React; `/sdks` and `/react` redirect). |
