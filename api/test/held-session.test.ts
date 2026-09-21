@@ -150,22 +150,43 @@ describe("FR-API-139 only the merchant stops a started merchant-mode meter", () 
     return held;
   }
 
-  it("FR_API_139_every_subscriber_stop_pause_or_resume_route_answers_409_and_nothing_reaches_the_chain", async () => {
+  const signed = () => ({ signature: "0x" + "ab".repeat(65), deadline: String(Math.floor(Date.now() / 1000) + 300) });
+
+  it("FR_API_139_every_subscriber_stop_route_answers_409_and_nothing_reaches_the_chain", async () => {
     const { sessionId, subId } = await startedSession();
     chain.setRelayNonce(STREAM, 0n);
     const headers = await identity();
-    const routes: Array<[string, Record<string, unknown>]> = [];
-    for (const action of ["cancel", "pause", "resume"]) {
-      routes.push([`/v1/checkout/sessions/${sessionId}/${action}/prepare`, {}]);
-      routes.push([`/v1/checkout/sessions/${sessionId}/${action}`, { signature: "0x" + "ab".repeat(65), deadline: String(Math.floor(Date.now() / 1000) + 300) }]);
-      routes.push([`/v1/account/subscriptions/${subId}/${action}/prepare`, {}]);
-      routes.push([`/v1/account/subscriptions/${subId}/${action}`, { signature: "0x" + "ab".repeat(65), deadline: String(Math.floor(Date.now() / 1000) + 300) }]);
-    }
+    const routes: Array<[string, Record<string, unknown>]> = [
+      [`/v1/checkout/sessions/${sessionId}/cancel/prepare`, {}],
+      [`/v1/checkout/sessions/${sessionId}/cancel`, signed()],
+      [`/v1/account/subscriptions/${subId}/cancel/prepare`, {}],
+      [`/v1/account/subscriptions/${subId}/cancel`, signed()],
+    ];
     for (const [path, body] of routes) {
       const r = await api("POST", path, { ...(path.startsWith("/v1/checkout") ? { key: m.pkTest } : {}), body, headers });
       expect({ path, status: r.status, code: r.body.error?.code }).toEqual({ path, status: 409, code: "merchant_controlled" });
     }
     expect(chain.cancels).toEqual([]);
+  });
+
+  it("FR_API_044_the_subscriber_pause_and_resume_routes_do_not_exist_at_all", async () => {
+    // Withdrawn 2026-09-20 (signed, ADR 2026-09-20 subscriber-cannot-pause): pausing is the
+    // merchant's on every product, so these routes were deleted rather than made to refuse.
+    // A subscriber who asks wants a 404, not a 409 — there is nothing here to be refused from.
+    const { sessionId, subId } = await startedSession();
+    chain.setRelayNonce(STREAM, 0n);
+    const headers = await identity();
+    const routes: Array<[string, Record<string, unknown>]> = [];
+    for (const action of ["pause", "resume"]) {
+      routes.push([`/v1/checkout/sessions/${sessionId}/${action}/prepare`, {}]);
+      routes.push([`/v1/checkout/sessions/${sessionId}/${action}`, signed()]);
+      routes.push([`/v1/account/subscriptions/${subId}/${action}/prepare`, {}]);
+      routes.push([`/v1/account/subscriptions/${subId}/${action}`, signed()]);
+    }
+    for (const [path, body] of routes) {
+      const r = await api("POST", path, { ...(path.startsWith("/v1/checkout") ? { key: m.pkTest } : {}), body, headers });
+      expect({ path, status: r.status }).toEqual({ path, status: 404 });
+    }
     expect(chain.pauses).toEqual([]);
     expect(chain.resumes).toEqual([]);
   });
