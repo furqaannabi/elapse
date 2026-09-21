@@ -220,41 +220,64 @@ export function Meter({
   }
 
   const paused = m.view === "paused";
+  const e = m.elapsedParts;
   return (
     <>
     {drop}
-    <div className="elapse elapse-card" aria-live="polite">
-      <p className="elapse-label">
-        {s.product.name} · <span className="elapse-numerals">${s.product.rateUsdPerSecond}/s</span>
-      </p>
-      <div className="elapse-readout" data-running={!paused}>
-        <span className="elapse-numerals elapse-elapsed">{m.elapsed}</span>
-        <span className="elapse-numerals elapse-accrued">{m.accrued}</span>
+    <div className="elapse elapse-card elapse-meter" aria-live="polite">
+      {/* The header of the meter on elapse.finance: who and what, then the rate. */}
+      <div className="elapse-meter-head">
+        <span className="elapse-placard">{s.merchant.name} · {s.product.name}</span>
+        <span className="elapse-numerals elapse-rate">${s.product.rateUsdPerSecond}/s</span>
       </div>
-      <p className="elapse-muted">{paused ? "Paused" : "Running"}</p>
-      {m.merchantControlled && sub && (
-        <p className="elapse-muted">
-          {s.merchant.name} stops this meter. It ends by itself at your {formatCap(sub.maxDurationSeconds)}.
-        </p>
-      )}
-      {notice}
-      <div className="elapse-actions">
-        {mute}
-        {canAskResume && (
-          <button type="button" className="elapse-primary" onClick={onResumeRequest}>
-            Resume
-          </button>
+      <div className="elapse-meter-body">
+        <div
+          className="elapse-readout"
+          data-running={!paused}
+          role="timer"
+          aria-live="off"
+          aria-label={`Elapsed ${e.hours}:${e.minutes}:${e.seconds}, accrued ${m.accrued}`}
+        >
+          <div className="elapse-numerals elapse-time">
+            <span>{e.hours}</span>
+            <span className="elapse-colon">:</span>
+            <span>{e.minutes}</span>
+            <span className="elapse-colon">:</span>
+            <span>{e.seconds}</span>
+            <span className="elapse-tenths">.{e.tenths}</span>
+          </div>
+          <div className="elapse-numerals elapse-amount">
+            <span>{m.accrued}</span>
+            <span className="elapse-dot" aria-hidden />
+          </div>
+        </div>
+        {m.merchantControlled && sub && (
+          <p className="elapse-muted">
+            {s.merchant.name} stops this meter. It ends by itself at your {formatCap(sub.maxDurationSeconds)}.
+          </p>
         )}
-        {canAskPause && (
-          <button type="button" className="elapse-outline" onClick={onPauseRequest}>
-            Pause
-          </button>
-        )}
-        {canStop && (
-          <button type="button" className="elapse-outline" onClick={m.stop} disabled={m.busy !== null}>
-            {m.busy === "cancel" ? "Stopping…" : "Stop"}
-          </button>
-        )}
+        {notice}
+        <div className="elapse-meter-foot">
+          <span className="elapse-muted">{paused ? "Paused" : canStop ? "Running · stop any time" : "Running"}</span>
+          <div className="elapse-actions">
+            {mute}
+            {canAskResume && (
+              <button type="button" className="elapse-primary" onClick={onResumeRequest}>
+                Resume
+              </button>
+            )}
+            {canAskPause && (
+              <button type="button" className="elapse-outline" onClick={onPauseRequest}>
+                Pause
+              </button>
+            )}
+            {canStop && (
+              <button type="button" className="elapse-outline" onClick={m.stop} disabled={m.busy !== null}>
+                {m.busy === "cancel" ? "Stopping…" : "Stop"}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
     </>

@@ -200,6 +200,101 @@
   gap: 0.25rem;
 }
 
+/* The meter card itself: the header sits flush to its edges, as on elapse.finance. */
+.elapse-meter {
+  overflow: hidden;
+}
+
+/*
+ * The instrument face, as it is on elapse.finance (FR-RCT-020, web `Readout` size="panel"):
+ * tabular digits that never shift, colons held back so the numbers read first, tenths small and
+ * soft, and the amount carrying the live colour with a dot beside it.
+ */
+.elapse-meter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--elapse-border);
+  margin: -1rem -1rem 0;
+  padding: 0.75rem 1.25rem;
+}
+
+.elapse-placard {
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  color: var(--elapse-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.elapse-rate {
+  font-size: 0.75rem;
+  color: var(--elapse-muted);
+  white-space: nowrap;
+}
+
+.elapse-meter-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-top: 1.5rem;
+}
+
+.elapse-time {
+  display: flex;
+  align-items: baseline;
+  font-size: clamp(2.5rem, 5.6vw, 4.25rem);
+  line-height: 1;
+  color: var(--elapse-fg);
+}
+
+.elapse-colon {
+  opacity: 0.4;
+}
+
+.elapse-tenths {
+  font-size: 0.42em;
+  margin-left: 0.08em;
+  color: var(--elapse-muted);
+}
+
+.elapse-amount {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  line-height: 1;
+  color: var(--elapse-fg);
+  transition: color 300ms ease;
+}
+
+.elapse-readout[data-running="true"] .elapse-amount {
+  color: var(--elapse-accent);
+}
+
+.elapse-dot {
+  display: inline-block;
+  width: 0.22em;
+  height: 0.22em;
+  border-radius: 999px;
+  background: var(--elapse-border);
+  transition: background-color 300ms ease;
+}
+
+.elapse-readout[data-running="true"] .elapse-dot {
+  background: var(--elapse-accent);
+}
+
+.elapse-meter-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
 .elapse-elapsed {
   font-size: 0.875rem;
   color: var(--elapse-muted);

@@ -81,10 +81,14 @@ describe("<Meter> · FR-RCT-020 the live meter", () => {
   it("FR_RCT_020_ticks_elapsed_and_accrued_from_the_rate", async () => {
     mount(wire(sub()));
     await settle();
-    expect(screen.getByText("00:01:23")).toBeTruthy();
+    // The digits are split so the colons can be held back, exactly as the meter on elapse.finance
+    // renders them, so read the timer the way a screen reader does.
+    const timer = () => screen.getByRole("timer");
+    expect(timer().textContent).toContain("00:01:23");
+    expect(timer().getAttribute("aria-label")).toBe("Elapsed 00:01:23, accrued $0.333");
     expect(screen.getByText("$0.333")).toBeTruthy();
     await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
-    expect(screen.getByText("00:01:33")).toBeTruthy();
+    expect(timer().textContent).toContain("00:01:33");
   });
 
   it("FR_RCT_020_follows_the_server_to_the_receipt_within_5s", async () => {

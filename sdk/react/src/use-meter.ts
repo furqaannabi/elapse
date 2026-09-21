@@ -177,6 +177,9 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
     notice,
     busy,
     elapsed: formatElapsed(ms),
+    /** FR-RCT-020: the same digit groups the Elapse app's `Readout` renders, so a merchant's meter
+     *  can look like the one on elapse.finance rather than a smaller cousin of it. */
+    elapsedParts: formatElapsed(ms, { parts: true }),
     accrued: formatUsd(accruedNano(rateNano, ms), 3),
     held: held && sub ? { amount: formatAmount(parseRate(sub.fundedUsd)), startBy: sub.startBy } : null,
     canStop,
