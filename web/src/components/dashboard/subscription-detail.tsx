@@ -36,6 +36,12 @@ export function SubscriptionDetail({ subscriptionId }: { subscriptionId: string 
   const { data, loading, error, reload } = usePoll(fetcher);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * FR-DSH-043: the platform accepts the stop long before `canceled` arrives from ingest
+   * (BR-API-005), and until it does the row still reads active. This is what keeps the page from
+   * offering a second stop in that window — each one is another relayer transaction.
+   */
+  const [stopping, setStopping] = useState(false);
 
   const cancel = async () => {
     if (busy) return;
@@ -43,9 +49,18 @@ export function SubscriptionDetail({ subscriptionId }: { subscriptionId: string 
     try {
       const { receipt } = await api.cancelSubscription(subscriptionId, { idempotencyKey: newIdempotencyKey() });
       setConfirm(false);
-      toast.success(`Stopped. ${receipt.secondsElapsed} seconds · $${receipt.amountSettledUsd} charged, $${receipt.refundedUsd} returned.`);
+      setStopping(true);
+      // The settled figures exist only once the chain has confirmed. Before that the honest word
+      // is "stopping" — quoting a receipt that does not exist yet is what this page used to wait
+      // 90 seconds for, and then report as a failure.
+      toast.success(
+        receipt
+          ? `Stopped. ${receipt.secondsElapsed} seconds · $${receipt.amountSettledUsd} charged, $${receipt.refundedUsd} returned.`
+          : "Stopping this meter. Your server receives subscription.canceled, and the receipt appears here when the network confirms.",
+      );
       await reload();
     } catch (e) {
+      setStopping(false);
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
@@ -136,8 +151,8 @@ export function SubscriptionDetail({ subscriptionId }: { subscriptionId: string 
       </dl>
 
       {running && (
-        <Button variant="destructive" onClick={() => setConfirm(true)} className="mt-5 h-9">
-          Cancel meter
+        <Button variant="destructive" onClick={() => setConfirm(true)} disabled={stopping} className="mt-5 h-9">
+          {stopping ? "Stopping…" : "Cancel meter"}
         </Button>
       )}
 

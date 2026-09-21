@@ -52,6 +52,8 @@ describe("mapping", () => {
   });
 });
 
+const ACTIVE = { id: "sub_1", status: "active" as const, product: "prod_1", customer: "cus_1", checkout_session: "cs_1", rate_usd_per_second: "0.004", started_at: T0, paused_at: null, canceled_at: null, ended_reason: null, max_duration_seconds: 3600, max_escrow_usd: "14.4", funded_usd: "14.4", settled_usd: "0", seconds_elapsed: 10, stream_address: "0x1", chain_id: 10143, livemode: false, created: T0, product_name: "GPU", customer_email: "a@x.test" };
+
 describe("real DashboardApi", () => {
   const api = () => createRealDashboardApi({ baseUrl: BASE, getMode: () => "test" });
 
@@ -140,11 +142,25 @@ describe("real DashboardApi", () => {
     expect(mapSubscription(w)).toMatchObject({ product: { id: "prod_1", name: "GPU" }, customer: { id: "cus_1", email: "a@x.test" }, fundedUsd: "14.4", startedAt: T0 * 1000 });
     const done = { ...w, status: "canceled" as const, ended_reason: "canceled" as const, canceled_at: T0 + 83, settled_usd: "0.332", seconds_elapsed: 83 };
     expect(receiptOf(done)).toEqual({ secondsElapsed: 83, amountSettledUsd: "0.332", refundedUsd: "14.068", canceledAt: (T0 + 83) * 1000 });
-    responses = [{ ...w, pending_tx: "0x" + "1".repeat(64) }, w, done];
+  });
+
+  /**
+   * FR-DSH-043 says "the row shows Canceled within the next poll", and FR-API-042 answers `202`
+   * with the row still `active` because the status only arrives from ingest (BR-API-005). The
+   * client used to block here for 90 s waiting for that ingest, so a merchant who pressed Stop
+   * watched the meter keep climbing, was shown an error for a cancel that had in fact succeeded,
+   * and pressed Stop again — onto a meter that had already ended.
+   */
+  it("cancel resolves when the platform accepts it, without waiting for ingest (FR-DSH-043, FR-API-042)", async () => {
+    responses = [{ ...ACTIVE, pending_tx: "0x" + "1".repeat(64) }];
     const r = await createRealDashboardApi({ baseUrl: BASE, getMode: () => "test" }).cancelSubscription("sub_1");
     expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/subscriptions/sub_1/cancel` });
-    expect(r.subscription.status).toBe("canceled");
-    expect(r.receipt.refundedUsd).toBe("14.068");
+    // Nothing is polled: the caller is told the stop was accepted, and `usePoll` reports the rest.
+    expect(calls.filter((c) => c.method === "GET")).toHaveLength(0);
+    // The row is unchanged — claiming "canceled" before ingest would be a lie (BR-API-005).
+    expect(r.subscription.status).toBe("active");
+    // There is no receipt yet; the settled figures do not exist until the chain confirms.
+    expect(r.receipt).toBeNull();
   });
 
   it("ledger, notifications and audit rows map to the page vocabulary; balance without a payout address is empty, not an error", async () => {

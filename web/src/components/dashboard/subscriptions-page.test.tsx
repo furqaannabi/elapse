@@ -89,6 +89,34 @@ describe("Subscriptions", () => {
     expect((await api.getSubscription(sub.id)).subscription.status).toBe("canceled");
   });
 
+  /**
+   * FR-DSH-043: confirm submits the stop, and "the row shows Canceled within the next poll". The
+   * page used to wait for that poll inside the click handler instead. Against the real platform
+   * the flip arrives from ingest (BR-API-005), so for up to 90 s the dialog stayed open, the
+   * figure it quoted kept climbing, and the merchant was finally shown an error for a stop that
+   * had in fact succeeded — then pressed Stop again, onto a meter that had already ended.
+   */
+  it("acknowledges the stop when the platform accepts it, without waiting for the chain (FR-DSH-043)", async () => {
+    const user = userEvent.setup();
+    const slow = createMockDashboardApi({ latencyMs: 0, cancelConfirmsAfterMs: 60_000 });
+    const { devToken } = await slow.requestMagicLink("demo@elapse.finance");
+    const m = await slow.verifyMagicLink(devToken);
+    const sub = (await slow.listSubscriptions("test", { status: "active" })).data[0]!;
+    mount(slow, m, <SubscriptionDetail subscriptionId={sub.id} />);
+    await user.click(await screen.findByRole("button", { name: /cancel meter/i }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /stop the meter/i }));
+
+    // Accepted is enough to close the dialog: it must not sit on "Stopping…" until the chain confirms.
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // The row still reads active until ingest lands, so the page must stop inviting a second stop —
+    // each one is another relayer transaction.
+    const again = screen.getByRole("button", { name: /stopping/i });
+    expect(again).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /^cancel meter$/i })).not.toBeInTheDocument();
+  });
+
   it("offers Copy id (FR-DSH-044)", async () => {
     const user = userEvent.setup();
     const write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);

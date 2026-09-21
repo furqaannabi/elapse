@@ -130,7 +130,12 @@ export interface DashboardApi extends DashboardApiMore {
   /** The meter, its lifecycle events oldest first, and its settlements newest first (FR-DSH-041/042). */
   getSubscription(id: string): Promise<{ subscription: Subscription; timeline: Event[]; invoices: Invoice[] }>;
   /** Merchant cancel: same contract path as the subscriber's (FR-DSH-043, BR-DSH-008). */
-  cancelSubscription(id: string, opts?: WriteOpts): Promise<{ subscription: Subscription; receipt: CancelReceipt }>;
+  /**
+   * Stops a meter. Resolving means the stop was **accepted**, not that it has landed: against the
+   * real platform the `canceled` status arrives from ingest a few seconds later (BR-API-005), so
+   * `receipt` is `null` until it does and the caller reads the rest from its next poll.
+   */
+  cancelSubscription(id: string, opts?: WriteOpts): Promise<{ subscription: Subscription; receipt: CancelReceipt | null }>;
 }
 
 export type CancelReceipt = { secondsElapsed: number; amountSettledUsd: string; refundedUsd: string; canceledAt: number };
@@ -335,9 +340,14 @@ function restore(store: Store) {
 /** Module-level so a re-created api (client-side navigation) sees the same merchants. */
 let shared: Store | null = null;
 
-export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: number } = {}): MockDashboardApi {
+export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: number; cancelConfirmsAfterMs?: number } = {}): MockDashboardApi {
   const now = opts.now ?? Date.now;
   const latency = opts.latencyMs ?? 250;
+  // The mock settles a cancel the instant it is asked. The real platform cannot: it answers `202`
+  // and the `canceled` status arrives from ingest seconds later (BR-API-005). Left instant, every
+  // page that assumed the flip was immediate passed here and failed in front of a merchant — which
+  // is exactly how the 90-second silent Stop shipped. Set this to model the gap.
+  const confirmAfter = opts.cancelConfirmsAfterMs ?? 0;
   if (!shared) {
     shared = seed(now());
     restore(shared);
@@ -839,63 +849,76 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         const { data, subscription: sub } = findSubscription(id);
         if (sub.status === "canceled") throw new DashboardApiError("invalid_state", "This meter is already stopped");
         if (sub.status === "incomplete" || !sub.startedAt) throw new DashboardApiError("invalid_state", "This meter never started");
-        const t = now();
-        const rate = parseRate(sub.rateUsdPerSecond);
-        const end = sub.pausedAt ?? t;
-        const seconds = Math.floor((end - sub.startedAt) / 1000);
-        const funded = usd(sub.fundedUsd);
-        const total = settledNano(rate, seconds) > funded ? funded : settledNano(rate, seconds);
-        const already = usd(sub.settledUsd);
-        const pull = total > already ? total - already : 0n;
-        if (pull > 0n) {
-          const f = (pull * BigInt(m.feeBps)) / 10_000n;
-          const inv: Invoice = {
-            id: newId("inv") as Invoice["id"],
-            livemode: sub.livemode,
-            subscription: sub.id,
-            customer: sub.customer,
-            settledAt: t,
-            seconds: seconds - Math.floor(Number((already * 1_000_000_000n) / rate) / 1_000_000_000),
-            ...money(pull, f),
-            txId: `0x${(0x5a11 + data.invoices.length * 7919).toString(16).padStart(8, "0")}${"".padEnd(56, "c4")}`.slice(0, 66),
+        // Narrowed here: the guard above does not reach inside the closure.
+        const startedAt = sub.startedAt;
+        /** Everything the cancel does. Deferred when the mock is modelling ingest lag. */
+        const settle = () => {
+          const t = now();
+          const rate = parseRate(sub.rateUsdPerSecond);
+          const end = sub.pausedAt ?? t;
+          const seconds = Math.floor((end - startedAt) / 1000);
+          const funded = usd(sub.fundedUsd);
+          const total = settledNano(rate, seconds) > funded ? funded : settledNano(rate, seconds);
+          const already = usd(sub.settledUsd);
+          const pull = total > already ? total - already : 0n;
+          if (pull > 0n) {
+            const f = (pull * BigInt(m.feeBps)) / 10_000n;
+            const inv: Invoice = {
+              id: newId("inv") as Invoice["id"],
+              livemode: sub.livemode,
+              subscription: sub.id,
+              customer: sub.customer,
+              settledAt: t,
+              seconds: seconds - Math.floor(Number((already * 1_000_000_000n) / rate) / 1_000_000_000),
+              ...money(pull, f),
+              txId: `0x${(0x5a11 + data.invoices.length * 7919).toString(16).padStart(8, "0")}${"".padEnd(56, "c4")}`.slice(0, 66),
+            };
+            data.invoices.unshift(inv);
+            emit(data, {
+              id: newId("evt") as Event["id"],
+              livemode: sub.livemode,
+              type: "invoice.settled",
+              objectId: sub.id,
+              createdAt: t,
+              pendingWebhooks: 0,
+              deliveryState: "delivered",
+              payload: { subscription: sub.id, seconds: inv.seconds, amount_settled: inv.grossUsd },
+              context: { productName: sub.product.name, customer: sub.customer.id, customerEmail: sub.customer.email, amountSettled: inv.grossUsd },
+            });
+          }
+          sub.status = "canceled";
+          sub.canceledAt = t;
+          sub.settledUsd = formatUsd(total, 3, { symbol: false });
+          const receipt: CancelReceipt = {
+            secondsElapsed: seconds,
+            amountSettledUsd: formatUsd(total, 3, { symbol: false }),
+            refundedUsd: formatUsd(funded - total, 3, { symbol: false }),
+            canceledAt: t,
           };
-          data.invoices.unshift(inv);
           emit(data, {
             id: newId("evt") as Event["id"],
             livemode: sub.livemode,
-            type: "invoice.settled",
+            type: "subscription.canceled",
             objectId: sub.id,
             createdAt: t,
             pendingWebhooks: 0,
             deliveryState: "delivered",
-            payload: { subscription: sub.id, seconds: inv.seconds, amount_settled: inv.grossUsd },
-            context: { productName: sub.product.name, customer: sub.customer.id, customerEmail: sub.customer.email, amountSettled: inv.grossUsd },
+            payload: { subscription: sub.id, seconds_elapsed: seconds, amount_settled: receipt.amountSettledUsd, canceled_by: "merchant" },
+            context: { productName: sub.product.name, customer: sub.customer.id, customerEmail: sub.customer.email },
           });
-        }
-        sub.status = "canceled";
-        sub.canceledAt = t;
-        sub.settledUsd = formatUsd(total, 3, { symbol: false });
-        const receipt: CancelReceipt = {
-          secondsElapsed: seconds,
-          amountSettledUsd: formatUsd(total, 3, { symbol: false }),
-          refundedUsd: formatUsd(funded - total, 3, { symbol: false }),
-          canceledAt: t,
+          const product = data.products.find((p) => p.id === sub.product.id);
+          if (product && product.activeSubscriptions > 0) product.activeSubscriptions--;
+          refreshRates(data);
+          data.ledger = buildLedger(data.subscriptions, data.invoices, sub.livemode, newId);
+          return receipt;
         };
-        emit(data, {
-          id: newId("evt") as Event["id"],
-          livemode: sub.livemode,
-          type: "subscription.canceled",
-          objectId: sub.id,
-          createdAt: t,
-          pendingWebhooks: 0,
-          deliveryState: "delivered",
-          payload: { subscription: sub.id, seconds_elapsed: seconds, amount_settled: receipt.amountSettledUsd, canceled_by: "merchant" },
-          context: { productName: sub.product.name, customer: sub.customer.id, customerEmail: sub.customer.email },
-        });
-        const product = data.products.find((p) => p.id === sub.product.id);
-        if (product && product.activeSubscriptions > 0) product.activeSubscriptions--;
-        refreshRates(data);
-        data.ledger = buildLedger(data.subscriptions, data.invoices, sub.livemode, newId);
+        if (confirmAfter > 0) {
+          // Accepted, not landed: the row is handed back untouched and flips when ingest would.
+          const before = { ...sub };
+          setTimeout(settle, confirmAfter);
+          return wait({ subscription: before, receipt: null });
+        }
+        const receipt = settle();
         return wait({ subscription: { ...sub }, receipt });
       });
     },

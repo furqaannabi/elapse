@@ -503,17 +503,16 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       const mine = events.data.filter((e) => e.object_id === w.id || e.object_id === w.checkout_session || (e.data.object as { subscription?: string }).subscription === w.id);
       return { subscription: mapSubscription(w), timeline: mine.map(mapEvent), invoices: invoices.data.map((i) => mapInvoice(i, w.customer_email)) };
     },
+    /**
+     * FR-API-042: the platform answers `202` with the row still `active`; `canceled` arrives only
+     * from ingest (BR-API-005). Resolving here therefore means "the stop was accepted", not "the
+     * meter has stopped" — FR-DSH-043 leaves that flip to the next poll. This call used to block
+     * for 90 s waiting for ingest, which made a stop that had already succeeded look like a
+     * failure and invited a second one onto a meter that had ended.
+     */
     async cancelSubscription(id, opts) {
-      await call("POST", `/v1/subscriptions/${id}/cancel`, { idempotencyKey: idem(opts) });
-      // The chain confirms within seconds; the subscription flips to canceled via ingest (BR-API-005).
-      const deadline = Date.now() + 90_000;
-      let w = await call<WireSubscription>("GET", `/v1/subscriptions/${id}`);
-      while (w.status !== "canceled" && Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 1500));
-        w = await call<WireSubscription>("GET", `/v1/subscriptions/${id}`);
-      }
-      if (w.status !== "canceled") throw new DashboardApiError("network", "The cancel was submitted but the network is slow to confirm. The meter will show as stopped shortly.", 0);
-      return { subscription: mapSubscription(w), receipt: receiptOf(w) };
+      const w = await call<WireSubscription>("POST", `/v1/subscriptions/${id}/cancel`, { idempotencyKey: idem(opts) });
+      return { subscription: mapSubscription(w), receipt: w.status === "canceled" ? receiptOf(w) : null };
     },
     // ── customers (FR-DSH-050/051) ──
     async listCustomers(mode, filter) {
