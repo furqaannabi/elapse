@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { AddressInfo } from "node:net";
 import { Entitlements } from "../src/entitlements";
 import { createServer } from "../src/server";
-import { canceled, sign } from "./sign";
+import { canceled, event, sign } from "./sign";
 
 const SECRET = "whsec_test_secret";
 let close: (() => Promise<void>) | undefined;
@@ -18,6 +18,7 @@ async function start(over: Partial<Parameters<typeof createServer>[0]> = {}) {
     log: (l) => lines.push(l),
     logJson: false,
     createSession: async () => ({ id: `cs_${++n}` }),
+    subscriptions: { pause: async () => {}, resume: async () => {} },
     elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" },
     product: { name: "GPU · 4090", rateUsdPerSecond: "0.004" },
     ...over,
@@ -131,5 +132,79 @@ describe("FR-EXM-010/011 the merchant's own look", () => {
       expect(html).toContain('href="/acme.css"');
       expect(html).toContain("Acme GPU");
     }
+  });
+});
+
+/** Puts a session's Subscription into the entitlement map the way the webhooks do. */
+function seed(entitlements: Entitlements, session: string, sub: string, status = "active") {
+  entitlements.apply(JSON.parse(event("checkout.session.completed", { id: session, subscription: sub, customer: "cus_7Ha" }, "evt_seed1")));
+  entitlements.apply(JSON.parse(event("subscription.created", { id: sub, customer: "cus_7Ha" }, "evt_seed2")));
+  if (status !== "active") entitlements.apply(JSON.parse(event("subscription.updated", { id: sub, status, customer: "cus_7Ha" }, "evt_seed3")));
+}
+
+describe("FR-EXM-033/034 the subscriber asks Acme to pause", () => {
+  it("maps the session to its Subscription, approves at once, and says so in the log", async () => {
+    const asked: string[] = [];
+    const { base, lines, entitlements } = await start({ subscriptions: { pause: async (s) => void asked.push(`pause ${s}`), resume: async (s) => void asked.push(`resume ${s}`) } });
+    seed(entitlements, "cs_9", "sub_4QeABC");
+
+    const res = await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_9" }), headers: { "content-type": "application/json" } });
+
+    expect(res.status).toBe(202);
+    expect(await res.json()).toEqual({ status: "requested" });
+    expect(asked).toEqual(["pause sub_4QeABC"]);
+    expect(lines.at(-1)).toBe("subscriber asked to pause · Acme approved → subscriptions.pause sub_4QeABC");
+  });
+});
+
+describe("FR-EXM-033 nothing is asked of the platform without a meter to ask about", () => {
+  const spy = () => {
+    const calls: string[] = [];
+    return { calls, deps: { pause: async (s: string) => void calls.push(s), resume: async (s: string) => void calls.push(s) } };
+  };
+
+  it("409s on an unknown session, and never calls the platform", async () => {
+    const { calls, deps } = spy();
+    const { base } = await start({ subscriptions: deps });
+    const res = await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_nope" }) });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/no running meter/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("409s on pausing a meter that has stopped", async () => {
+    const { calls, deps } = spy();
+    const { base, entitlements } = await start({ subscriptions: deps });
+    seed(entitlements, "cs_9", "sub_4QeABC");
+    entitlements.apply(JSON.parse(canceled({ id: "sub_4QeABC" }).replace("evt_1S2bXYZ", "evt_z")));
+    expect((await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) })).status).toBe(409);
+    expect(calls).toEqual([]);
+  });
+
+  it("resumes only what is paused", async () => {
+    const { calls, deps } = spy();
+    const { base, entitlements, lines } = await start({ subscriptions: deps });
+    seed(entitlements, "cs_9", "sub_4QeABC");
+    expect((await fetch(`${base}/resume`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) })).status).toBe(409);
+
+    seed(entitlements, "cs_9", "sub_4QeABC", "paused");
+    const res = await fetch(`${base}/resume`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) });
+    expect(res.status).toBe(202);
+    expect(calls).toEqual(["sub_4QeABC"]);
+    expect(lines.at(-1)).toBe("subscriber asked to resume · Acme approved → subscriptions.resume sub_4QeABC");
+  });
+});
+
+describe("FR-EXM-034 a platform refusal leaves the meter alone", () => {
+  it("answers 502, logs it, and does not touch the entitlement map", async () => {
+    const { base, lines, entitlements } = await start({
+      subscriptions: { pause: async () => { throw new Error("relayer_unfunded"); }, resume: async () => {} },
+    });
+    seed(entitlements, "cs_9", "sub_4QeABC");
+    const res = await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) });
+    expect(res.status).toBe(502);
+    expect(lines.at(-1)).toContain("Acme could not: relayer_unfunded");
+    // BR-EXM-010: only a verified Event moves an entitlement.
+    expect(entitlements.get("sub_4QeABC")).toEqual({ entitled: true, reason: "active" });
   });
 });

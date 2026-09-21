@@ -27,8 +27,10 @@ export async function boot(config: Config, io: BootIO) {
   // endregion
 
   // region:product
-  const existing = (await elapse.products.list({ limit: 100 })).data.find((p) => p.name === PRODUCT.name && p.active);
-  const product = existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond }));
+  // FR-EXM-003 (amended 2026-09-21): reuse needs `allow_pause` too. Without it FR-EXM-033's Pause
+  // never renders, and the SDK has no products.update, so a Product made before this is left alone.
+  const existing = (await elapse.products.list({ limit: 100 })).data.find((p) => p.name === PRODUCT.name && p.active && p.allow_pause);
+  const product = existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond, allowPause: true }));
   // endregion
 
   // region:session
@@ -51,7 +53,7 @@ export async function boot(config: Config, io: BootIO) {
   };
 
   const entitlements = new Entitlements();
-  const server = createServer({ entitlements, webhookSecret: config.webhookSecret, log: io.log, ...(io.logJson === undefined ? {} : { logJson: io.logJson }), createSession: nextSession, product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second }, elapse: { publishableKey: config.publishableKey, apiUrl: config.apiUrl, appUrl: config.appUrl } });
+  const server = createServer({ entitlements, webhookSecret: config.webhookSecret, log: io.log, ...(io.logJson === undefined ? {} : { logJson: io.logJson }), createSession: nextSession, product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second }, elapse: { publishableKey: config.publishableKey, apiUrl: config.apiUrl, appUrl: config.appUrl }, subscriptions: { pause: async (id) => void (await elapse.subscriptions.pause(id)), resume: async (id) => void (await elapse.subscriptions.resume(id)) } });
   await new Promise<void>((resolve, reject) => {
     server.once("error", (err: NodeJS.ErrnoException) => reject(new Error(err.code === "EADDRINUSE" ? `EADDRINUSE: port ${config.port} is already in use. Set PORT in .env.` : err.message)));
     server.listen(config.port, resolve);

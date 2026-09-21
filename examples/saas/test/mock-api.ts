@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
 /** A tiny Elapse API double: records every request, answers products.list/create and checkout.sessions.create. */
-export async function mockApi(opts: { existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string }> } = {}) {
+export async function mockApi(opts: { existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string; allow_pause?: boolean }> } = {}) {
   const requests: Array<{ method: string; path: string; auth: string | undefined; body: unknown }> = [];
   let n = 0;
   const server: Server = createServer(async (req, res) => {
@@ -16,11 +16,11 @@ export async function mockApi(opts: { existingProducts?: Array<{ id: string; nam
       res.end(JSON.stringify(body));
     };
     if (req.method === "GET" && path.startsWith("/v1/products")) {
-      return json(200, { object: "list", data: (opts.existingProducts ?? []).map((p) => ({ object: "product", active: true, ...p })), has_more: false, url: "/v1/products" });
+      return json(200, { object: "list", data: (opts.existingProducts ?? []).map((p) => ({ object: "product", active: true, allow_pause: false, ...p })), has_more: false, url: "/v1/products" });
     }
     if (req.method === "POST" && path === "/v1/products") {
-      const b = JSON.parse(raw) as { name: string; rate_usd_per_second: string };
-      return json(200, { id: `prod_new${++n}`, object: "product", name: b.name, rate_usd_per_second: b.rate_usd_per_second, active: true });
+      const b = JSON.parse(raw) as { name: string; rate_usd_per_second: string; allow_pause?: boolean };
+      return json(200, { id: `prod_new${++n}`, object: "product", name: b.name, rate_usd_per_second: b.rate_usd_per_second, active: true, allow_pause: Boolean(b.allow_pause) });
     }
     if (req.method === "POST" && path === "/v1/checkout/sessions") {
       const b = JSON.parse(raw) as { product: string };

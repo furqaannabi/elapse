@@ -20,6 +20,11 @@ export interface ServerDeps {
   product: { name: string; rateUsdPerSecond: string };
   /** What the product page hands to <ElapseProvider> (FR-EXM-032). */
   elapse: { publishableKey: string; apiUrl: string; appUrl: string };
+  /**
+   * FR-EXM-034: `subscriptions.pause` / `subscriptions.resume` behind functions, like
+   * `createSession`, so tests need no API. Acme holds the secret key; the browser never does.
+   */
+  subscriptions: { pause: (subscription: string) => Promise<void>; resume: (subscription: string) => Promise<void> };
 }
 
 /** What `npm run build:web` writes into `dist/`, served from the page. */
@@ -105,6 +110,26 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   const access = url.pathname.match(/^\/access\/([\w-]+)$/);
   if (req.method === "GET" && access) {
     return send(res, 200, "application/json", JSON.stringify(deps.entitlements.get(access[1] as string)));
+  }
+  // FR-EXM-033/034: the subscriber asked; Acme decides. The browser sends the `cs_` id it already
+  // has and never a `sub_` id — the mapping is FR-EXM-023's, on this side of the wire.
+  // BR-EXM-009: open, like /access/:sub. A production merchant authenticates the subscriber first.
+  const ask = req.method === "POST" && (url.pathname === "/pause" || url.pathname === "/resume") ? (url.pathname.slice(1) as "pause" | "resume") : undefined;
+  if (ask) {
+    const session = String((JSON.parse((await readRaw(req)) || "{}") as { session?: unknown }).session ?? "");
+    const e = deps.entitlements.forSession(session);
+    const ready = ask === "pause" ? e?.reason === "active" : e?.reason === "paused";
+    if (!e || !ready) {
+      return send(res, 409, "application/json", JSON.stringify({ error: `No ${ask === "pause" ? "running" : "paused"} meter for that session.` }));
+    }
+    try {
+      await deps.subscriptions[ask](e.subscription);
+      deps.log(`subscriber asked to ${ask} · Acme approved → subscriptions.${ask} ${e.subscription}`);
+      return send(res, 202, "application/json", JSON.stringify({ status: "requested" }));
+    } catch (err) {
+      deps.log(`subscriber asked to ${ask} · Acme could not: ${(err as Error).message}`);
+      return send(res, 502, "application/json", JSON.stringify({ error: `Acme could not ${ask} that meter.` }));
+    }
   }
   if (req.method === "POST" && url.pathname === "/webhooks") {
     const raw = await readRaw(req);

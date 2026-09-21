@@ -8,7 +8,7 @@ let close: (() => Promise<void>) | undefined;
 afterEach(async () => { await close?.(); close = undefined; });
 
 async function serve(secret: string) {
-  const server = createServer({ entitlements: new Entitlements(), webhookSecret: secret, log: () => {}, logJson: false, createSession: async () => ({ id: "cs_1" }), product: { name: "GPU · 4090", rateUsdPerSecond: "0.004" }, elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" } });
+  const server = createServer({ entitlements: new Entitlements(), webhookSecret: secret, log: () => {}, logJson: false, createSession: async () => ({ id: "cs_1" }), product: { name: "GPU · 4090", rateUsdPerSecond: "0.004" }, elapse: { publishableKey: "pk_test_abc", apiUrl: "https://api.elapse.finance", appUrl: "https://elapse.finance" }, subscriptions: { pause: async () => {}, resume: async () => {} } });
   await new Promise<void>((r) => server.listen(0, r));
   close = () => new Promise((r) => server.close(() => r()));
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
