@@ -137,11 +137,11 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
       )}
 
       {phase.k === "session" && (
-        // FR-RCT-042: docked bottom-right, out of the terminal's flow — the subscriber watches the
-        // amount in the corner while their code and its output keep the page.
+        // FR-EXM-152 (amended 2026-09-21): the instrument, in the page, where <Authorize> stood —
+        // the meter on elapse.finance, in Northwind's colours. It was a capsule in the corner until
+        // now; the meter is what this console exists to show, so it gets the room.
         <Meter
           session={phase.session}
-          dock="bottom-right"
           // Northwind's meter is Northwind's to stop (FR-CHK-037): the subscriber gets no Stop,
           // not even in the held second before the first run starts it.
           controls={false}
