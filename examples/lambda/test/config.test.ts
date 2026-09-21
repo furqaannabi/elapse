@@ -43,6 +43,8 @@ describe("FR-EXM-101 config", () => {
       maxDurationSeconds: 3600,
       idleTimeoutSeconds: 60,
       heartbeatStaleSeconds: 15,
+      // FR-EXM-154 (amended): a paused session costs nothing, so it is reclaimed generously.
+      pausedEndSeconds: 600,
     });
   });
 

@@ -33,6 +33,9 @@ export interface ServerDeps {
   startPollMs?: number;
   /** `subscriptions.cancel`, behind a function (BR-EXM-110). */
   cancelSubscription: (sub: string) => Promise<void>;
+  /** FR-EXM-156: Northwind pauses and resumes its own meter, as keeper (FR-API-141/142). */
+  pauseSubscription: (sub: string) => Promise<void>;
+  resumeSubscription: (sub: string) => Promise<void>;
   product: { name: string; rateUsdPerSecond: string };
   /** What the console page hands to <ElapseProvider> (FR-EXM-152). */
   elapse: { publishableKey: string; apiUrl: string; appUrl: string };
@@ -224,6 +227,30 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     return send(res, 204, "text/plain", "");
   }
 
+  // FR-EXM-156: the subscriber asked Northwind to pause or resume. Nothing about this is signed and
+  // nothing goes to Elapse from the page — the ask travels over Northwind's own wire, and Northwind
+  // decides (FR-RCT-021). The same pause path serves the idle sweep.
+  if (req.method === "POST" && (url.pathname === "/pause" || url.pathname === "/resume")) {
+    const sub = url.searchParams.get("sub") ?? "";
+    const session = deps.sessions.get(sub);
+    if (!session || session.state === "ended") {
+      return send(res, 404, "application/json", JSON.stringify({ error: "no such session" }));
+    }
+    if (url.pathname === "/pause") {
+      await pauseSession(sub, deps, "asked");
+      return send(res, 204, "text/plain", "");
+    }
+    try {
+      await deps.resumeSubscription(sub);
+      deps.log(`▶ resumed (asked) ${sub}`);
+    } catch (err) {
+      const message = (err as Error).message || "could not resume";
+      deps.log(`✗ resume ${sub}: ${message}`);
+      return send(res, 502, "application/json", JSON.stringify({ error: message }));
+    }
+    return send(res, 204, "text/plain", "");
+  }
+
   // FR-EXM-130: verify the raw bytes, answer fast, then do the merchant work (BR-EXM-102).
   // The webhook is the source of truth for whether a session is open (FR-EXM-132).
   if (req.method === "POST" && url.pathname === "/webhooks") {
@@ -289,14 +316,10 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
     return { status: 429, body: { error: "daily execution limit reached" } };
   }
   deps.sessions.touch(sub, now, { run: true });
-  let result;
-  try {
-    result = await deps.executor.run(code);
-  } finally {
-    // FR-EXM-153 (amended 2026-09-20): the session ends the moment the run does, whether it
-    // returned or threw. One session per execution; the next Run authorises a new one.
-    await endSession(sub, "run", deps);
-  }
+  // FR-EXM-153 (amended 2026-09-21): the run does not end the session. The meter runs on wall-clock
+  // time from the first Run until the subscriber ends it, so one authorisation covers every Run in
+  // the session and there is something left on screen to stop.
+  const result = await deps.executor.run(code);
   // FR-EXM-120: one line per run, so the terminal shows what the meter is being paid for.
   const outcome = result.ok ? JSON.stringify(result.result) : result.error;
   const { used, limit } = deps.sessions.runsToday(now);
@@ -310,6 +333,17 @@ async function runOnce(sub: string, code: string, deps: ServerDeps): Promise<{ s
  * subscriber is refunded rather than left holding a meter that never ran.
  */
 async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps): Promise<boolean> {
+  // FR-EXM-154 (amended 2026-09-21): the sweep pauses an idle meter, so a Run that arrives after it
+  // resumes rather than starting — the stream and the subscriber's authorisation both still stand.
+  if (state === "paused") {
+    try {
+      await deps.resumeSubscription(sub);
+      deps.log(`▶ resumed meter ${sub}`);
+    } catch (err) {
+      deps.log(`✗ resume ${sub}: ${(err as Error).message}`);
+      return false;
+    }
+  }
   if (state === "authorised") {
     deps.sessions.markStarting(sub, deps.now());
     try {
@@ -369,7 +403,7 @@ const MAX_CANCEL_ATTEMPTS = 5;
  * the await so a second beacon or the next sweep tick cannot issue a second cancel while the
  * chain confirms; the `subscription.canceled` webhook is what finally closes it (BR-EXM-110).
  */
-export async function endSession(sub: string, reason: "left" | "idle" | "run", deps: ServerDeps): Promise<void> {
+export async function endSession(sub: string, reason: "left" | "abandoned" | "idle" | "run", deps: ServerDeps): Promise<void> {
   const session = deps.sessions.get(sub);
   // FR-EXM-126: an authorised or starting session is cancelled too — a full refund, since
   // nothing has accrued yet.
@@ -393,16 +427,37 @@ export async function endSession(sub: string, reason: "left" | "idle" | "run", d
 }
 
 /**
- * FR-EXM-117: one tick of the auto-end sweep, which the boot script runs on a timer. The store
- * decides *which* sessions are due and *why*; this only carries the decision out, so the timing
- * rules stay testable without a server, a clock, or the SDK.
+ * FR-EXM-154 (amended 2026-09-21): pause a meter whose subscriber is present but idle. Paused
+ * seconds are never billed, so this is what bounds the cost of walking away — and the guard is set
+ * before the await, so the next tick cannot send a second pause while the chain confirms.
+ */
+export async function pauseSession(sub: string, deps: ServerDeps, reason: "idle" | "asked" = "idle"): Promise<void> {
+  const session = deps.sessions.get(sub);
+  if (!session || session.state !== "active" || session.pausing || session.canceling) return;
+  deps.sessions.markPausing(sub);
+  deps.log(reason === "asked" ? `⏸ paused (asked) ${sub}` : `⏸ auto-paused (idle) ${sub}`);
+  try {
+    await deps.pauseSubscription(sub);
+  } catch (err) {
+    // A pause that failed must not strand the guard, or the meter would run on unpaused and the
+    // sweep would never try again. Clearing it lets the next tick retry.
+    deps.sessions.clearPausing(sub);
+    deps.log(`✗ pause ${sub} failed, will retry: ${(err as Error).message}`);
+  }
+}
+
+/**
+ * FR-EXM-117/154: one tick of the sweep, which the boot script runs on a timer. The store decides
+ * *which* sessions are due and *what* should happen to them; this only carries the decision out, so
+ * the timing rules stay testable without a server, a clock, or the SDK.
  */
 export async function sweepOnce(
   deps: ServerDeps,
   nowMs: number,
-  windows: { idleTimeoutMs: number; heartbeatStaleMs: number },
+  windows: { idleTimeoutMs: number; heartbeatStaleMs: number; pausedEndMs: number },
 ): Promise<void> {
-  for (const { sub, reason } of deps.sessions.dueForAutoEnd(nowMs, windows)) {
-    await endSession(sub, reason, deps);
+  for (const { sub, action, reason } of deps.sessions.dueForSweep(nowMs, windows)) {
+    if (action === "pause") await pauseSession(sub, deps);
+    else await endSession(sub, reason, deps);
   }
 }

@@ -39,7 +39,7 @@ export async function boot(config: Config, io: BootIO) {
     (p) => p.name === PRODUCT.name && p.active && p.start_mode === "merchant",
   );
   const product =
-    existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond, startMode: "merchant" }));
+    existing ?? (await elapse.products.create({ name: PRODUCT.name, rateUsdPerSecond: PRODUCT.rateUsdPerSecond, startMode: "merchant", allowPause: true }));
   // endregion
 
   let executor: Executor;
@@ -85,6 +85,13 @@ export async function boot(config: Config, io: BootIO) {
     cancelSubscription: async (sub) => {
       await elapse.subscriptions.cancel(sub);
     },
+    // FR-EXM-156: the subscriber asks Northwind to pause; Northwind is the one that calls Elapse.
+    pauseSubscription: async (sub) => {
+      await elapse.subscriptions.pause(sub);
+    },
+    resumeSubscription: async (sub) => {
+      await elapse.subscriptions.resume(sub);
+    },
     // endregion
     product: { name: product.name, rateUsdPerSecond: product.rate_usd_per_second },
     // FR-EXM-152: what the console page hands to <ElapseProvider>.
@@ -102,7 +109,7 @@ export async function boot(config: Config, io: BootIO) {
   });
   const port = (server.address() as AddressInfo).port;
 
-  const windows = { idleTimeoutMs: config.idleTimeoutSeconds * 1000, heartbeatStaleMs: config.heartbeatStaleSeconds * 1000 };
+  const windows = { idleTimeoutMs: config.idleTimeoutSeconds * 1000, heartbeatStaleMs: config.heartbeatStaleSeconds * 1000, pausedEndMs: config.pausedEndSeconds * 1000 };
   const sweep = setInterval(() => {
     void sweepOnce(deps, Date.now(), windows).catch((err: Error) => io.log(`✗ sweep: ${err.message}`));
   }, SWEEP_INTERVAL_MS);

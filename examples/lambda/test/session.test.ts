@@ -53,7 +53,7 @@ describe("FR-EXM-116 heartbeat and run activity", () => {
 });
 
 describe("FR-EXM-117 auto-end sweep", () => {
-  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
   const now = t0 + 70_000;
 
   const store = () => {
@@ -69,20 +69,20 @@ describe("FR-EXM-117 auto-end sweep", () => {
     return s;
   };
 
-  it("flags a vanished viewer as left and a present-but-inactive one as idle", () => {
-    const due = store().dueForAutoEnd(now, windows);
+  it("ends a vanished viewer's session and pauses a present-but-inactive one", () => {
+    const due = store().dueForSweep(now, windows);
     expect(due).toEqual(expect.arrayContaining([
-      { sub: "sub_left", reason: "left" },
-      { sub: "sub_idle", reason: "idle" },
+      { sub: "sub_left", action: "end", reason: "left" },
+      { sub: "sub_idle", action: "pause", reason: "idle" },
     ]));
     expect(due.map((d) => d.sub)).not.toContain("sub_ok");
   });
 
   it("does not re-issue a cancel for a session already canceling", () => {
     const s = store();
-    expect(s.dueForAutoEnd(now, windows).map((d) => d.sub)).toContain("sub_idle");
+    expect(s.dueForSweep(now, windows).map((d) => d.sub)).toContain("sub_idle");
     s.markCanceling("sub_idle");
-    expect(s.dueForAutoEnd(now, windows).map((d) => d.sub)).not.toContain("sub_idle");
+    expect(s.dueForSweep(now, windows).map((d) => d.sub)).not.toContain("sub_idle");
   });
 });
 
@@ -123,30 +123,88 @@ describe("FR-EXM-153 the session ends with its run", () => {
 });
 
 describe("FR-EXM-154 the idle timeout is cleanup, not billing", () => {
-  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
 
-  it("reclaims a session left running because its cancel never confirmed", () => {
+  it("leaves a session whose cancel is in flight alone until the webhook lands", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyAuthorised("sub_1", { nowMs: t0 });
     s.applyActive("sub_1", { startedAt: t0, nowMs: t0 });
     s.markCanceling("sub_1");
-    s.noteCancelFailure("sub_1"); // the cancel was refused, so the guard is cleared for a retry
     s.touch("sub_1", t0 + 70_000);
-    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "idle" }]);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([]);
+  });
+});
+
+describe("FR-EXM-154 (amended 2026-09-21) an idle meter pauses rather than ends", () => {
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
+
+  it("pauses a subscriber who is present but has run nothing, instead of ending their session", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    // Still here — the heartbeats keep arriving — but nothing has run for longer than the window.
+    s.touch("sub_1", t0 + 70_000);
+    // Paused seconds are never billed (BR-CON-003), so walking away from the tab costs the
+    // subscriber a minute of meter, not the session and not a second authorisation.
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "pause", reason: "idle" }]);
   });
 
-  it("leaves a session whose cancel is in flight alone — it already ended with its run", () => {
+  it("ends a session whose tab is gone rather than pausing someone who is not there", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    s.touch("sub_1", t0 + 1_000); // last heard from a second in, then silence
+    // Northwind sells compute, so a subscriber who has left is done — pausing would hold a session
+    // open for someone who is never coming back to it.
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "left" }]);
+  });
+
+  it("leaves a paused session alone while it is present, and ends it once it is abandoned", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    s.applyPaused("sub_1", { nowMs: t0 + 60_000 });
+
+    // Still heartbeating, five minutes paused: nothing is accruing, so there is nothing to reclaim
+    // and no second pause to issue.
+    s.touch("sub_1", t0 + 360_000);
+    expect(s.dueForSweep(t0 + 360_000, windows)).toEqual([]);
+
+    // Past the paused window the escrow is held for someone who is not coming back. Refund it.
+    s.touch("sub_1", t0 + 700_000);
+    expect(s.dueForSweep(t0 + 700_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "abandoned" }]);
+  });
+
+  it("does not ask for a second pause while the first is still confirming", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    s.touch("sub_1", t0 + 70_000);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "pause", reason: "idle" }]);
+
+    // `paused` arrives by webhook a second or two later. Until it does the meter still reads active,
+    // so without a guard every sweep tick would send another relayer transaction (BR-EXM-110).
+    s.markPausing("sub_1");
+    expect(s.dueForSweep(t0 + 75_000, windows)).toEqual([]);
+  });
+
+  it("retries an end that failed instead of pausing a session the subscriber asked to close", () => {
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
+    s.markCanceling("sub_1");
+    s.noteCancelFailure("sub_1"); // the cancel was refused, so the guard cleared for a retry
+    s.touch("sub_1", t0 + 70_000);
+    // The intent was to end. Pausing here would quietly hold a session open — and its escrow —
+    // for a subscriber who already asked for it back.
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "abandoned" }]);
+  });
+
+  it("never starts the idle clock before the meter does — editing code is free (FR-EXM-126)", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyAuthorised("sub_1", { nowMs: t0 });
-    s.applyActive("sub_1", { startedAt: t0, nowMs: t0 });
-    s.markCanceling("sub_1");
-    s.touch("sub_1", t0 + 70_000);
-    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([]);
+    s.touch("sub_1", t0 + 70_000); // present the whole time, has not pressed Run yet
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([]);
   });
 });
 
 describe("FR-EXM-126 a session the console has not reached yet", () => {
-  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
 
   it("is not swept before the console has ever said it is here", () => {
     // `subscription.created` arrives from the webhook, not from the page: the console cannot
@@ -155,22 +213,22 @@ describe("FR-EXM-126 a session the console has not reached yet", () => {
     // (worker FR-WRK-075) is the backstop for one that really was abandoned.
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyAuthorised("sub_1", { nowMs: t0 });
-    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([]);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([]);
 
     // Once the console has been heard from, the stale window applies as before.
     s.touch("sub_1", t0 + 1_000);
-    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "left" }]);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "left" }]);
   });
 
   it("a running meter is always swept: it is accruing whether or not a console ever appeared", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
-    expect(s.dueForAutoEnd(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", reason: "left" }]);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "left" }]);
   });
 });
 
 describe("FR-EXM-126 leaving before the meter starts", () => {
-  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000 };
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
   const now = t0 + 70_000;
 
   it("a vanished viewer is due even before start; an idle one is not, because editing costs nothing", () => {
@@ -184,9 +242,9 @@ describe("FR-EXM-126 leaving before the meter starts", () => {
     s.touch("sub_starting", t0);
     s.markStarting("sub_starting", t0);
 
-    const due = s.dueForAutoEnd(now, windows);
-    expect(due).toContainEqual({ sub: "sub_gone", reason: "left" });
-    expect(due).toContainEqual({ sub: "sub_starting", reason: "left" });
+    const due = s.dueForSweep(now, windows);
+    expect(due).toContainEqual({ sub: "sub_gone", action: "end", reason: "left" });
+    expect(due).toContainEqual({ sub: "sub_starting", action: "end", reason: "left" });
     expect(due.map((d) => d.sub)).not.toContain("sub_here");
   });
 
@@ -194,6 +252,6 @@ describe("FR-EXM-126 leaving before the meter starts", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyAuthorised("sub_1", { nowMs: t0 });
     s.applyClosed("sub_1", { nowMs: t0 });
-    expect(s.dueForAutoEnd(now, windows)).toEqual([]);
+    expect(s.dueForSweep(now, windows)).toEqual([]);
   });
 });

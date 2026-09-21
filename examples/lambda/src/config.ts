@@ -20,6 +20,7 @@ export interface Config {
   maxDurationSeconds: number;
   idleTimeoutSeconds: number;
   heartbeatStaleSeconds: number;
+  pausedEndSeconds: number;
 }
 
 export class ConfigError extends Error {}
@@ -60,5 +61,9 @@ export function loadConfig(env: Record<string, string | undefined>): Config {
     maxDurationSeconds: num("MAX_DURATION_SECONDS", 3600),
     idleTimeoutSeconds: num("IDLE_TIMEOUT_SECONDS", 60),
     heartbeatStaleSeconds: num("HEARTBEAT_STALE_SECONDS", 15),
+    // FR-EXM-154 (amended 2026-09-21): how long a paused session is kept before its escrow is
+    // returned. Nothing accrues while paused, so this can be generous — it only reclaims a session
+    // whose subscriber is not coming back.
+    pausedEndSeconds: num("PAUSED_END_SECONDS", 600),
   };
 }

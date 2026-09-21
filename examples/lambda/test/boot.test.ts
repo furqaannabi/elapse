@@ -21,7 +21,7 @@ const config = (apiUrl: string): Config => ({
   dailyRunLimit: 20,
   maxDurationSeconds: 3600,
   idleTimeoutSeconds: 60,
-  heartbeatStaleSeconds: 15,
+  heartbeatStaleSeconds: 15, pausedEndSeconds: 600,
 });
 
 async function run(existing?: Array<{ id: string; name: string; rate_usd_per_second: string; start_mode?: string }>) {
@@ -43,7 +43,8 @@ describe("FR-EXM-102 npm start", () => {
     ]);
     expect(api.requests.every((r) => r.auth === "Bearer sk_test_abc")).toBe(true);
     // FR-EXM-102 (amended): merchant start mode — the meter waits for the first Run (FR-EXM-125).
-    expect(api.requests[1]?.body).toEqual({ name: "Serverless runtime", rate_usd_per_second: "0.002", start_mode: "merchant" });
+    // FR-EXM-156: without `allow_pause` the subscriber's <Meter> renders no Pause at all (FR-RCT-021).
+    expect(api.requests[1]?.body).toEqual({ name: "Serverless runtime", rate_usd_per_second: "0.002", start_mode: "merchant", allow_pause: true });
 
     // FR-EXM-114: sessions are created on demand at first Run, never at boot.
     expect(api.requests.some((r) => r.path === "/v1/checkout/sessions")).toBe(false);

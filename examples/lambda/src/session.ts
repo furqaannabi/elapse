@@ -28,10 +28,14 @@ export interface Session {
   /** `state === "active"`, kept as a field so the routes and tests read the same word as before. */
   active: boolean;
   canceling: boolean;
+  /** A pause has been sent and `paused` has not arrived yet (BR-EXM-110's guard, for pause). */
+  pausing?: boolean;
   customer?: string;
   startedAt?: number;
   lastSeen: number;
   lastRun: number;
+  /** When `subscription.updated` reported `paused`, so the sweep can tell a pause from an abandonment. */
+  pausedAt?: number;
   cancelAttempts?: number;
   secondsElapsed?: number;
   paidUsd?: string;
@@ -128,7 +132,7 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     applyPaused(sub: string, info: { nowMs: number }): void {
       const prev = sessions.get(sub);
       if (!prev) return;
-      sessions.set(sub, { ...prev, state: "paused", active: false, updatedAt: info.nowMs });
+      sessions.set(sub, { ...prev, state: "paused", active: false, pausing: false, pausedAt: info.nowMs, updatedAt: info.nowMs });
     },
 
     /** FR-EXM-133: `subscription.updated` with `status: "active"` — the meter is running now. */
@@ -184,27 +188,50 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     },
 
     /**
-     * FR-EXM-117/126: which sessions should be auto-ended now, and why. `left` means the
-     * console stopped heartbeating (tab closed, network gone); `idle` means it is still there
-     * but nothing has run. A session already `canceling` is skipped so `subscriptions.cancel`
-     * is issued once per session while the chain confirms (BR-EXM-110).
+     * FR-EXM-117/154 (amended 2026-09-21): what the sweep should do to each session now, and why.
+     * A subscriber who is present but has run nothing is **paused**, not ended: paused seconds are
+     * never billed (BR-CON-003), so an idle tab costs them the window rather than their session and
+     * a second authorisation. Ending is for someone who has actually gone.
+     *
+     * The module stays pure state: the `subscriptions.pause` / `cancel` calls and the webhooks that
+     * confirm them live in the server (BR-EXM-110), so the timing rules test without the SDK.
      */
-    dueForAutoEnd(nowMs: number, windows: { idleTimeoutMs: number; heartbeatStaleMs: number }): Array<{ sub: string; reason: "left" | "idle" }> {
-      const due: Array<{ sub: string; reason: "left" | "idle" }> = [];
+    dueForSweep(
+      nowMs: number,
+      windows: { idleTimeoutMs: number; heartbeatStaleMs: number; pausedEndMs: number },
+    ): Array<{ sub: string; action: "pause" | "end"; reason: "left" | "idle" | "abandoned" }> {
+      const due: Array<{ sub: string; action: "pause" | "end"; reason: "left" | "idle" | "abandoned" }> = [];
       for (const [sub, s] of sessions) {
-        if (s.state === "ended" || s.canceling) continue;
+        if (s.state === "ended" || s.canceling || s.pausing) continue;
         // FR-EXM-126: nothing to measure until the console has been heard from at least once.
         if (!s.seen) continue;
-        if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, reason: "left" });
+        if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, action: "end", reason: "left" });
+        // An end was asked for and the cancel was refused. The intent stands: retry it rather than
+        // pause, or the escrow stays held for a subscriber who already asked for it back.
+        else if (s.cancelAttempts) due.push({ sub, action: "end", reason: "abandoned" });
+        // A paused meter accrues nothing, so there is nothing to reclaim until the escrow has been
+        // held long enough that nobody is coming back for it.
+        else if (s.state === "paused") {
+          if (nowMs - (s.pausedAt ?? s.updatedAt) > windows.pausedEndMs) due.push({ sub, action: "end", reason: "abandoned" });
+        }
         // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
-        // FR-EXM-154 (amended 2026-09-20): a session ends with its run, so the timeout no longer
-        // governs a running meter. It is cleanup for one left running because its cancel was
-        // refused — `noteCancelFailure` clears the guard above, and this picks it up.
         else if (s.state !== "authorised" && s.state !== "starting" && nowMs - s.lastRun > windows.idleTimeoutMs) {
-          due.push({ sub, reason: "idle" });
+          due.push({ sub, action: "pause", reason: "idle" });
         }
       }
       return due;
+    },
+
+    /** FR-EXM-154 (amended): a pause has been sent; do not send another until `paused` lands. */
+    markPausing(sub: string): void {
+      const prev = sessions.get(sub);
+      if (prev) sessions.set(sub, { ...prev, pausing: true });
+    },
+
+    /** FR-EXM-154 (amended): the pause was refused, so let the next sweep try again. */
+    clearPausing(sub: string): void {
+      const prev = sessions.get(sub);
+      if (prev) sessions.set(sub, { ...prev, pausing: false });
     },
 
     /** FR-EXM-117/118: a cancel has been issued; do not issue another until the webhook lands. */
