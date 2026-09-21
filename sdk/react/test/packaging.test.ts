@@ -111,3 +111,24 @@ describe("FR-RCT-001 packaging", () => {
     expect(pkg.files).not.toContain("src/math.ts");
   });
 });
+
+describe("the package cannot ship something that was never built", () => {
+  it("rebuilds on publish, so dist can never be a previous version's", () => {
+    // 0.4.0 shipped 0.3.0's JavaScript with 0.4.0's stylesheet: `npm publish` packs whatever is in
+    // dist/, and nothing forced a build first. The stylesheet is shipped raw, so only the JS was stale.
+    const pkg = JSON.parse(read("package.json"));
+    expect(pkg.scripts.prepublishOnly).toMatch(/build/);
+  });
+
+  it("ships a stylesheet a bundler can parse", () => {
+    const css = read("styles.css");
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+    let depth = 0;
+    for (const ch of bare) {
+      if (ch === "{") depth++;
+      else if (ch === "}" && --depth < 0) break;
+    }
+    // esbuild warns "Unexpected }" and drops the rest of the file; the meter then renders unstyled.
+    expect(depth).toBe(0);
+  });
+});
