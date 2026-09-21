@@ -127,6 +127,39 @@ describe("FR-API-042 merchant cancel", () => {
     expect(ev.data.object.manage_url).toBe(after.body.manage_url);
   });
 
+  /**
+   * FR-API-137/138 require a cancel to stamp `cancel_submitted_at` "so the sweep never sends a
+   * second cancel for the same stream" — the reason recorded on 2026-09-15 being that a second
+   * submission reverts and burns gas. `cancelAsKeeper` never stamped it, and because the row stays
+   * `active` until ingest (BR-API-005) a merchant who pressed Stop twice inside that window sent
+   * two keeper transactions. `startAsKeeper` has guarded its own in-flight submit all along.
+   */
+  it("FR_API_042_a_second_cancel_while_the_first_is_confirming_submits_nothing_new", async () => {
+    const { subId } = await liveSubscription();
+    expect((await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest })).status).toBe(202);
+    expect(chain.keeperCancels).toEqual([STREAM]);
+    const [row] = await sql`SELECT cancel_submitted_at FROM subscriptions WHERE id = ${subId}`;
+    expect(row.cancel_submitted_at).not.toBeNull();
+
+    // Ingest has not landed, so the row still reads active: the exact window a merchant clicks in.
+    const again = await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest });
+    expect(again.status).toBe(409);
+    expect(again.body.error.code).toBe("cancel_in_flight");
+    expect(chain.keeperCancels).toEqual([STREAM]);
+  });
+
+  it("FR_API_042_a_stop_that_never_confirmed_can_be_sent_again_so_the_meter_is_not_stranded", async () => {
+    const { subId } = await liveSubscription();
+    await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest });
+    expect(chain.keeperCancels).toEqual([STREAM]);
+    // The relayer transaction was dropped and never confirmed. Refusing forever would leave the
+    // meter running to the escrow cap and overcharge the subscriber, so the guard has to expire.
+    await sql`UPDATE subscriptions SET cancel_submitted_at = now() - interval '1 hour' WHERE id = ${subId}`;
+    const retry = await api("POST", `/v1/subscriptions/${subId}/cancel`, { key: m.skTest });
+    expect(retry.status).toBe(202);
+    expect(chain.keeperCancels).toEqual([STREAM, STREAM]);
+  });
+
   it("FR_API_042_cancel_of_an_incomplete_or_canceled_subscription_is_409", async () => {
     const { subId } = await liveSubscription();
     const tx = "0x" + "ab".repeat(32);

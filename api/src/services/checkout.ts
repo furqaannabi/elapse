@@ -28,6 +28,7 @@ const MAX_CAP = 2_592_000;
 export type CheckoutErrorCode =
   | "merchant_controlled"
   | "not_running"
+  | "cancel_in_flight"
   | "invalid_state"
   | "pause_not_allowed"
   | "rate_limited"
@@ -186,6 +187,16 @@ export async function startSession(input: { session: CheckoutSessionRow; signatu
 }
 
 export const CANCEL_TTL_SECONDS = 600;
+
+/**
+ * How long a submitted keeper cancel is treated as still in flight (FR-API-042). Inside the window
+ * a second Stop is refused, so the relayer never sends a duplicate that reverts and burns gas.
+ * After it, a Stop is allowed through again: a relayer transaction that was dropped and never
+ * confirmed would otherwise strand the meter until the escrow cap, overcharging the subscriber,
+ * which BR-DSH-008 and the settle rules forbid. Wasted gas is the cheaper of the two failures.
+ * The same reasoning amended BR-EXM-110 for the example's sweep. **Awaiting Furqaan's review.**
+ */
+export const CANCEL_RETRY_SECONDS = 300;
 /** Pause-or-resume submissions per Subscription per hour (FR-API-047); each is a relayer tx and a merchant webhook. */
 export const PAUSE_RESUME_PER_HOUR = 10;
 
@@ -336,7 +347,7 @@ export async function resumeAsKeeper(sub: SubscriptionRow): Promise<Hex> {
   return chainClient().resume(sub.chain_id, sub.stream_address as Address);
 }
 
-export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
+export async function cancelAsKeeper(sub: SubscriptionRow, now: number = Date.now()): Promise<Hex> {
   // FR-API-137 (amended 2026-09-19): a held session counts. Since the subscriber can no longer
   // stop one themselves, the merchant must be able to — otherwise the only way their money comes
   // back is the unstarted sweep, and the ADR promises two. Cancelling an unstarted stream refunds
@@ -345,8 +356,15 @@ export async function cancelAsKeeper(sub: SubscriptionRow): Promise<Hex> {
   if (!sub.stream_address || !releasable) {
     throw new CheckoutStateError("not_running", "The subscription has no running meter.");
   }
+  // FR-API-137/138: the row is left as it is until `StreamCanceled` ingests (BR-API-005), so this
+  // stamp is the only thing that makes a cancel idempotent. Without it a merchant pressing Stop
+  // twice inside the confirmation window sends a second keeper transaction, which reverts and
+  // burns gas — the reason the column was added. `startAsKeeper` guards its submit the same way.
+  const since = sub.cancel_submitted_at ? now - sub.cancel_submitted_at.getTime() : Infinity;
+  if (since < CANCEL_RETRY_SECONDS * 1000) throw new CheckoutStateError("cancel_in_flight", "A stop is already on its way for this meter.");
   const pendingTx = await chainClient().cancel(sub.chain_id, sub.stream_address as Address);
-  await sql`UPDATE subscriptions SET updated_at = now() WHERE id = ${sub.id}`;
+  // Stamped only after the relayer accepted it, so a submission that failed can still be retried.
+  await sql`UPDATE subscriptions SET cancel_submitted_at = now(), updated_at = now() WHERE id = ${sub.id}`;
   return pendingTx;
 }
 
