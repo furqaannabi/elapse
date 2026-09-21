@@ -53,6 +53,8 @@ export function FaceIdSheet({
   const codeProblem = check(rules.code, code);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // `flow.email` is non-null only when the identity provider already holds a session for them.
+  const signedIn = !!flow.email;
 
   // Face ID: the device confirms the person; on failure, back to the choice with a sentence.
   useEffect(() => {
@@ -160,9 +162,15 @@ export function FaceIdSheet({
 
         {step === "choose" && (
           <div className="flex flex-col gap-2 pb-2">
+            {/* FR-CHK-002: a subscriber Privy already holds a session for is signed in silently —
+                `passkey()` calls `finish()` and runs no WebAuthn ceremony, because there is nothing
+                left to authenticate. Offering them a Face ID button promised a biometric that could
+                not happen, and Privy keeps its session across visits, so that was most returning
+                subscribers. Naming who they are instead makes a silent sign-in visible and keeps
+                the Face ID label for the one case that really does scan a face. */}
             <Button size="lg" onClick={() => setStep("scanning")} className="h-12 w-full text-base">
-              <ScanFace data-icon="inline-start" className="size-5" />
-              Continue with Face ID
+              {signedIn ? null : <ScanFace data-icon="inline-start" className="size-5" />}
+              {signedIn ? `Continue as ${flow.email}` : "Continue with Face ID"}
             </Button>
             <Button
               variant="ghost"
@@ -177,8 +185,13 @@ export function FaceIdSheet({
 
         {step === "scanning" && (
           <div className="flex flex-col items-center gap-3 py-6" role="status" aria-live="polite">
-            <ScanFace className="size-14 animate-pulse text-live" aria-hidden />
-            <p className="text-sm text-ink-soft">Confirming with Face ID…</p>
+            {/* No face icon for a subscriber who is already signed in: nothing is scanning them. */}
+            {!signedIn && <ScanFace className="size-14 animate-pulse text-live" aria-hidden />}
+            {/* This step proves who you are, not what you are spending — the amount is consented to
+                on the Authorise button. Saying "confirming" in both places made the sign-in read as
+                a second payment approval, and on a device that is already signed in it completes
+                silently, so "confirmed" described something the subscriber never saw happen. */}
+            <p className="text-sm text-ink-soft">{signedIn ? "Signing you in…" : "Verifying it\u2019s you…"}</p>
           </div>
         )}
 

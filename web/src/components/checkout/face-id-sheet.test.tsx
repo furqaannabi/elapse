@@ -31,6 +31,25 @@ describe("FaceIdSheet", () => {
     expect(screen.getByRole("button", { name: /Use email instead/ })).toBeInTheDocument();
   });
 
+  /**
+   * William, 2026-09-21: "Continue with Face ID … but clicking it does not do anything face id
+   * like". For a subscriber Privy already holds a session for, `passkey()` calls `finish()` and
+   * runs no WebAuthn ceremony at all — by design, since they are signed in. What was not by design
+   * is offering them a Face ID button for it. Privy keeps its session across visits, so that is
+   * most returning subscribers, and a biometric button that does nothing teaches people the
+   * biometric is theatre — on a page that authorises money (FR-CHK-002).
+   */
+  it("does not offer Face ID to a subscriber who is already signed in", () => {
+    renderSheet(flowWith({ passkeyFirst: true, email: "ada@x.test" }));
+    const buttons = screen.getAllByRole("button").map((b) => b.textContent ?? "");
+    expect(buttons.some((b) => /Face ID/i.test(b)), `offered Face ID to a signed-in subscriber: ${buttons.join(" / ")}`).toBe(false);
+  });
+
+  it("names who it will continue as, so a silent sign-in is visible", () => {
+    renderSheet(flowWith({ passkeyFirst: true, email: "ada@x.test" }));
+    expect(screen.getByRole("button", { name: /Continue as ada@x\.test/ })).toBeInTheDocument();
+  });
+
   it("leads with email for a new subscriber and still offers Face ID for a synced passkey", () => {
     renderSheet(flowWith({ passkeyFirst: false, usesCode: true }));
     expect(screen.getByRole("textbox", { name: /Email address/ })).toBeInTheDocument();
