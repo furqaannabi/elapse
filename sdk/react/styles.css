@@ -287,6 +287,14 @@
   background: var(--elapse-accent);
 }
 
+/* FR-RCT-046: one quiet line about the request, between the readout and the controls. */
+.elapse-asked {
+  margin: 0;
+  color: var(--elapse-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .elapse-meter-foot {
   display: flex;
   flex-wrap: wrap;

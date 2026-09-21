@@ -4,9 +4,14 @@
  * `<Meter>` in place, so the subscriber never leaves Acme's page. Face ID happens in a frame Elapse
  * opens over this page, or a window when the frame cannot do it (FR-RCT-043).
  *
- * The meter docks bottom-right as a capsule (FR-RCT-042) so the rack page keeps its own layout,
- * keeps its Stop — this is a checkout-mode product, the subscriber's meter to stop — and shows the
- * start and end transactions (FR-RCT-045), since the people cloning this example are developers.
+ * The meter renders as the instrument in the page (FR-EXM-032 amended 2026-09-21): the layout the
+ * meter on elapse.finance wears, painted in Acme's own colours by `acme.css`. It keeps its Stop —
+ * this is a checkout-mode product, the subscriber's meter to stop — and shows the start and end
+ * transactions (FR-RCT-045), since the people cloning this example are developers.
+ *
+ * Pause is not the subscriber's to take ([ADR 2026-09-20]), so `onPauseRequest` asks Acme instead.
+ * All Acme's page does is make the request and let it settle: `<Meter>` says who was asked and what
+ * they answered (React FR-RCT-046). That is the whole integration — no state, no status UI.
  */
 import { Authorize, ElapseProvider, Meter } from "@elapse/react";
 import "@elapse/react/styles.css";
@@ -14,13 +19,24 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 // region:react-components
+/** FR-EXM-033: ask Acme's own server. A refusal throws, which is how `<Meter>` learns to say so. */
+const askAcme = (what: "pause" | "resume", session: string) => async () => {
+  const res = await fetch(`/${what}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ session }),
+  });
+  if (res.status !== 202) throw new Error(`Acme answered ${res.status}`);
+};
+
 function Checkout({ session }: { session: string }) {
   const [started, setStarted] = useState(false);
   return started ? (
     <Meter
       session={session}
-      dock="bottom-right"
       proof
+      onPauseRequest={askAcme("pause", session)}
+      onResumeRequest={askAcme("resume", session)}
       onStopped={(e) => console.log("meter stopped", e.txHash)}
     />
   ) : (

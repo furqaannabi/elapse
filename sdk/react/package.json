@@ -1,6 +1,6 @@
 {
   "name": "@elapse/react",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Authorise, meter and receipt components for Elapse per-second billing.",
   "type": "module",
   "main": "./dist/index.cjs",

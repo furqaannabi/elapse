@@ -32,8 +32,8 @@ export interface MountOptions {
    * FR-RCT-021 (amended 2026-09-20): pass these and the meter shows Pause and Resume as requests to
    * you — nothing is signed and nothing reaches Elapse. Your server pauses with `subscriptions.pause`.
    */
-  onPauseRequest?: () => void;
-  onResumeRequest?: () => void;
+  onPauseRequest?: () => void | Promise<void>;
+  onResumeRequest?: () => void | Promise<void>;
   onError?: (e: Error) => void;
   /** @internal Testing seams; merchants never set these. */
   fetch?: typeof fetch;

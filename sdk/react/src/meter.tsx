@@ -3,6 +3,7 @@
  * ticking readout, the controls the start mode allows, the held state, and the receipt. Markup only;
  * everything else is `useMeter`. No chain words (BR-RCT-001); Stop is a neutral outline (BR-RCT-006).
  */
+import { ask, clearWhen, type AskState } from "./ask";
 import { formatCap } from "./money";
 import { useElapseConfig } from "./provider";
 import { TxLink } from "./tx-link";
@@ -62,8 +63,8 @@ export function Meter({
    * calls your handler, nothing is signed and nothing reaches Elapse. Your server decides and
    * pauses with `subscriptions.pause`. Omit them and no such control renders.
    */
-  onPauseRequest?: () => void;
-  onResumeRequest?: () => void;
+  onPauseRequest?: () => void | Promise<void>;
+  onResumeRequest?: () => void | Promise<void>;
 } & MeterHandlers) {
   const m = useMeter(session, handlers);
   // FR-RCT-042 (amended 2026-09-19, Furqaan: "no stop button"): a merchant whose meter is its own
@@ -82,6 +83,14 @@ export function Meter({
   // Asking is not doing: these render only because the merchant offered to listen (FR-RCT-021 amended).
   const canAskPause = controls && !!onPauseRequest && m.view === "running" && !!m.session?.product.allowPause;
   const canAskResume = controls && !!onResumeRequest && m.view === "paused";
+  // FR-RCT-046: the merchant decides over their own wire, so the meter cannot poll for an answer.
+  // What it can do is say who was asked and what they said, until its own view agrees.
+  const [asked, setAsked] = useState<AskState | null>(null);
+  if (asked && clearWhen(asked, m.view)) setAsked(null);
+  const request = (want: "pause" | "resume", handler: (() => void) | undefined) => () => {
+    if (handler) void ask(want, m.session?.merchant.name ?? "the merchant", handler, setAsked);
+  };
+  const askedLine = asked ? <p className="elapse-asked">{asked.line}</p> : null;
   const { cues } = useElapseConfig();
   const [muted, setMuted] = useState(() => cues.muted());
   // FR-RCT-050: the subscriber's own switch, remembered by the browser.
@@ -130,15 +139,16 @@ export function Meter({
             </>
           )}
         </div>
+        {askedLine}
         {(canStop || canAskPause || canAskResume) && (
           <div className="elapse-capsule elapse-capsule-actions">
             {canAskResume && (
-              <button type="button" className="elapse-capsule-button" onClick={onResumeRequest}>
+              <button type="button" className="elapse-capsule-button" onClick={request("resume", onResumeRequest)} disabled={asked?.pending === true}>
                 Resume
               </button>
             )}
             {canAskPause && (
-              <button type="button" className="elapse-capsule-button" onClick={onPauseRequest}>
+              <button type="button" className="elapse-capsule-button" onClick={request("pause", onPauseRequest)} disabled={asked?.pending === true}>
                 Pause
               </button>
             )}
@@ -257,17 +267,18 @@ export function Meter({
           </p>
         )}
         {notice}
+        {askedLine}
         <div className="elapse-meter-foot">
           <span className="elapse-muted">{paused ? "Paused" : canStop ? "Running · stop any time" : "Running"}</span>
           <div className="elapse-actions">
             {mute}
             {canAskResume && (
-              <button type="button" className="elapse-primary" onClick={onResumeRequest}>
+              <button type="button" className="elapse-primary" onClick={request("resume", onResumeRequest)} disabled={asked?.pending === true}>
                 Resume
               </button>
             )}
             {canAskPause && (
-              <button type="button" className="elapse-outline" onClick={onPauseRequest}>
+              <button type="button" className="elapse-outline" onClick={request("pause", onPauseRequest)} disabled={asked?.pending === true}>
                 Pause
               </button>
             )}

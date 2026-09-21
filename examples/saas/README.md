@@ -48,6 +48,27 @@ Open http://localhost:3000 on your phone, choose how long the meter may run, pre
 
 Before recording, `npm run demo:check` signs a canceled event with your own secret and confirms the server revokes access.
 
+## Pause is asked for, not taken
+
+A subscriber cannot pause a meter — a paused meter costs them nothing while Acme's GPU stays
+allocated — so only the merchant can. Press **Pause** on the meter and nothing is signed: the button
+calls Acme's own page, which posts the session id to Acme's own `POST /pause`. Acme maps it to the
+Subscription, approves at once, and calls `subscriptions.pause` with its secret key:
+
+```
+14:03:02  subscriber asked to pause · Acme approved → subscriptions.pause sub_4Qe…
+14:03:05  evt_1S2d…  subscription.updated    → sync entitlement (paused) sub_4Qe…
+```
+
+The meter says who was asked and what they answered; Acme's page writes none of that. Paused seconds
+are never billed, and `GET /access/sub_…` answers `{"entitled":false,"reason":"paused"}` — the
+billing and the serving stop together.
+
+> **`/pause` and `/resume` are unauthenticated here**, exactly like `/access/:sub`: anyone holding a
+> `cs_` id can ask Acme to pause that meter. That is harmless in a demo — a pause only stops Acme's
+> own service and saves the subscriber money — but a real merchant authenticates the subscriber
+> before acting on the ask.
+
 ## How the handler works
 
 `src/webhooks.ts`, under 50 lines:
@@ -64,10 +85,10 @@ Six types, six actions: provision on `checkout.session.completed`, entitle on `s
 | --- | --- |
 | `src/index.ts` | `npm start`: reads `.env`, boots, prints |
 | `src/boot.ts` | Product find-or-create, first checkout session, server |
-| `src/server.ts` | Node `http` routes: `/`, `/ok`, `/cancel`, `/access/:sub`, `/webhooks` |
+| `src/server.ts` | Node `http` routes: `/`, `/ok`, `/cancel`, `/access/:sub`, `/pause`, `/resume`, `/webhooks` |
 | `src/webhooks.ts` | Verify, respond, act |
 | `src/entitlements.ts` | In-memory dedupe set and entitlement map; replace with your database |
 | `src/demo-check.ts` | `npm run demo:check` |
-| `src/web/mount.tsx` | The page's island: `<ElapseProvider>`, then `<Authorize>` and `<Meter dock="bottom-right" proof>` |
+| `src/web/mount.tsx` | The page's island: `<ElapseProvider>`, then `<Authorize>` and `<Meter proof onPauseRequest onResumeRequest>` |
 | `scripts/build-web.mjs` | `npm run build:web`: esbuild bundles that island and the components' stylesheet into `dist/` |
 | `public/index.html` | The product page and its `#elapse` mount point; `ok.html` and `cancel.html` are where the success and cancel URLs land; `acme.css` is Acme GPU's own look — including the CSS variables that re-dress the Elapse components |

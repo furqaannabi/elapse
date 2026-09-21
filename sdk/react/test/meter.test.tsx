@@ -61,12 +61,12 @@ function mount(initial: ReturnType<typeof wire>, props: Record<string, unknown> 
     target.dispatchEvent(Object.assign(new Event("message"), { data: { type: "elapse:result", nonce, ...data }, origin: "https://elapse.finance", source: popup }));
   };
   const onStopped = vi.fn();
-  render(
+  const { container } = render(
     <ElapseProvider publishableKey="pk_test_1" baseUrl="https://api.test" fetch={fetchFn as unknown as typeof fetch} popupHost={host} sound={(props.sound as boolean) ?? false} audioContext={fakeAudioContext}>
       <Meter session="cs_1" onStopped={onStopped} {...props} />
     </ElapseProvider>,
   );
-  return { fetchFn, open, post, frame, windowUrl, onStopped };
+  return { fetchFn, open, post, frame, windowUrl, onStopped, container };
 }
 
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -297,5 +297,40 @@ describe("FR-RCT-021 amended: Pause asks the merchant", () => {
     mount(wire(sub(), { allow_pause: true }));
     await settle();
     expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+});
+
+describe("FR-RCT-046 the meter says what the merchant is doing about the ask", () => {
+  it("names the merchant while the ask is in flight and disables the control", async () => {
+    let approve!: () => void;
+    const onPauseRequest = vi.fn(() => new Promise<void>((r) => { approve = r; }));
+    mount(wire(sub(), { allow_pause: true }), { onPauseRequest });
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await settle();
+    expect(screen.getByText(/Asked .* to pause…/)).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Pause" }) as HTMLButtonElement).disabled).toBe(true);
+
+    await act(async () => { approve(); });
+    expect(screen.getByText(/approved · pausing/)).toBeTruthy();
+    // The meter is still running: nothing is true until the session says so.
+    expect((screen.getByRole("button", { name: "Pause" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("tells the subscriber the merchant refused, without a word of Elapse's", async () => {
+    const onPauseRequest = vi.fn(async () => { throw new Error("relayer_unfunded"); });
+    const { container } = mount(wire(sub(), { allow_pause: true }), { onPauseRequest });
+    await settle();
+
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Pause" })); });
+    expect(screen.getByText(/could not pause that meter/)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/relayer|unfunded/i);
+  });
+
+  it("writes no such line when the merchant takes no requests", async () => {
+    const { container } = mount(wire(sub(), { allow_pause: true }));
+    await settle();
+    expect(container.textContent).not.toMatch(/Asked|approved ·/);
   });
 });
