@@ -168,7 +168,7 @@ describe("FR-EXM-033 nothing is asked of the platform without a meter to ask abo
     const { base } = await start({ subscriptions: deps });
     const res = await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_nope" }) });
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/no running meter/i);
+    expect((await res.json()).error).toMatch(/no live meter/i);
     expect(calls).toEqual([]);
   });
 
@@ -181,14 +181,16 @@ describe("FR-EXM-033 nothing is asked of the platform without a meter to ask abo
     expect(calls).toEqual([]);
   });
 
-  it("resumes only what is paused", async () => {
+  it("forwards a resume even while Acme's own map still says active, because the platform decides", async () => {
+    // Found live 2026-09-21: the meter reads the platform, Acme reads its webhooks, and for a second
+    // or two after a pause they disagree — which is exactly when the subscriber presses Resume.
+    // Refusing on Acme's stale copy made Resume impossible; the platform answers for itself.
     const { calls, deps } = spy();
     const { base, entitlements, lines } = await start({ subscriptions: deps });
-    seed(entitlements, "cs_9", "sub_4QeABC");
-    expect((await fetch(`${base}/resume`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) })).status).toBe(409);
+    seed(entitlements, "cs_9", "sub_4QeABC"); // Acme still believes it is active
 
-    seed(entitlements, "cs_9", "sub_4QeABC", "paused");
     const res = await fetch(`${base}/resume`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) });
+
     expect(res.status).toBe(202);
     expect(calls).toEqual(["sub_4QeABC"]);
     expect(lines.at(-1)).toBe("subscriber asked to resume · Acme approved → subscriptions.resume sub_4QeABC");
@@ -203,7 +205,7 @@ describe("FR-EXM-034 a platform refusal leaves the meter alone", () => {
     seed(entitlements, "cs_9", "sub_4QeABC");
     const res = await fetch(`${base}/pause`, { method: "POST", body: JSON.stringify({ session: "cs_9" }) });
     expect(res.status).toBe(502);
-    expect(lines.at(-1)).toContain("Acme could not: relayer_unfunded");
+    expect(lines.at(-1)).toContain("Acme could not pause sub_4QeABC: relayer_unfunded");
     // BR-EXM-010: only a verified Event moves an entitlement.
     expect(entitlements.get("sub_4QeABC")).toEqual({ entitled: true, reason: "active" });
   });

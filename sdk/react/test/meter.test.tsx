@@ -334,3 +334,27 @@ describe("FR-RCT-046 the meter says what the merchant is doing about the ask", (
     expect(container.textContent).not.toMatch(/Asked|approved ·/);
   });
 });
+
+describe("FR-RCT-046 amended: an approved request is followed up, not waited out", () => {
+  it("re-reads the session at once so Resume appears without waiting for the 5 s follow", async () => {
+    // The live failure: pause confirmed on chain in one second, but the meter only re-read every
+    // 5 s, so it kept ticking and kept offering Pause. The subscriber stopped the meter instead.
+    let approve!: () => void;
+    const onPauseRequest = vi.fn(() => new Promise<void>((r) => { approve = r; }));
+    const { fetchFn } = mount(wire(sub(), { allow_pause: true }), { onPauseRequest, onResumeRequest: vi.fn() });
+    await settle();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    await settle();
+
+    // The merchant paused it; the platform now says paused, but no follow interval has elapsed.
+    server = wire(sub({ status: "paused", paused_at: NOW / 1000 }), { allow_pause: true });
+    const readsBefore = fetchFn.mock.calls.length;
+    await act(async () => { approve(); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1200); });
+
+    expect(fetchFn.mock.calls.length).toBeGreaterThan(readsBefore);
+    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Pause" })).toBeNull();
+  });
+});

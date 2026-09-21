@@ -4,11 +4,16 @@
  * everything else is `useMeter`. No chain words (BR-RCT-001); Stop is a neutral outline (BR-RCT-006).
  */
 import { ask, clearWhen, type AskState } from "./ask";
+
+/** How often the meter re-reads while it waits for an approved request to land on chain. */
+const FOLLOW_UP_MS = 1_000;
+/** And for how long: a pause that never confirms is the merchant's problem to report, not a poll loop. */
+const FOLLOW_UP_LIMIT_MS = 10_000;
 import { formatCap } from "./money";
 import { useElapseConfig } from "./provider";
 import { TxLink } from "./tx-link";
 import { useMeter, type MeterHandlers } from "./use-meter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * FR-RCT-041: the mark that says it is done. A checkmark that draws itself once, the way a payment
@@ -87,9 +92,23 @@ export function Meter({
   // What it can do is say who was asked and what they said, until its own view agrees.
   const [asked, setAsked] = useState<AskState | null>(null);
   if (asked && clearWhen(asked, m.view)) setAsked(null);
-  const request = (want: "pause" | "resume", handler: (() => void) | undefined) => () => {
+  const request = (want: "pause" | "resume", handler: (() => void | Promise<void>) | undefined) => () => {
     if (handler) void ask(want, m.session?.merchant.name ?? "the merchant", handler, setAsked);
   };
+  // FR-RCT-046 (amended): follow an approved request instead of waiting out the 5 s poll. The
+  // merchant's answer says only that they asked the chain; the meter still has to see it land, and
+  // until it does it keeps ticking and keeps offering the control the subscriber just used.
+  const following = !!asked && !asked.pending && asked.want !== null;
+  useEffect(() => {
+    if (!following) return;
+    const id = setInterval(m.refresh, FOLLOW_UP_MS);
+    const stop = setTimeout(() => clearInterval(id), FOLLOW_UP_LIMIT_MS);
+    m.refresh();
+    return () => {
+      clearInterval(id);
+      clearTimeout(stop);
+    };
+  }, [following, m.refresh]);
   const askedLine = asked ? <p className="elapse-asked">{asked.line}</p> : null;
   const { cues } = useElapseConfig();
   const [muted, setMuted] = useState(() => cues.muted());

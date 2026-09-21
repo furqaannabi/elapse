@@ -97,6 +97,9 @@ Every event carries `{ subscription, txHash?, explorerUrl? }`.
 
 ## Hooks
 
+`useMeter` also returns `refresh()`, which re-reads the session now rather than at the next 5 s poll —
+`<Meter>` calls it itself after a pause or resume you approve, so the meter catches up in about a second.
+
 `useAuthorize(session)` and `useMeter(session)` return the same state the components render, for when
 you want your own markup:
 

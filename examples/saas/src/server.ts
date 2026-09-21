@@ -118,16 +118,21 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
   if (ask) {
     const session = String((JSON.parse((await readRaw(req)) || "{}") as { session?: unknown }).session ?? "");
     const e = deps.entitlements.forSession(session);
-    const ready = ask === "pause" ? e?.reason === "active" : e?.reason === "paused";
-    if (!e || !ready) {
-      return send(res, 409, "application/json", JSON.stringify({ error: `No ${ask === "pause" ? "running" : "paused"} meter for that session.` }));
+    // Only the mapping is checked here, never the status. Acme learns of a pause by webhook while
+    // the meter learns of it from the platform, so for a second or two they disagree — and that is
+    // exactly the moment the subscriber presses Resume. The platform is the authority on whether
+    // the meter can be resumed; it answers 409 itself if not.
+    const over = !e || e.reason === "canceled" || e.reason === "payment failed";
+    if (over) {
+      deps.log(`subscriber asked to ${ask} · Acme refused: no live meter for that session`);
+      return send(res, 409, "application/json", JSON.stringify({ error: "No live meter for that session." }));
     }
     try {
       await deps.subscriptions[ask](e.subscription);
       deps.log(`subscriber asked to ${ask} · Acme approved → subscriptions.${ask} ${e.subscription}`);
       return send(res, 202, "application/json", JSON.stringify({ status: "requested" }));
     } catch (err) {
-      deps.log(`subscriber asked to ${ask} · Acme could not: ${(err as Error).message}`);
+      deps.log(`subscriber asked to ${ask} · Acme could not ${ask} ${e.subscription}: ${(err as Error).message}`);
       return send(res, 502, "application/json", JSON.stringify({ error: `Acme could not ${ask} that meter.` }));
     }
   }

@@ -172,6 +172,13 @@ export function useMeter(sessionId: string, handlers: MeterHandlers = {}) {
   return {
     proof,
     view,
+    /**
+     * FR-RCT-046 (amended): re-read the session now, instead of waiting out the follow interval.
+     * A merchant's pause is confirmed on chain in about a second, but nothing here learns of it
+     * until the next poll — so the meter would go on ticking, and go on offering Pause, long after
+     * the subscriber was told the pause was approved.
+     */
+    refresh: read,
     session,
     error,
     notice,
