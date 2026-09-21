@@ -16,7 +16,7 @@
     "build:web": "node scripts/build-web.mjs"
   },
   "dependencies": {
-    "@elapse/react": "^0.4.0",
+    "@elapse/react": "^0.4.1",
     "@elapse/sdk": "^0.3.0",
     "dotenv": "^17.2.0",
     "react": "19.2.8",
