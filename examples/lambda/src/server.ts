@@ -61,6 +61,23 @@ const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w
 /** Display only; the money that matters is settled on the platform (BR-EXM-106). */
 const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2);
 
+/** A decimal rate string as whole micro-dollars, so run pricing never goes through a float. */
+const micros = (rate: string): bigint => {
+  const [whole = "0", frac = ""] = rate.split(".");
+  return BigInt(whole) * 1_000_000n + BigInt((frac + "000000").slice(0, 6));
+};
+
+/**
+ * What one run of the console's default snippet costs, in dollars and cents. The default runs
+ * `DEFAULT_RUN_SECONDS` of real Lambda (FR-EXM-122), and a per-second tariff means nothing to a
+ * visitor until it is multiplied out into money they recognise.
+ */
+const DEFAULT_RUN_SECONDS = 30n;
+const perRun = (rate: string): string => {
+  const total = micros(rate) * DEFAULT_RUN_SECONDS;
+  return `${total / 1_000_000n}.${String(total % 1_000_000n).padStart(6, "0").slice(0, 2)}`;
+};
+
 export function createServer(deps: ServerDeps) {
   // FR-EXM-153 (amended): runs are serialised per subscription. Each one starts a meter and ends
   // it, so two overlapping runs would fight over the same stream.
@@ -117,6 +134,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     product: deps.product.name,
     price: `$${deps.product.rateUsdPerSecond} / second · ~$${hourly(deps.product.rateUsdPerSecond)} / hour`,
     rate: deps.product.rateUsdPerSecond,
+    typical_run: `${DEFAULT_RUN_SECONDS} seconds · $${perRun(deps.product.rateUsdPerSecond)}`,
   };
   if (req.method === "GET" && url.pathname === "/") {
     return send(res, 200, "text/html; charset=utf-8", fill(LANDING, vars));

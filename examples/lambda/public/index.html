@@ -15,12 +15,29 @@
   </header>
 
   <h1>{{product}}</h1>
-  <p class="sub">Write code, run it on real serverless, pay for the seconds your session is open.</p>
+  <p class="sub">Write JavaScript, run it on real AWS Lambda, pay only for the seconds it runs.</p>
 
-  <div class="label"><span class="k">Rate</span><span class="v">{{price}}</span></div>
+  <!-- FR-EXM-110 requires the rate verbatim; the two rows under it are what a visitor actually
+       asked — what one run costs, and what the meter is counting. The tariff is the reason to
+       trust the product, so it is engraved on a plate rather than set as a line of body copy. -->
+  <dl class="plate">
+    <div>
+      <dt>Rate</dt>
+      <dd class="lead">{{price}}</dd>
+    </div>
+    <div>
+      <dt>A typical run</dt>
+      <dd>{{typical_run}}</dd>
+    </div>
+    <div>
+      <dt>Billed</dt>
+      <dd>only while your code runs</dd>
+    </div>
+  </dl>
 
-  <p class="note">There is no start button. Your first run opens the session, and it closes itself when you stop working.</p>
-  <a class="open" href="/console">Open console &rarr;</a>
+  <a class="key" href="/console">Open console &rarr;</a>
+
+  <p class="note">Nothing to start. Press Run and the meter opens with it, then closes the moment your code returns. Editing costs nothing.</p>
 
   <footer class="tag">{{merchant}} · demo merchant</footer>
 </main>

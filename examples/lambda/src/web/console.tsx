@@ -12,8 +12,11 @@ import { postRun, resolveSub, type RunBody } from "./flow";
 
 type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "session"; session: string; sub: string };
 
-const IDLE_STATUS = "Not running — your first run opens the session";
-const BETWEEN_RUNS = "Paused between runs — you only pay while your code runs";
+// FR-EXM-153: the session ends with the run — it does not pause between runs, so neither status
+// may say it does. The idle line is an instruction rather than a state readout: it is the first
+// thing a subscriber reads, and "not running" answers a question they have not asked yet.
+const IDLE_STATUS = "Press Run — editing is free, the meter opens with your first run";
+const BETWEEN_RUNS = "Session ended and settled. Press Run to open a new one.";
 const isImage = (v: unknown): v is string => typeof v === "string" && v.startsWith("data:image/");
 
 function resultLine(body: RunBody): string {
@@ -140,18 +143,23 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         // FR-EXM-152 (amended 2026-09-21): the instrument, in the page, where <Authorize> stood —
         // the meter on elapse.finance, in Northwind's colours. It was a capsule in the corner until
         // now; the meter is what this console exists to show, so it gets the room.
-        <Meter
-          session={phase.session}
-          // Northwind's meter is Northwind's to stop (FR-CHK-037): the subscriber gets no Stop,
-          // not even in the held second before the first run starts it.
-          controls={false}
-          // FR-RCT-045: this console's audience is developers and judges, so the start and the end
-          // drop in with their transactions — the one place chain words belong on a subscriber's
-          // screen is the one a merchant asked for (BR-RCT-001).
-          proof
-          onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
-          onError={(e) => setOut({ error: e.message })}
-        />
+        // The `.screen` wrapper is what makes "in Northwind's colours" true: every meter rule in
+        // northwind.css is scoped under it, so a meter outside one renders in the package's own
+        // near-black default. `<Authorize>` has always sat in one; the meter takes the same slot.
+        <div className="screen">
+          <Meter
+            session={phase.session}
+            // Northwind's meter is Northwind's to stop (FR-CHK-037): the subscriber gets no Stop,
+            // not even in the held second before the first run starts it.
+            controls={false}
+            // FR-RCT-045: this console's audience is developers and judges, so the start and the end
+            // drop in with their transactions — the one place chain words belong on a subscriber's
+            // screen is the one a merchant asked for (BR-RCT-001).
+            proof
+            onStopped={() => setStatus(`Session ended — ${merchant} settled the exact seconds. Press Run to open a new one.`)}
+            onError={(e) => setOut({ error: e.message })}
+          />
+        </div>
       )}
 
       <p className="note">
@@ -184,7 +192,12 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
 
       <details>
         <summary className="note">What the runner does (read-only)</summary>
-        <pre id="source" className="screen">{source || "loading…"}</pre>
+        {/* The `.screen` is the wrapper, not the `<pre>`: northwind.css writes the wrapping rules
+            as `.screen pre`, so a self-screened `<pre>` takes the box and lets long source lines
+            run outside it. Same nesting as every other readout on this page. */}
+        <div className="screen">
+          <pre id="source">{source || "loading…"}</pre>
+        </div>
       </details>
     </div>
   );

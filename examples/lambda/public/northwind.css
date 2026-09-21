@@ -55,6 +55,21 @@ h1.long { font-size: clamp(20px, 6vw, 26px); }
 .screen pre { white-space: pre-wrap; word-break: break-word; min-height: 22px; color: var(--screen-dim); overflow-x: auto; }
 .screen pre.has { color: var(--screen-ink); }
 
+/* the tariff plate: what the machine charges, engraved on the casing rather than printed on it.
+   Money is amber wherever it appears on this terminal — the same ink as `.meter .amt`. */
+.plate { margin: 20px 0 24px; border: 1px solid var(--rule); border-radius: 3px; }
+.plate > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 11px 12px; }
+.plate > div + div { border-top: 1px solid var(--rule); }
+.plate dt { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--dim); text-transform: uppercase; white-space: nowrap; }
+.plate dd { margin: 0; font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; }
+.plate .lead { font-size: 14px; color: var(--key); }
+
+/* Below the narrowest useful column the two halves stop competing for one line. */
+@media (max-width: 430px) {
+  .plate > div { flex-direction: column; align-items: stretch; gap: 5px; }
+  .plate dd { text-align: left; }
+}
+
 .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 
 .key {
@@ -65,7 +80,11 @@ h1.long { font-size: clamp(20px, 6vw, 26px); }
   min-height: 48px; min-width: 108px; padding: 0 22px; border-radius: 6px;
   box-shadow: 0 1px 0 #f3c076 inset, 0 3px 0 #8f5d18;
 }
+/* The landing's way in is the same physical key the console's Run is, because on this machine the
+   key is what you press. It starts no billing; the note beneath it says so. */
+a.key { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .key:active { transform: translateY(2px); box-shadow: 0 1px 0 #f3c076 inset, 0 1px 0 #8f5d18; }
+.key:focus-visible { outline: 2px solid var(--screen-ink); outline-offset: 3px; }
 .key[disabled] { opacity: .55; cursor: default; box-shadow: none; }
 
 /* the meter: engraved on the casing, tabular, never blinking */

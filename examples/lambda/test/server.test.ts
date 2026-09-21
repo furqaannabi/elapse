@@ -423,6 +423,19 @@ describe("FR-EXM-110/111/112 the pages", () => {
     expect(html).not.toContain("/c/cs_");
   });
 
+  /**
+   * A per-second rate is not a price anyone can feel. "$0.002 / second" is the tariff; what the
+   * visitor actually wants to know is what one run costs, and the console opens on a thirty-second
+   * default (FR-EXM-122). The figure is derived from the Product's own rate, never hardcoded, so a
+   * merchant who changes the rate does not leave a false price on the landing.
+   */
+  it("GET / prices a run in money, derived from the rate", async () => {
+    const { base } = await start();
+    const html = await (await fetch(base)).text();
+    expect(html).toContain("30 seconds");
+    expect(html).toContain("$0.06");
+  });
+
   it("GET /console loads the bundled console with the publishable key, and no UMD React", async () => {
     const { base } = await start();
     const html = await (await fetch(`${base}/console`)).text();
