@@ -25,6 +25,17 @@ import { postResult, resultTargetOrigin, type ResultStep } from "@/lib/authorize
 import { parseRate } from "@/lib/meter/math";
 
 const STEP: Record<SubmitAction, ResultStep> = { authorise: "authorised", cancel: "stopped" };
+
+/**
+ * What the confirm press does, in its own words. The signature behind it is made by the embedded
+ * wallet with `showWalletUIs: false` (`privy-checkout.tsx`), which signs silently — so a Face ID
+ * label here would promise a ceremony that never runs, on the one press that authorises money.
+ * The heading carries the amount; the button carries the verb.
+ */
+const CONFIRM: Record<SubmitAction, { idle: string; busy: string }> = {
+  authorise: { idle: "Authorise", busy: "Authorising…" },
+  cancel: { idle: "Stop the meter", busy: "Stopping…" },
+};
 const ACTIONS = Object.keys(STEP) as SubmitAction[];
 
 type Opener = { postMessage(message: unknown, targetOrigin: string): void } | null;
@@ -181,13 +192,14 @@ export function AuthorizePage({
           </>
         )}
 
-        {state.kind === "ready" && signedIn && (
+        {/* `action` is non-null whenever the link was valid; naming it here is what lets the button
+            label itself rather than assert. */}
+        {state.kind === "ready" && signedIn && action && (
           <>
             <h1 className="text-balance text-2xl font-semibold leading-tight tracking-[-0.02em]">{heading}</h1>
             {action === "authorise" && <p className="text-ink-soft">You only pay the seconds you use.</p>}
             <Button size="lg" onClick={confirm} disabled={busy} className="h-12 w-full text-base">
-              <ScanFace data-icon="inline-start" className="size-5" />
-              {busy ? "Confirming…" : "Confirm with Face ID"}
+              {busy ? CONFIRM[action].busy : CONFIRM[action].idle}
             </Button>
           </>
         )}

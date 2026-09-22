@@ -22,7 +22,7 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
     render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" opener={opener} close={close} />);
     expect(await screen.findByRole("heading", { name: "Authorise up to $14.40 for Nimbus" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Authorise" }));
     expect(await screen.findByText("Done. Returning you to Nimbus.")).toBeInTheDocument();
     expect(opener.postMessage).toHaveBeenCalledTimes(1);
     const [message, target] = opener.postMessage.mock.calls[0]!;
@@ -36,7 +36,7 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
   it("FR_CHK_038_without_an_opener_it_says_the_window_can_be_closed", async () => {
     const close = vi.fn();
     render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" opener={null} close={close} />);
-    fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
     expect(await screen.findByText("You can close this window.")).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
   });
@@ -45,7 +45,7 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
     const opener = { postMessage: vi.fn() };
     render(<AuthorizePage session="cs_running" action="cancel" nonce="n2" opener={opener} close={vi.fn()} />);
     expect(await screen.findByRole("heading", { name: "Stop your meter at Nimbus?" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop the meter" }));
     await waitFor(() => expect(opener.postMessage).toHaveBeenCalled());
     expect(opener.postMessage.mock.calls[0]![0]).toMatchObject({ step: "stopped", nonce: "n2" });
   });
@@ -53,7 +53,7 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
   it("FR_CHK_039_a_signed_out_subscriber_is_asked_to_sign_in_first", async () => {
     render(<AuthorizePage session="cs_demo" action="authorise" cap="3600" nonce="n1" opener={null} close={vi.fn()} />);
     expect(await screen.findByRole("button", { name: /continue with face id/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /confirm/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Authorise" })).toBeNull();
   });
 
   it("FR_CHK_039_a_failed_submit_shows_the_apis_sentence_and_can_be_tried_again", async () => {
@@ -65,11 +65,27 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
     } };
     const opener = { postMessage: vi.fn() };
     render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" opener={opener} close={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
     expect(await screen.findByText("This meter is already running.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
     await waitFor(() => expect(opener.postMessage).toHaveBeenCalledTimes(1));
+  });
+
+  it("FR_CHK_039_the_confirm_button_names_the_action_rather_than_promising_a_face_scan", async () => {
+    // The permit is signed by the embedded wallet with `showWalletUIs: false` (privy-checkout.tsx):
+    // silently, with no ceremony. A Face ID label on the one press that authorises money promises a
+    // biometric that cannot happen — the defect a5eb517 fixed on the sign-in sheet, still standing
+    // here, on the higher-stakes button.
+    render(<AuthorizePage session="cs_ready" action="authorise" cap="3600" nonce="n1" opener={null} close={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Authorise" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /face id/i })).toBeNull();
+  });
+
+  it("FR_CHK_039_the_stop_button_says_what_it_stops", async () => {
+    render(<AuthorizePage session="cs_running" action="cancel" nonce="n2" opener={null} close={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Stop the meter" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /face id/i })).toBeNull();
   });
 
   it("FR_CHK_038_an_invalid_link_is_refused", async () => {
