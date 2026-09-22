@@ -185,7 +185,8 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
     setEnding(true);
     setStatus("Ending your session…");
     try {
-      await fetch(`/end?sub=${phase.sub}`, { method: "POST" });
+      // FR-EXM-155: say who ended it. The beacon posts to the same route when the tab goes.
+      await fetch(`/end?sub=${phase.sub}&by=subscriber`, { method: "POST" });
     } catch (e) {
       setEnding(false);
       setOut({ error: (e as Error).message });

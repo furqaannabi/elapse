@@ -72,13 +72,25 @@ const BUNDLE: Record<string, { file: string; type: string } | undefined> = {
 };
 const escapeHtml = (v: string) => v.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 const fill = (tpl: string, vars: Record<string, string>) => tpl.replace(/\{\{(\w+)\}\}/g, (_, k: string) => escapeHtml(vars[k] ?? ""));
-/** Display only; the money that matters is settled on the platform (BR-EXM-106). */
-const hourly = (rate: string) => (Number(rate) * 3600).toFixed(2);
-
-/** A decimal rate string as whole micro-dollars, so run pricing never goes through a float. */
-const micros = (rate: string): bigint => {
+/**
+ * A decimal rate string as whole nano-dollars, so display pricing never goes through a float. Nine
+ * decimals because that is the precision the platform accepts for a rate; truncating to micros
+ * would quietly drop the tail of a rate like `0.0000014`.
+ */
+const nanos = (rate: string): bigint => {
   const [whole = "0", frac = ""] = rate.split(".");
-  return BigInt(whole) * 1_000_000n + BigInt((frac + "000000").slice(0, 6));
+  return BigInt(whole) * 1_000_000_000n + BigInt((frac + "000000000").slice(0, 9));
+};
+
+/**
+ * The "~$7.20 / hour" reminder. Display only — the money that matters is settled on the platform
+ * (BR-EXM-106) — but it is still money arithmetic, so it runs on the same integer micro-dollars as
+ * the per-run figure rather than on `Number(rate)`. Rounded to the nearest cent rather than
+ * floored: this is a price being quoted, and a rate that is not zero must not read as $0.00.
+ */
+export const hourly = (rate: string): string => {
+  const cents = (nanos(rate) * 3600n + 5_000_000n) / 10_000_000n;
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
 };
 
 /**
@@ -88,8 +100,8 @@ const micros = (rate: string): bigint => {
  */
 const DEFAULT_RUN_SECONDS = 30n;
 const perRun = (rate: string): string => {
-  const total = micros(rate) * DEFAULT_RUN_SECONDS;
-  return `${total / 1_000_000n}.${String(total % 1_000_000n).padStart(6, "0").slice(0, 2)}`;
+  const total = nanos(rate) * DEFAULT_RUN_SECONDS;
+  return `${total / 1_000_000_000n}.${String(total % 1_000_000_000n).padStart(9, "0").slice(0, 2)}`;
 };
 
 export function createServer(deps: ServerDeps) {
@@ -286,9 +298,13 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     return send(res, 204, "text/plain", "");
   }
 
-  // FR-EXM-118: the tab-close beacon — end now rather than waiting for the sweep.
+  // FR-EXM-118: the tab-close beacon — end now rather than waiting for the sweep. FR-EXM-155's End
+  // control posts here too, and says so: the same call means "I am done" when a subscriber presses
+  // it and "this tab is gone" when the browser sends it, and the merchant's terminal should not
+  // report the first as the second.
   if (req.method === "POST" && url.pathname === "/end") {
-    await endSession(url.searchParams.get("sub") ?? "", "left", deps);
+    const by = url.searchParams.get("by") === "subscriber" ? "ended" : "left";
+    await endSession(url.searchParams.get("sub") ?? "", by, deps);
     return send(res, 204, "text/plain", "");
   }
 
@@ -492,13 +508,19 @@ const MAX_CANCEL_ATTEMPTS = 5;
  * the await so a second beacon or the next sweep tick cannot issue a second cancel while the
  * chain confirms; the `subscription.canceled` webhook is what finally closes it (BR-EXM-110).
  */
-export async function endSession(sub: string, reason: "left" | "abandoned" | "idle" | "run", deps: ServerDeps): Promise<void> {
+export async function endSession(sub: string, reason: "left" | "abandoned" | "idle" | "run" | "ended", deps: ServerDeps): Promise<void> {
   const session = deps.sessions.get(sub);
   // FR-EXM-126: an authorised or starting session is cancelled too — a full refund, since
   // nothing has accrued yet.
   if (!session || session.state === "ended" || session.canceling) return;
   deps.sessions.markCanceling(sub);
-  deps.log(reason === "run" ? `⏹ ended with the run ${sub}` : `⏹ auto-ended (${reason}) ${sub}`);
+  deps.log(
+    reason === "ended"
+      ? `⏹ ended (subscriber) ${sub}`
+      : reason === "run"
+        ? `⏹ ended (daily limit) ${sub}`
+        : `⏹ auto-ended (${reason}) ${sub}`,
+  );
   try {
     await deps.cancelSubscription(sub);
   } catch (err) {

@@ -704,3 +704,26 @@ describe("FR-EXM-158 a re-adopted meter says it kept running", () => {
     expect(body).toMatchObject({ active: true, reason: "running", readopted: true });
   });
 });
+
+describe("FR-EXM-155 the terminal distinguishes a subscriber ending from a tab closing", () => {
+  it("logs a deliberate End session as the subscriber's, not as a tab that was left", async () => {
+    // Both reach `/end`, and both used to print "auto-ended (left)". On camera, and in front of a
+    // judge reading the merchant's terminal, that reads as "they walked away" for the one gesture
+    // this product exists to show.
+    const { base, sessions, lines, canceled } = await start();
+    sessions.applyOpen("sub_1", { startedAt: NOW, nowMs: NOW });
+
+    await fetch(`${base}/end?sub=sub_1&by=subscriber`, { method: "POST" });
+    expect(canceled).toEqual(["sub_1"]);
+    expect(lines.some((l) => l.includes("ended (subscriber) sub_1"))).toBe(true);
+    expect(lines.some((l) => l.includes("auto-ended"))).toBe(false);
+  });
+
+  it("still logs a tab-close beacon as left, because that is what it is", async () => {
+    const { base, sessions, lines } = await start();
+    sessions.applyOpen("sub_2", { startedAt: NOW, nowMs: NOW });
+
+    await fetch(`${base}/end?sub=sub_2`, { method: "POST" });
+    expect(lines.some((l) => l.includes("auto-ended (left) sub_2"))).toBe(true);
+  });
+});
