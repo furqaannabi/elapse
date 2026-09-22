@@ -194,9 +194,15 @@ export const CANCEL_TTL_SECONDS = 600;
  * After it, a Stop is allowed through again: a relayer transaction that was dropped and never
  * confirmed would otherwise strand the meter until the escrow cap, overcharging the subscriber,
  * which BR-DSH-008 and the settle rules forbid. Wasted gas is the cheaper of the two failures.
- * The same reasoning amended BR-EXM-110 for the example's sweep. **Awaiting Furqaan's review.**
+ * The same reasoning amended BR-EXM-110 for the example's sweep.
+ *
+ * Sixty seconds (William, 2026-09-22; FR-API-145). It was 300 when the guard shipped, chosen
+ * without weighing the two failures against each other. Monad confirms in one to three seconds, so
+ * 60 is already twenty times the cover a double-press needs, and the cost of the longer window
+ * falls on the wrong party: a cancel the relayer accepted and then lost leaves the meter billing
+ * the subscriber for every second the merchant is locked out of retrying.
  */
-export const CANCEL_RETRY_SECONDS = 300;
+export const CANCEL_RETRY_SECONDS = 60;
 /** Pause-or-resume submissions per Subscription per hour (FR-API-047); each is a relayer tx and a merchant webhook. */
 export const PAUSE_RESUME_PER_HOUR = 10;
 
