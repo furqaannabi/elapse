@@ -147,3 +147,47 @@ describe("EventsList · FR-DSH-126 paging", () => {
     expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
   });
 });
+
+describe("FR-DSH-090/091 an event nobody received says so", () => {
+  let api: MockDashboardApi;
+  beforeEach(() => {
+    localStorage.clear();
+    resetMockDashboardApi();
+    api = createMockDashboardApi({ latencyMs: 0 });
+  });
+
+  const notSent: Event = {
+    id: "evt_nobody", livemode: false, type: "subscription.created", objectId: "sub_1",
+    createdAt: 1_757_000_000_000, pendingWebhooks: 0, deliveryState: "not_sent", payload: { id: "sub_1" },
+  };
+
+  it("reads Not sent in the log, muted rather than dressed as a failure (FR-DSH-090)", async () => {
+    // This is the page a merchant opens because a webhook did not arrive. Until FR-API-146 it told
+    // them the event was delivered. Nothing failed either — the commonest reason to see this is a
+    // merchant who has not configured an endpoint yet.
+    const m = await signIn(api);
+    const one: MockDashboardApi = { ...api, async listEvents() { return { data: [notSent], hasMore: false }; } };
+    mount(one, m, <EventsList />);
+    const word = await screen.findByText("Not sent");
+    expect(word.className).not.toMatch(/destructive/);
+  });
+
+  it("explains it on the detail, without guessing which endpoint was missing (FR-DSH-091)", async () => {
+    const m = await signIn(api);
+    const one: MockDashboardApi = {
+      ...api,
+      async getEvent() { return { event: notSent, deliveries: [] }; },
+    };
+    mount(one, m, <EventDetail eventId="evt_nobody" />);
+    expect(await screen.findByText(/No endpoint was listening when this event was created/i)).toBeInTheDocument();
+    expect(screen.getByText(/elapse listen/)).toBeInTheDocument();
+  });
+
+  it("says nothing of the sort for an event that was delivered", async () => {
+    const m = await signIn(api);
+    const ev = (await api.listEvents("test", { type: "subscription.canceled" })).data[0]!;
+    mount(api, m, <EventDetail eventId={ev.id} />);
+    await screen.findByRole("heading", { name: ev.type });
+    expect(screen.queryByText(/No endpoint was listening/i)).toBeNull();
+  });
+});

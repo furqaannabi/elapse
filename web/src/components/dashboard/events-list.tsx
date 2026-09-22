@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { useMerchant } from "./merchant-context";
 import { LoadMore } from "./load-more";
 
-const WORD: Record<Event["deliveryState"], string> = { pending: "Pending", delivered: "Delivered", failed: "Failed" };
+const WORD: Record<Event["deliveryState"], string> = { pending: "Pending", delivered: "Delivered", failed: "Failed", not_sent: "Not sent" };
 const PAGE = 50;
 
 export function EventsList() {

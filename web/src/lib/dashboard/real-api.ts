@@ -56,7 +56,7 @@ type WireAttempt = { n: number; manual: boolean; actor: string | null; sent_at: 
 type WireDelivery = { id: string; event: string; endpoint: string; status: "queued" | "retrying" | "succeeded" | "exhausted" | "skipped"; attempt: number; next_attempt_at: number | null; livemode: boolean; created: number; resend_requested: boolean; max_attempts: number; event_type: string; event_created: number; endpoint_url: string; endpoint_disabled?: boolean; attempts_made?: number; last_attempt?: WireAttempt | null; attempts?: WireAttempt[] };
 /** FR-API-136: present only on dashboard-session reads. */
 type WireEventContext = { product_name: string; customer: string; customer_email: string | null; amount_settled?: string };
-type WireEvent = { id: string; type: EventType; created: number; livemode: boolean; data: { object: Record<string, unknown> }; pending_webhooks: number; object_id: string | null; delivery_state: "pending" | "delivered" | "failed"; context?: WireEventContext | null; deliveries?: WireDelivery[] };
+type WireEvent = { id: string; type: EventType; created: number; livemode: boolean; data: { object: Record<string, unknown> }; pending_webhooks: number; object_id: string | null; delivery_state: "pending" | "delivered" | "failed" | "not_sent"; context?: WireEventContext | null; deliveries?: WireDelivery[] };
 type WireProduct = { id: string; name: string; description: string | null; rate_usd_per_second: string; allow_pause: boolean; active: boolean; livemode: boolean; created: number; active_subscriptions: number };
 type WireSubscription = {
   id: string; status: Subscription["status"]; product: string; customer: string; checkout_session: string | null; rate_usd_per_second: string;

@@ -351,6 +351,9 @@ const DELIVERY_WORD: Record<Event["deliveryState"], string> = {
   pending: "Pending",
   delivered: "Delivered",
   failed: "Failed",
+  // FR-DSH-023 (amended 2026-09-22): muted like Delivered, never the destructive tone — nothing
+  // failed, and a merchant who has not configured an endpoint yet is not in error.
+  not_sent: "Not sent",
 };
 
 function RecentEvents({ events }: { events: Event[] }) {

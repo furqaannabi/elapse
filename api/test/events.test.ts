@@ -52,7 +52,11 @@ describe("FR-API-063 event object", () => {
     await createEvent({ merchantId: f.merchantId, livemode: true, type: "invoice.settled", object: { id: "in_2", object: "invoice" } });
     const one = await api("GET", `/v1/events/${a.id}`, { key: f.skTest });
     expect(one.status).toBe(200);
-    expect(one.body).toEqual({ ...a, object_id: canceled.id, delivery_state: "delivered", deliveries: [] }); // reads add dashboard fields; the signed body (raw_body) does not
+    // reads add dashboard fields; the signed body (raw_body) does not.
+    // FR-API-146 inverted the state here: this merchant has no endpoints, so the event produced no
+    // Delivery and reached nobody. It read "delivered" until 2026-09-22 — the rollup's ELSE — which
+    // is the sentence the Events page gave a merchant whose webhook never arrived.
+    expect(one.body).toEqual({ ...a, object_id: canceled.id, delivery_state: "not_sent", deliveries: [] });
     expect((await api("GET", `/v1/events/${a.id}`, { key: f.skLive })).status).toBe(404);
     expect((await api("GET", `/v1/events/${a.id}`, { key: f.pkTest })).status).toBe(401);
     const all = await api("GET", "/v1/events", { key: f.skTest });

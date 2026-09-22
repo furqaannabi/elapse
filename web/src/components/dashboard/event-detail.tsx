@@ -57,6 +57,19 @@ export function EventDetail({ eventId }: { eventId: string }) {
         )}
       </p>
 
+      {/*
+        * FR-DSH-091 (amended 2026-09-22, FR-API-146): an event that reached nobody says so here,
+        * whether it produced no delivery at all or only skipped ones. The sentence is fixed rather
+        * than inferred from the merchant's endpoints today: a diagnostic that rewrites itself once
+        * the problem is fixed is worse than none, and this one is true in every case that reaches it.
+        */}
+      {event.deliveryState === "not_sent" && (
+        <p className="mt-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-[13px] text-ink-soft">
+          No endpoint was listening when this event was created. Check Developers → Webhooks, and if
+          you forward with <code className="numerals">elapse listen</code>, that it was running.
+        </p>
+      )}
+
       <section className="mt-6" data-testid="event-payload">
         <CodeBlock code={json} title="payload.json" lang="json" wrap copyLabel="Copy payload" />
       </section>
@@ -65,7 +78,7 @@ export function EventDetail({ eventId }: { eventId: string }) {
         <h3 className="text-[1.0625rem] font-semibold tracking-[-0.01em]">Deliveries</h3>
         {deliveries.length === 0 ? (
           <p className="mt-3 rounded-lg border border-border px-4 py-6 text-center text-[13px] text-ink-soft">
-            No endpoint was subscribed to this type when it happened.
+            No delivery was created for this event.
           </p>
         ) : (
           <ol aria-label="Deliveries" className="mt-3 divide-y divide-border rounded-lg border border-border">

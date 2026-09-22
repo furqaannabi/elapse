@@ -90,3 +90,33 @@ describe("customers carry subscription_count and total_settled_usd", () => {
     expect((await api("GET", "/v1/customers", { key: m.skTest })).body.data).toHaveLength(2);
   });
 });
+
+describe("FR-API-146 an event nobody received does not report as delivered", () => {
+  it("reads not_sent when fan-out matched no endpoint at all", async () => {
+    // With `elapse listen` down, FR-API-134 excludes the CLI endpoint from fan-out, so the event
+    // produced no Delivery. The rollup's ELSE called that delivered, and the Events page — the one
+    // a merchant opens precisely because a webhook did not arrive — told them it had.
+    const body = JSON.stringify({ id: "evt_nobody", object: "event", type: "subscription.created", created: 1, livemode: false, data: { object: { id: "sub_x" } } });
+    await sql`INSERT INTO events (id, merchant_id, livemode, type, data, raw_body, created, pending_webhooks)
+              VALUES ('evt_nobody', ${m.merchantId}, false, 'subscription.created', ${{ object: { id: "sub_x" } }}, ${body}, now(), 0)`;
+    const ev = await api("GET", "/v1/events/evt_nobody", { key: m.skTest });
+    expect(ev.body.delivery_state).toBe("not_sent");
+    expect(ev.body.deliveries).toEqual([]);
+  });
+
+  it("reads not_sent for an event whose every delivery was skipped", async () => {
+    // `cli_not_acked` after ten minutes, or `endpoint_disabled` after auto-disable. A Delivery
+    // existed and was abandoned; nothing is still trying.
+    const { eventId } = await endpointWithTestEvent();
+    await sql`UPDATE deliveries SET status = 'skipped' WHERE event_id = ${eventId}`;
+    expect((await api("GET", `/v1/events/${eventId}`, { key: m.skTest })).body.delivery_state).toBe("not_sent");
+  });
+
+  it("still reads delivered when one endpoint succeeded beside one that was skipped", async () => {
+    const { eventId } = await endpointWithTestEvent();
+    const ep2 = await api("POST", "/v1/webhook_endpoints", { key: m.skTest, body: { url: "https://other.example/hooks", events: ["*"] } });
+    await sql`INSERT INTO deliveries (id, event_id, endpoint_id, status) VALUES ('dlv_second', ${eventId}, ${ep2.body.id}, 'succeeded')`;
+    await sql`UPDATE deliveries SET status = 'skipped' WHERE event_id = ${eventId} AND id <> 'dlv_second'`;
+    expect((await api("GET", `/v1/events/${eventId}`, { key: m.skTest })).body.delivery_state).toBe("delivered");
+  });
+});

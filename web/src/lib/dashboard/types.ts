@@ -146,7 +146,12 @@ export const EVENT_TYPES: readonly EventType[] = [
   "invoice.payment_failed",
 ];
 
-export type DeliveryState = "pending" | "delivered" | "failed";
+/**
+ * FR-API-146: `not_sent` means no endpoint received this event and nothing is still trying —
+ * either fan-out matched nothing, or every delivery was skipped. It is not a failure: the
+ * commonest reason to see it is a merchant with no endpoint configured yet.
+ */
+export type DeliveryState = "pending" | "delivered" | "failed" | "not_sent";
 
 export type Event = {
   id: `evt_${string}`;

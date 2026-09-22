@@ -13,7 +13,7 @@ import { merchantAuth, type AuthEnv } from "../middleware/auth";
 
 export const EventSchema = WebhookEventSchema.extend({
     object_id: z.string().nullable().openapi({ description: "`data.object.id`, for tables." }),
-    delivery_state: z.enum(["pending", "delivered", "failed"]).openapi({ description: "Rolled up from this event's deliveries." }),
+    delivery_state: z.enum(["pending", "delivered", "failed", "not_sent"]).openapi({ description: "Rolled up from this event's deliveries. `not_sent` (FR-API-146) means no endpoint received it and nothing is still trying: either no endpoint matched at all, or every delivery was skipped." }),
   })
   .openapi("Event");
 

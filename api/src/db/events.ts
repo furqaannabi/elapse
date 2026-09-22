@@ -26,7 +26,7 @@ export interface EventRow {
   request: EventObject["request"] | null;
   pending: number;
   /** Rolled up from the event's deliveries (dashboard FR-DSH-023): none/any pending → pending; all finished and any exhausted → failed; else delivered. */
-  delivery_state: "pending" | "delivered" | "failed";
+  delivery_state: "pending" | "delivered" | "failed" | "not_sent";
   /** FR-API-136: product name and customer email resolved from the payload's ids (through the subscription for invoices); null when nothing resolves. Dashboard sessions only. */
   context: EventContext | null;
 }
@@ -95,12 +95,23 @@ export async function createEvent(input: {
   return input.tx ? run(input.tx) : sql.begin(run);
 }
 
+/**
+ * FR-API-146: "delivered" is a claim about the world, so the rollup only makes it when a Delivery
+ * actually succeeded. Two things used to fall into the old ELSE although nothing reached the
+ * merchant: an event with no Deliveries at all (fan-out matched nothing — a disconnected CLI
+ * endpoint is excluded by FR-API-134), and one whose every Delivery was skipped (cli_not_acked,
+ * endpoint_disabled). Both read "not_sent": this did not reach you, and nothing is still trying.
+ *
+ * An event with several endpoints still reads "delivered" when any one of them succeeded; the
+ * per-Delivery list is where a partial failure shows.
+ */
 const COLS = sql`e.id, e.merchant_id, e.livemode, e.type, e.data, e.raw_body, e.created, e.request,
   (SELECT count(*)::int FROM deliveries d WHERE d.event_id = e.id AND d.status NOT IN ('succeeded', 'exhausted', 'skipped')) AS pending,
   (SELECT CASE
      WHEN count(*) FILTER (WHERE d.status IN ('queued', 'retrying')) > 0 THEN 'pending'
+     WHEN count(*) FILTER (WHERE d.status = 'succeeded') > 0 THEN 'delivered'
      WHEN count(*) FILTER (WHERE d.status = 'exhausted') > 0 THEN 'failed'
-     ELSE 'delivered' END
+     ELSE 'not_sent' END
    FROM deliveries d WHERE d.event_id = e.id) AS delivery_state,
   (SELECT jsonb_build_object('product_name', p.name, 'customer', c.id, 'customer_email', c.email)
      || CASE WHEN e.type LIKE 'invoice.%' AND e.data->'object'->>'amount_settled' IS NOT NULL

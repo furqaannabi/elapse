@@ -476,7 +476,16 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
     if (!e) return;
     const mine = data.deliveries.filter((d) => d.event.id === e.id && d.status !== "skipped");
     e.pendingWebhooks = mine.filter((d) => d.status === "pending" || d.status === "failed").length;
-    e.deliveryState = mine.some((d) => d.status === "exhausted") ? "failed" : e.pendingWebhooks > 0 ? "pending" : "delivered";
+    // FR-API-146: the same rollup the platform uses. `delivered` is only claimed when a delivery
+    // actually succeeded; an event with none left after the skipped ones reached nobody, and the
+    // mock has to say so or UI built against it is built against the old lie.
+    e.deliveryState = e.pendingWebhooks > 0
+      ? "pending"
+      : mine.some((d) => d.status === "succeeded")
+        ? "delivered"
+        : mine.some((d) => d.status === "exhausted")
+          ? "failed"
+          : "not_sent";
   };
 
   const dataFor = (merchantId: string, mode: Mode): MerchantData => {
