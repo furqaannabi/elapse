@@ -34,7 +34,9 @@ function throughSymlink(args: string[]): { stdout: string; status: number } {
   const home = mkdtempSync(join(tmpdir(), "elapse-bin-"));
   const link = join(home, "elapse");
   symlinkSync(dist, link);
-  const env = { ...process.env, XDG_CONFIG_HOME: join(home, "config") };
+  // Typed as the environment it is: the spread narrows to the one literal key otherwise, and the
+  // `delete` below cannot index it (TS7053).
+  const env: NodeJS.ProcessEnv = { ...process.env, XDG_CONFIG_HOME: join(home, "config") };
   for (const k of Object.keys(env)) if (k.startsWith("ELAPSE_")) delete env[k];
   try {
     return { stdout: execFileSync(process.execPath, [link, ...args], { encoding: "utf8", env }), status: 0 };
