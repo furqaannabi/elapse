@@ -30,7 +30,7 @@ export type UseMeterInput = {
   /** Epoch ms; freezes the meter when set. */
   pausedAt?: number | null;
   /**
-   * Milliseconds already spent in pauses that have ended (FR-API-143). The chain bills none of it,
+   * Milliseconds already spent in pauses that have ended (FR-API-144). The chain bills none of it,
    * so leaving it out makes the meter jump the whole pause forward the moment it resumes.
    */
   pausedMs?: number;

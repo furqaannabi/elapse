@@ -105,7 +105,7 @@ export type Subscription = {
   rateUsdPerSecond: string;
   startedAt: number | null;
   pausedAt: number | null;
-  /** Milliseconds already spent in pauses that have ended (FR-API-143); never billed. */
+  /** Milliseconds already spent in pauses that have ended (FR-API-144); never billed. */
   pausedMs: number;
   canceledAt: number | null;
   pauseReason?: PauseReason;

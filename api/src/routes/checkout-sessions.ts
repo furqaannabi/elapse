@@ -60,7 +60,7 @@ export const SubscriptionSchema = z
     rate_usd_per_second: z.string(),
     started_at: z.number().int().nullable(),
     paused_at: z.number().int().nullable(),
-    /** FR-API-143: seconds spent in pauses that have ended, so a client meter can exclude them. */
+    /** FR-API-144: seconds spent in pauses that have ended, so a client meter can exclude them. */
     paused_seconds: z.number().int(),
     canceled_at: z.number().int().nullable(),
     ended_reason: z.enum(["canceled", "cap_reached"]).nullable(),

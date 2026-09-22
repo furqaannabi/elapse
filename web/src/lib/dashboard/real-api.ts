@@ -211,7 +211,7 @@ export function mapSubscription(w: WireSubscription): Subscription {
     rateUsdPerSecond: w.rate_usd_per_second,
     startedAt: ms(w.started_at),
     pausedAt: ms(w.paused_at),
-    // A platform predating FR-API-143 sends none; zero is the old behaviour, not NaN.
+    // A platform predating FR-API-144 sends none; zero is the old behaviour, not NaN.
     pausedMs: (w.paused_seconds ?? 0) * 1000,
     canceledAt: ms(w.canceled_at),
     ...(w.status === "paused" ? { pauseReason: "user" as const } : {}),
