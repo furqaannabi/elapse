@@ -41,6 +41,11 @@ async function start(over: Record<string, unknown> = {}) {
     log: (l: string) => lines.push(l),
     logJson: false,
     createCheckoutSession: async () => ({ id: "cs_1" }),
+    // FR-EXM-157: unreachable by default, so a test that does not care about claims cannot be
+    // quietly adopting one.
+    retrieveSubscription: async () => ({ k: "unreachable" as const }),
+    ourProduct: "prod_northwind",
+    retrievePauseMs: 1,
     startSubscription: async (sub: string) => {
       startedSubs.push(sub);
     },
@@ -165,11 +170,23 @@ describe("FR-EXM-125 a Run that arrives before the webhook does", () => {
     expect(executor.calls).toEqual([CODE]);
   });
 
-  it("still asks for a new session when that subscription never turns up", async () => {
-    const { base, executor } = await start({ knownTimeoutMs: 120, knownPollMs: 10 });
+  it("refuses when that subscription never turns up, rather than asking for a new session", async () => {
+    // Inverted by FR-EXM-114's 2026-09-22 amendment. This test used to assert the opposite — a
+    // subscription that never turned up got a fresh Checkout session — which is the loop that
+    // stranded $21.60: the subscriber authorises again, that one is not delivered either, and
+    // round it goes. Not knowing is no longer an answer the subscriber pays for.
+    const opened: string[] = [];
+    const { base, executor } = await start({
+      knownTimeoutMs: 120,
+      knownPollMs: 10,
+      createCheckoutSession: async () => {
+        opened.push("cs");
+        return { id: "cs_1" };
+      },
+    });
     const res = await run(base, "sub_neverEver");
-    expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({ needs_start: true, session: "cs_1" });
+    expect(res.status).toBe(503);
+    expect(opened).toEqual([]);
     expect(executor.calls).toEqual([]);
   });
 
@@ -618,5 +635,72 @@ describe("FR-EXM-117 a failed cancel is retried, then given up on", () => {
     for (let i = 0; i < 10; i++) await sweepOnce(deps, later + 10_000 + i * 5_000, windows);
     expect(attempts.length).toBeLessThanOrEqual(5);
     expect(lines.some((l) => l.includes("giving up"))).toBe(true);
+  });
+});
+
+describe("FR-EXM-157 the console claims the subscription", () => {
+  const retrieved = (over: Record<string, unknown> = {}) => ({
+    k: "found" as const,
+    checkoutSession: "cs_1",
+    product: "prod_northwind",
+    status: "incomplete",
+    ...over,
+  });
+
+  it("starts the meter on a claimed session although no subscription.created was ever delivered", async () => {
+    // The bug this closes: with `elapse listen` down the created event produces no Delivery at all
+    // (FR-API-134), so the server never learned the subscription and answered by opening ANOTHER
+    // Checkout session — three authorisations of $7.20, none of them ever cancelled.
+    const { base, sessions, executor, startedSubs, lines } = await start({
+      retrieveSubscription: async () => retrieved(),
+      ourProduct: "prod_northwind",
+    });
+    sessions.issueCheckout("cs_1");
+
+    const claim = await fetch(`${base}/claim?sub=sub_1`, { method: "POST" });
+    expect(claim.status).toBe(200);
+    expect(await claim.json()).toEqual({ state: "authorised" });
+
+    const pending = run(base, "sub_1");
+    setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
+    expect((await pending).status).toBe(200);
+    expect(startedSubs).toEqual(["sub_1"]);
+    expect(executor.calls).toEqual([CODE]);
+    expect(lines.filter((l) => l.includes("checkout.sessions.create"))).toEqual([]);
+  });
+
+  it("refuses a Run for a session it could not verify rather than opening a second one", async () => {
+    // FR-EXM-114 amended: `state === undefined` means "I do not know", and answering not-knowing
+    // with a fresh Checkout session is what stranded the escrow. A well-formed `sub_` the server
+    // has never adopted is refused, and the authorisation is left for the boot reconcile.
+    const opened: string[] = [];
+    const { base, executor } = await start({
+      knownTimeoutMs: 30,
+      knownPollMs: 10,
+      createCheckoutSession: async () => {
+        opened.push("cs");
+        return { id: "cs_2" };
+      },
+    });
+
+    const res = await run(base, "sub_neverclaimed");
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toMatch(/can't reach Elapse|does not belong/);
+    expect(opened).toEqual([]);
+    expect(executor.calls).toEqual([]);
+  });
+});
+
+describe("FR-EXM-158 a re-adopted meter says it kept running", () => {
+  it("tells the console the meter ran while the server was down", async () => {
+    // The meter is on chain, not in this process, so the seconds a restart takes are billed. A
+    // console that silently rejoins a meter reading two minutes higher than it left it is the one
+    // thing that would make the subscriber distrust the number.
+    const { base, sessions } = await start();
+    sessions.applyOpen("sub_back", { startedAt: NOW - 120_000, nowMs: NOW });
+    sessions.markReadopted("sub_back");
+
+    const body = await (await fetch(`${base}/access/sub_back`)).json();
+    expect(body).toMatchObject({ active: true, reason: "running", readopted: true });
   });
 });

@@ -5,7 +5,13 @@ import type { AddressInfo } from "node:net";
  * A tiny Elapse API double: records every request and answers products.list/create,
  * checkout.sessions.create (echoing the session cap), subscriptions.start and subscriptions.cancel.
  */
-export async function mockApi(opts: { existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string; start_mode?: string }> } = {}) {
+export async function mockApi(
+  opts: {
+    existingProducts?: Array<{ id: string; name: string; rate_usd_per_second: string; start_mode?: string }>;
+    /** FR-EXM-158: what `subscriptions.list` reports when the server comes up. */
+    existingSubscriptions?: Array<{ id: string; product: string; status: string; started_at?: number }>;
+  } = {},
+) {
   const requests: Array<{ method: string; path: string; auth: string | undefined; body: unknown }> = [];
   let n = 0;
   const server: Server = createServer(async (req, res) => {
@@ -29,6 +35,14 @@ export async function mockApi(opts: { existingProducts?: Array<{ id: string; nam
       const b = JSON.parse(raw) as { product: string };
       // No `url`: the hosted checkout is gone; the page authorises in place (FR-API-140, FR-EXM-152).
       return json(200, { id: `cs_${++n}`, object: "checkout.session", status: "open", product: { id: b.product } });
+    }
+    if (req.method === "GET" && path.startsWith("/v1/subscriptions?")) {
+      return json(200, {
+        object: "list",
+        data: (opts.existingSubscriptions ?? []).map((x) => ({ object: "subscription", ...x })),
+        has_more: false,
+        url: "/v1/subscriptions",
+      });
     }
     const start = path.match(/^\/v1\/subscriptions\/([\w-]+)\/start$/);
     if (req.method === "POST" && start) {

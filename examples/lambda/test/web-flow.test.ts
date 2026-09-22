@@ -3,7 +3,7 @@
  * → resolve the subscription → auto-run. No navigation to a hosted page anywhere in here.
  */
 import { describe, expect, it, vi } from "vitest";
-import { postRun, readAccess, resolveSub } from "../src/web/flow";
+import { postRun, readAccess, resolveSub, postClaim } from "../src/web/flow";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -88,5 +88,37 @@ describe("FR-EXM-111 readAccess", () => {
     for (const body of [null, {}, { reason: "authorised" }, { reason: "starting" }, { reason: "unknown session" }]) {
       expect(readAccess(body)).toBe("ignore");
     }
+  });
+});
+
+describe("FR-EXM-157 the console claims its subscription", () => {
+  it("tells the console the session is ready when Northwind adopts the claim", async () => {
+    const calls: string[] = [];
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url}`);
+      return new Response(JSON.stringify({ state: "authorised" }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    expect(await postClaim(fetchFn, "sub_1")).toEqual({ k: "ready" });
+    expect(calls).toEqual(["POST /claim?sub=sub_1"]);
+  });
+
+  it("passes the platform's refusal through, so the subscriber is not asked to authorise again", async () => {
+    // The whole point: a claim that cannot be verified must not look like "no session yet", or the
+    // console renders <Authorize> and the subscriber pays into a second escrow.
+    const fetchFn = (async () =>
+      new Response(JSON.stringify({ error: "Northwind can't reach Elapse to confirm your session." }), {
+        status: 503,
+      })) as unknown as typeof fetch;
+
+    expect(await postClaim(fetchFn, "sub_1")).toEqual({
+      k: "refused",
+      message: "Northwind can't reach Elapse to confirm your session.",
+    });
+  });
+
+  it("asks for a fresh session only when Northwind says this one is spent", async () => {
+    const fetchFn = (async () => new Response(JSON.stringify({ needs_start: true }), { status: 409 })) as unknown as typeof fetch;
+    expect(await postClaim(fetchFn, "sub_1")).toEqual({ k: "needs_auth" });
   });
 });

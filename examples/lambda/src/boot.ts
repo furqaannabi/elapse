@@ -1,3 +1,4 @@
+import { reconcileBoot, type PlatformSubscription } from "./claim";
 import { LambdaClient } from "@aws-sdk/client-lambda";
 import { Elapse } from "@elapse/sdk";
 import type { AddressInfo } from "node:net";
@@ -68,8 +69,32 @@ export async function boot(config: Config, io: BootIO) {
         cancelUrl: `${config.baseUrl}/cancel`,
         maxDurationSeconds: config.maxDurationSeconds,
       });
+      // FR-EXM-157: remember it, so a claim can be bound to a session this server actually issued.
+      sessions.issueCheckout(session.id);
       return { id: session.id };
     },
+    // region:claim
+    // FR-EXM-157: what the platform says about a subscription the browser claims. A 404 is the
+    // platform answering — that subscription is not this merchant's — while anything else is not
+    // knowing, and the two lead to very different answers.
+    ourProduct: product.id,
+    retrieveSubscription: async (sub) => {
+      try {
+        const s = await elapse.subscriptions.retrieve(sub);
+        // `checkout_session` reaches the SDK through `SubscriptionObject`'s index signature, so it
+        // arrives as `unknown` and is narrowed here rather than asserted.
+        const cs = s.checkout_session;
+        return {
+          k: "found",
+          ...(typeof cs === "string" ? { checkoutSession: cs } : {}),
+          product: s.product,
+          status: s.status,
+        };
+      } catch (err) {
+        return (err as { status?: number }).status === 404 ? { k: "not_found" } : { k: "unreachable" };
+      }
+    },
+    // endregion
     // endregion
     // region:start
     // FR-EXM-125: the first Run starts the meter. Until this call the subscriber's money sits in
@@ -114,6 +139,27 @@ export async function boot(config: Config, io: BootIO) {
     void sweepOnce(deps, Date.now(), windows).catch((err: Error) => io.log(`✗ sweep: ${err.message}`));
   }, SWEEP_INTERVAL_MS);
   sweep.unref?.();
+
+  // FR-EXM-158: the meters that outlived the last process. The store is in memory, so without this
+  // a restart orphans a running meter: it keeps billing on chain and nothing here can end it.
+  try {
+    const running = await Promise.all(
+      (["active", "paused"] as const).map((status) => elapse.subscriptions.list({ product: product.id, status, limit: 100 })),
+    );
+    const adopted = reconcileBoot(running.flatMap((page) => page.data as unknown as PlatformSubscription[]), product.id);
+    for (const a of adopted) {
+      sessions.applyOpen(a.sub, { startedAt: a.startedAt, nowMs: Date.now() });
+      // The pause began before this process did; dating it now gives an abandoned meter the full
+      // FR-EXM-154 window again rather than ending it the moment we come up.
+      if (a.state === "paused") sessions.applyPaused(a.sub, { nowMs: Date.now() });
+      sessions.markReadopted(a.sub);
+      io.out(`Adopted:  ${a.sub} (${a.state}) — it kept running while this server was down`);
+    }
+  } catch (err) {
+    // A platform that cannot be reached at boot is not a reason to refuse to start; the meters are
+    // on chain either way, and the next restart tries again.
+    io.log(`✗ reconcile: ${(err as Error).message}`);
+  }
 
   io.out(`Product:  ${product.id}  ${product.name}  $${product.rate_usd_per_second}/s`);
   io.out(`Webhooks: POST ${config.baseUrl}/webhooks`);

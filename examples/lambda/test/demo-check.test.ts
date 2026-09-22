@@ -18,6 +18,8 @@ async function serve(secret: string) {
     webhookSecret: secret,
     log: () => {},
     logJson: false,
+    retrieveSubscription: async () => ({ k: "unreachable" as const }),
+    ourProduct: "prod_northwind",
     createCheckoutSession: async () => ({ id: "cs_1" }),
     startSubscription: async () => {},
     cancelSubscription: async () => {},

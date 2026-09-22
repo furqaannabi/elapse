@@ -8,7 +8,7 @@
 import { Authorize, Meter } from "@elapse/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor } from "./editor";
-import { postRun, readAccess, resolveSub, type RunBody } from "./flow";
+import { postRun, readAccess, resolveSub, type RunBody, postClaim } from "./flow";
 
 type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "session"; session: string; sub: string };
 
@@ -20,6 +20,11 @@ const RUNNING_STATUS = "Running — end the session when you are done";
 // FR-EXM-154/155: a pause the subscriber did not ask for has to say so. <Meter> narrates the ones
 // they did ask for (FR-RCT-046); this is the only voice the automatic one has.
 const AUTO_PAUSED = "Paused — nothing has run for a minute. Press Run or Resume to carry on.";
+/**
+ * FR-EXM-158: the meter is on chain, so it kept billing while this server was restarting. Saying
+ * that plainly is what keeps the number trustworthy when the console rejoins a session.
+ */
+const READOPTED = "This meter kept running while Northwind restarted — those seconds are on it. Press End session when you're done.";
 const isImage = (v: unknown): v is string => typeof v === "string" && v.startsWith("data:image/");
 
 function resultLine(body: RunBody): string {
@@ -39,6 +44,8 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   // Whether the last pause or resume was one the subscriber asked for. <Meter> narrates those
   // itself; only the sweep's automatic pause needs this page to explain it.
   const asked = useRef(false);
+  /** FR-EXM-158: said once, on the first poll that reports an adopted meter. */
+  const readopted = useRef(false);
 
   useEffect(() => {
     fetch("/runner-source").then((r) => (r.ok ? r.text() : "")).then(setSource).catch(() => {});
@@ -65,6 +72,13 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
             setPhase({ k: "idle" });
             setStatus(`Session ended — ${merchant} settled the exact seconds you were open. Press Run to start another.`);
             setEnding(false);
+            return;
+          }
+          // FR-EXM-158: a meter this server adopted at boot was billing while the server was down,
+          // so the console says so once rather than letting the figure jump unexplained.
+          if (a?.readopted && !readopted.current) {
+            readopted.current = true;
+            setStatus(READOPTED);
             return;
           }
           if (asked.current) return;
@@ -127,6 +141,17 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         setPhase({ k: "idle" });
         setStatus(IDLE_STATUS);
         setOut({ error: "Your session did not open. Nothing was charged — press Run to try again." });
+        return;
+      }
+      // FR-EXM-157: hand Northwind the id rather than waiting for `subscription.created`, which a
+      // disconnected `elapse listen` never delivers at all. A refusal ends here: the one thing the
+      // console must never do with "I could not confirm that session" is offer to authorise
+      // another one.
+      const claim = await postClaim(fetch, found);
+      if (claim.k !== "ready") {
+        setPhase({ k: "idle" });
+        setStatus(IDLE_STATUS);
+        setOut({ error: claim.k === "refused" ? claim.message : "That session is spent. Press Run to open a new one." });
         return;
       }
       const next: Phase = { k: "session", session, sub: found };

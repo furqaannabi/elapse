@@ -70,3 +70,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-20 | [Authorise in a window only; the modal frame is withdrawn](./2026-09-20-authorise-in-a-window-only.md) | Furqaan |
 | 2026-09-20 | [The subscriber never pauses a meter; they ask the merchant](./2026-09-20-subscriber-cannot-pause.md) | Furqaan |
 | 2026-09-21 | [The Lambda example's meter runs until the subscriber ends it](./2026-09-21-the-lambda-meter-runs-until-you-end-it.md) | William |
+| 2026-09-22 | [Northwind learns a subscription from a verified claim, and reconciles its own meters on boot](./2026-09-22-northwind-learns-a-subscription-without-the-webhook.md) | William |

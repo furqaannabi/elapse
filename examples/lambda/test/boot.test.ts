@@ -37,9 +37,15 @@ describe("FR-EXM-102 npm start", () => {
   it("creates the Product and names the runner, without opening a checkout session", async () => {
     const { api, out } = await run();
 
-    expect(api.requests.map((r) => [r.method, r.path])).toEqual([
+    expect(api.requests.slice(0, 2).map((r) => [r.method, r.path])).toEqual([
       ["GET", "/v1/products?limit=100"],
       ["POST", "/v1/products"],
+    ]);
+    // FR-EXM-158: boot asks for its own running meters before it serves. The two go out together,
+    // so their order is the network's business, not this test's.
+    expect(api.requests.slice(2).map((r) => `${r.method} ${r.path}`).sort()).toEqual([
+      "GET /v1/subscriptions?product=prod_new1&status=active&limit=100",
+      "GET /v1/subscriptions?product=prod_new1&status=paused&limit=100",
     ]);
     expect(api.requests.every((r) => r.auth === "Bearer sk_test_abc")).toBe(true);
     // FR-EXM-102 (amended): merchant start mode — the meter waits for the first Run (FR-EXM-125).
@@ -59,12 +65,32 @@ describe("FR-EXM-102 npm start", () => {
 
   it("reuses an existing merchant-mode Product by name instead of creating another", async () => {
     const { api, out } = await run([{ id: "prod_old", name: "Serverless runtime", rate_usd_per_second: "0.002", start_mode: "merchant" }]);
-    expect(api.requests.map((r) => r.method)).toEqual(["GET"]);
+    expect(api.requests.map((r) => r.method)).toEqual(["GET", "GET", "GET"]); // products, then FR-EXM-158's two
     expect(out[0]).toBe("Product:  prod_old  Serverless runtime  $0.002/s");
   });
 
   it("does not reuse a checkout-mode Product of the same name: its meter would start too early", async () => {
     const { api } = await run([{ id: "prod_old", name: "Serverless runtime", rate_usd_per_second: "0.002", start_mode: "checkout" }]);
-    expect(api.requests.map((r) => r.method)).toEqual(["GET", "POST"]);
+    expect(api.requests.map((r) => r.method)).toEqual(["GET", "POST", "GET", "GET"]);
+  });
+});
+
+describe("FR-EXM-158 Northwind reconciles its own meters on boot", () => {
+  it("re-adopts a meter left paused by a restart, with no webhook involved", async () => {
+    // The session store is in memory, so a restart loses every session the server was holding
+    // while the meters themselves keep running on chain. One was left paused and unreachable for
+    // fifteen hours; nothing in the example would ever have ended it.
+    const api = await mockApi({
+      existingProducts: [{ id: "prod_1", name: "Serverless runtime", rate_usd_per_second: "0.002", start_mode: "merchant" }],
+      existingSubscriptions: [{ id: "sub_left", product: "prod_1", status: "paused", started_at: 1_790_025_263 }],
+    });
+    closers.push(api.close);
+    const app = await boot(config(api.url), { out: () => {}, log: () => {}, runnerMode: "mock" });
+    closers.push(app.close);
+
+    const access = await (await fetch(`http://127.0.0.1:${app.port}/access/sub_left`)).json();
+    // FR-EXM-158: `readopted` is what the console needs to say the meter kept running while this
+    // server was down — those seconds are billed, and an unexplained figure is what breaks trust.
+    expect(access).toEqual({ active: false, reason: "paused", readopted: true });
   });
 });

@@ -1,3 +1,4 @@
+import { claimVerdict, type Retrieved } from "./claim";
 import { readFileSync } from "node:fs";
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Executor } from "./executor";
@@ -21,6 +22,16 @@ export interface ServerDeps {
   logJson?: boolean;
   /** `checkout.sessions.create` with the session cap, behind a function (FR-EXM-114). */
   createCheckoutSession: () => Promise<{ id: string }>;
+  /**
+   * FR-EXM-157: what the platform says about a subscription the browser claims. Returns the reduced
+   * shape rather than the SDK's object so this module stays free of the SDK; boot maps a 404 to
+   * `not_found` and any other failure to `unreachable`.
+   */
+  retrieveSubscription: (sub: string) => Promise<Retrieved>;
+  /** The Product this server sells. A claim on anything else is not Northwind's (FR-EXM-157). */
+  ourProduct: string;
+  /** Injected by tests; the wait between retrieve attempts. */
+  retrievePauseMs?: number;
   /** `subscriptions.start`, behind a function (FR-EXM-125). */
   startSubscription: (sub: string) => Promise<void>;
   /** FR-EXM-125: how long the first Run waits for the chain before refunding. Default 30 s. */
@@ -107,6 +118,13 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     // flight is spent even though `subscription.canceled` has not landed yet, so the next Run
     // opens a new one rather than invoking on a dying meter.
     const spent = deps.sessions.get(sub)?.canceling === true;
+    // FR-EXM-114 (amended 2026-09-22): a new Checkout session is opened only on positive knowledge
+    // that no meter is usable. A well-formed `sub_` this server has never adopted is not that — it
+    // is a claim that did not land, and answering it with a fresh session is what put three
+    // authorisations of $7.20 into escrow with nothing to end them.
+    if (state === undefined && /^sub_[A-Za-z0-9]+$/.test(sub)) {
+      return send(res, 503, "application/json", JSON.stringify({ error: REFUSAL.unverifiable }));
+    }
     if (state === undefined || state === "ended" || spent) {
       // FR-EXM-114 (amended): no session yet — open one and hand back its id. The console renders
       // <Authorize session> in place (FR-EXM-152); nobody leaves this page.
@@ -198,13 +216,20 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
     // FR-EXM-154 (amended 2026-09-21): paused is its own answer. It is not ended — the escrow and
     // the authorisation both stand, and the next Run resumes rather than opening a new session.
     if (session.state === "paused")
-      return send(res, 200, "application/json", JSON.stringify({ active: false, reason: "paused" }));
+      return send(res, 200, "application/json", JSON.stringify({ active: false, reason: "paused", ...(session.readopted ? { readopted: true } : {}) }));
     if (session.active)
       return send(
         res,
         200,
         "application/json",
-        JSON.stringify({ active: true, reason: "running", ...(session.startedAt === undefined ? {} : { started_at: Math.floor(session.startedAt / 1000) }) }),
+        JSON.stringify({
+          active: true,
+          reason: "running",
+          ...(session.startedAt === undefined ? {} : { started_at: Math.floor(session.startedAt / 1000) }),
+          // FR-EXM-158: this meter was adopted at boot, so it was billing while the server was not
+          // watching. The console says so rather than letting the number change without explanation.
+          ...(session.readopted ? { readopted: true } : {}),
+        }),
       );
     return send(
       res,
@@ -217,6 +242,42 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
         ...(session.paidUsd === undefined ? {} : { paid_usd: session.paidUsd }),
       }),
     );
+  }
+
+  /**
+   * FR-EXM-157: the console claims the subscription `<Authorize>` just handed it. Northwind does not
+   * take the browser's word for it: the platform must confirm the subscription is on Northwind's
+   * Product and came from a Checkout session Northwind itself issued and has not consumed. Retrieval
+   * alone would prove only that it is this merchant's, so any leaked `sub_` would let its holder run
+   * code on a meter someone else is paying for.
+   */
+  if (req.method === "POST" && url.pathname === "/claim") {
+    const sub = url.searchParams.get("sub") ?? "";
+    if (!/^sub_[A-Za-z0-9]+$/.test(sub)) return send(res, 400, "application/json", JSON.stringify({ error: "sub is required" }));
+    if (deps.sessions.state(sub) !== undefined) {
+      return send(res, 200, "application/json", JSON.stringify({ state: deps.sessions.state(sub) }));
+    }
+    const retrieved = await retrieveWithRetries(sub, deps);
+    const verdict = claimVerdict({ retrieved, issued: deps.sessions.issuedCheckouts(), ourProduct: deps.ourProduct });
+    const nowMs = deps.now();
+    if (verdict.k === "adopt") {
+      deps.sessions.applyAuthorised(sub, { nowMs });
+      // Consume the Checkout session the platform says this subscription came from: one `cs_` buys
+      // one session, so a second tab opens its own rather than adopting this one's.
+      if (retrieved.k === "found" && retrieved.checkoutSession) deps.sessions.consumeCheckout(retrieved.checkoutSession);
+      deps.log(`↳ claimed ${sub}`);
+      return send(res, 200, "application/json", JSON.stringify({ state: "authorised" }));
+    }
+    if (verdict.k === "running") {
+      // `applyPaused` only moves a session that already exists, so the session is opened first and
+      // then put where the platform says it is.
+      deps.sessions.applyOpen(sub, { startedAt: nowMs, nowMs });
+      if (verdict.status === "paused") deps.sessions.applyPaused(sub, { nowMs });
+      return send(res, 200, "application/json", JSON.stringify({ state: verdict.status }));
+    }
+    if (verdict.k === "spent") return send(res, 409, "application/json", JSON.stringify({ needs_start: true }));
+    const status = verdict.reason === "not_ours" ? 403 : 503;
+    return send(res, status, "application/json", JSON.stringify({ error: REFUSAL[verdict.reason] }));
   }
 
   // FR-EXM-116: the console says "still here" every few seconds while it is open.
@@ -291,6 +352,30 @@ async function knownState(sub: string, deps: ServerDeps) {
     if (state !== undefined) return state;
   }
   return undefined;
+}
+
+
+/**
+ * FR-EXM-157: what the subscriber is told when a claim cannot be believed. Neither sentence
+ * mentions the chain, and neither invites them to authorise a second meter.
+ */
+const REFUSAL: Record<"not_ours" | "unverifiable", string> = {
+  not_ours: "That session does not belong to this console.",
+  unverifiable: "Northwind can't reach Elapse to confirm your session. Nothing was charged beyond what you authorised — press Run again in a moment.",
+};
+
+/** How many times a retrieve is tried before the claim is called unverifiable (FR-EXM-157). */
+const RETRIEVE_ATTEMPTS = 3;
+
+/** A single 5xx should not cost the subscriber a Run, so the retrieve is tried a few times. */
+async function retrieveWithRetries(sub: string, deps: ServerDeps): Promise<Retrieved> {
+  let last: Retrieved = { k: "unreachable" };
+  for (let i = 0; i < RETRIEVE_ATTEMPTS; i += 1) {
+    last = await deps.retrieveSubscription(sub);
+    if (last.k !== "unreachable") return last;
+    if (i < RETRIEVE_ATTEMPTS - 1) await new Promise((r) => setTimeout(r, deps.retrievePauseMs ?? 250));
+  }
+  return last;
 }
 
 /** Runs `fn` after whatever is already queued for this subscription, and keeps the queue moving. */

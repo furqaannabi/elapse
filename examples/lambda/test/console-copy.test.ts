@@ -68,3 +68,17 @@ describe("FR-EXM-153 the pages say what the code does", () => {
     expect(idle, "the first line a subscriber reads should tell them what to do").toMatch(/Press Run/i);
   });
 });
+
+describe("FR-EXM-157 the console never answers a refusal with a second authorisation", () => {
+  it("claims the subscription before it runs, and renders the refusal instead of <Authorize>", () => {
+    // Enforced on the source because the alternative — a console that treats "Northwind could not
+    // confirm your session" as "no session yet" — is exactly the loop that stranded three
+    // authorisations of $7.20 on 2026-09-22.
+    expect(console_).toMatch(/postClaim/);
+    const claim = console_.slice(console_.indexOf("const authorised"), console_.indexOf("const ask = ("));
+    expect(claim).toMatch(/postClaim\(fetch, found\)/);
+    expect(claim).toMatch(/refused/);
+    // The refusal must not put the page back into the authorising phase.
+    expect(claim).not.toMatch(/k: "authorising"[\s\S]{0,200}refused/);
+  });
+});

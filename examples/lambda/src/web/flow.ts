@@ -85,3 +85,28 @@ export function readAccess(body: { active?: boolean; reason?: string } | null): 
       return "ignore";
   }
 }
+
+export type ClaimOutcome =
+  /** Northwind has the session; the stashed Run can go. */
+  | { k: "ready" }
+  /** Spent, or none — render `<Authorize>` for a new one. */
+  | { k: "needs_auth" }
+  /** Northwind would not believe the claim. Say so; never authorise a second meter. */
+  | { k: "refused"; message: string };
+
+/**
+ * FR-EXM-157: hand Northwind the `sub_` that `<Authorize>` just produced, so the console does not
+ * depend on `subscription.created` having been delivered. A refusal is its own outcome and must
+ * never be read as "no session yet" — that is the path that charges a subscriber twice.
+ */
+export async function postClaim(fetchFn: typeof fetch, sub: string): Promise<ClaimOutcome> {
+  try {
+    const res = await fetchFn(`/claim?sub=${sub}`, { method: "POST" });
+    const body = (await res.json()) as { state?: string; error?: string; needs_start?: boolean };
+    if (res.ok) return { k: "ready" };
+    if (res.status === 409) return { k: "needs_auth" };
+    return { k: "refused", message: body.error ?? `Northwind could not confirm that session (${res.status}).` };
+  } catch (err) {
+    return { k: "refused", message: (err as Error).message };
+  }
+}

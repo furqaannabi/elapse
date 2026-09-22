@@ -37,6 +37,8 @@ export interface Session {
   /** When `subscription.updated` reported `paused`, so the sweep can tell a pause from an abandonment. */
   pausedAt?: number;
   cancelAttempts?: number;
+  /** FR-EXM-158: adopted at boot rather than opened here, so the console can say it kept running. */
+  readopted?: boolean;
   secondsElapsed?: number;
   paidUsd?: string;
   updatedAt: number;
@@ -50,6 +52,8 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
   const seen = new Set<string>();
   const sessions = new Map<string, Session>();
   const checkouts = new Map<string, string>();
+  /** FR-EXM-157: `cs_` ids opened by this server and not yet claimed. */
+  const issued = new Set<string>();
 
   return {
     /** FR-EXM-140: consume one run against the UTC-day cap; false when the day is spent. */
@@ -80,6 +84,24 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
      * FR-EXM-114: which Subscription a Checkout session became. The console polls this on the
      * way back from Checkout, because the subscription does not exist until the meter starts.
      */
+    /**
+     * FR-EXM-157: a Checkout session Northwind opened, held until a claim consumes it. This is what
+     * binds a browser-supplied `sub_` to a session this server actually issued — without it, any of
+     * the merchant's subscription ids would be accepted from anyone.
+     */
+    issueCheckout(checkoutId: string): void {
+      issued.add(checkoutId);
+    },
+
+    /** One `cs_` buys one session, so a second tab opens its own rather than adopting the first's. */
+    consumeCheckout(checkoutId: string): void {
+      issued.delete(checkoutId);
+    },
+
+    issuedCheckouts(): ReadonlySet<string> {
+      return issued;
+    },
+
     linkCheckout(checkoutId: string, sub: string): void {
       checkouts.set(checkoutId, sub);
     },
@@ -223,6 +245,12 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     },
 
     /** FR-EXM-154 (amended): a pause has been sent; do not send another until `paused` lands. */
+    /** FR-EXM-158: this meter outlived the last process; the console says so when it rejoins. */
+    markReadopted(sub: string): void {
+      const prev = sessions.get(sub);
+      if (prev) sessions.set(sub, { ...prev, readopted: true });
+    },
+
     markPausing(sub: string): void {
       const prev = sessions.get(sub);
       if (prev) sessions.set(sub, { ...prev, pausing: true });

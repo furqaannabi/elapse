@@ -255,3 +255,16 @@ describe("FR-EXM-126 leaving before the meter starts", () => {
     expect(s.dueForSweep(now, windows)).toEqual([]);
   });
 });
+
+describe("FR-EXM-157 the checkout sessions Northwind has issued", () => {
+  it("remembers a session it opened until the claim that consumes it", () => {
+    // Northwind learned `cs_` ids only from `checkout.session.completed` before this, which is a
+    // webhook — the very thing a claim exists to survive.
+    const s = createSessionStore({ dailyRunLimit: 20 });
+    expect(s.issuedCheckouts().has("cs_1")).toBe(false);
+    s.issueCheckout("cs_1");
+    expect(s.issuedCheckouts().has("cs_1")).toBe(true);
+    s.consumeCheckout("cs_1");
+    expect(s.issuedCheckouts().has("cs_1")).toBe(false);
+  });
+});
