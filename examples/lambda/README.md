@@ -3,9 +3,11 @@
 ## What this is
 
 A merchant that rents you **compute by the second**. You write JavaScript, press Run, and it
-executes on a real AWS Lambda. The session **starts and ends by itself** around that run: Run
-starts the meter, and the moment your code returns the session ends and the receipt appears. You
-pay for the seconds your code ran, plus the second or two the chain needs to confirm each end.
+executes on a real AWS Lambda. **Run opens the meter, and it stays open until you end it**
+([ADR 2026-09-21](../../docs/decisions/2026-09-21-the-lambda-meter-runs-until-you-end-it.md)):
+edit, run again, read the output, pause while you think. Press **End session** and you pay for
+the seconds it was open — press it at 83 seconds and you pay 83 seconds — with the unspent part
+of your deposit refunded.
 
 Anything JavaScript can do works: `fetch` calls, sorting, `require("node:crypto")`, async. The
 editor opens on a hello-world, so the first Run is immediate. For something that actually burns
@@ -117,23 +119,34 @@ Runner:   elapse-lambda-runner @ us-east-1
 14:02:12  ▶ starting meter sub_…
 14:02:13  evt_…  subscription.updated   → meter started sub_…
 14:02:19  ▶ run sub_…  return 2 + 2  → 4  (9ms)   [1/20 today]
-14:02:19  ⏹ ended with the run sub_…
-14:02:21  evt_…  subscription.canceled  → session closed · 3s · $0.006
-14:02:30  ▶ run sub_…  → 409 needs_start   (a new session, a fresh authorisation)
+14:02:44  ▶ run sub_…  return crypto.randomUUID()  → "5f2…"  (3ms)   [2/20 today]
+14:03:48  ⏸ auto-paused (idle) sub_…
+14:04:10  ▶ resumed (asked) sub_…
+14:04:31  ⏹ auto-ended (left) sub_…
+14:04:33  evt_…  subscription.canceled  → session closed · 121s · $0.242
+14:04:40  ▶ run sub_…  → 409 needs_start   (a new session, a fresh authorisation)
 ```
 
 The console is a React page with the **VS Code editor** (Monaco) holding the JavaScript, the
 runner's own source read-only beneath it, and the result as output — rendered as an image when
-the code returns a `data:image` string, printed as a value otherwise. There is no Start button
-and no Stop button: press Run, and the first one shows `<Authorize>` from
-[`@elapse/react`](../../sdk/react) **in this page** — one Face ID in a frame Elapse opens over the
-console — then your code runs and `<Meter>` ticks in the corner as a capsule. The subscriber gets
-no Stop at all here (`controls={false}`): a merchant-started meter is Northwind's to stop, before
-it starts as well as after. When the meter starts and when it ends, a card drops in with that
-transaction (`proof`), since this console is read by developers. Nobody is sent to a hosted checkout. Close the tab
-and the session ends within seconds. `npm start` bundles the page with esbuild first; Monaco
-still loads from a pinned CDN, and if that CDN is unreachable the editor falls back to a plain
-textarea.
+the code returns a `data:image` string, printed as a value otherwise. There is no Start button:
+press Run, and the first one shows `<Authorize>` from [`@elapse/react`](../../sdk/react) **in this
+page** — one signature, in a frame Elapse opens over the console — then your code runs and
+`<Meter>` ticks in a card that sticks to the bottom of the viewport, in Northwind's colours.
+When the meter starts and when it ends, a card drops in with that transaction (`proof`), since
+this console is read by developers. Nobody is sent to a hosted checkout.
+
+The controls divide the way the ownership does. **End session** is Northwind's own, beside Run,
+because a merchant-started meter is the merchant's to stop (`canStop` stays false, FR-CHK-037).
+**Pause** and **Resume** are `<Meter>`'s: the subscriber asks, and Northwind is what calls Elapse.
+Leave the console alone for `IDLE_TIMEOUT_SECONDS` (60) and Northwind pauses the meter for you and
+says why — paused seconds are never billed, so walking away costs you a minute. A session left
+paused for `PAUSED_END_SECONDS` (600) is ended and refunded, and closing the tab ends it within
+seconds. That last one is **Northwind's policy for a compute product, not a rule of Elapse's
+billing**: a subscription meant to outlive the tab simply never calls cancel.
+
+`npm start` bundles the page with esbuild first; Monaco still loads from a pinned CDN, and if that
+CDN is unreachable the editor falls back to a plain textarea.
 
 ## How the session maps to Elapse
 
@@ -142,15 +155,20 @@ textarea.
 | First Run, no session | `checkout.sessions.create` with `max_duration_seconds`; the server answers `409 needs_start` with the session id, and `<Authorize>` appears in the page |
 | Subscriber authorises once | the permit is signed for `rate × max_duration_seconds` — the most this session can ever cost. Nothing is accruing yet: the Product is **merchant-started** |
 | The meter starts | the first Run calls `subscriptions.start`; nothing is invoked until `subscription.updated` says `active`, so the seconds you spent editing are free. If the start does not confirm within 30 s the session is cancelled and refunded in full |
-| Each run | the run ends the session: `subscriptions.cancel` the moment the invocation returns, so you pay for the seconds your code runs plus the confirmation either side — roughly 1–3 s, not the minutes you spend reading the output. One session per execution, so the next Run asks the subscriber to authorise again |
-| Tab closed, idle, or gone | the server calls `subscriptions.cancel` itself, retried a few times if it fails |
+| Each later run | nothing to authorise and nothing to start: the meter is already open, so the run is simply invoked. One authorisation covers every Run in the session |
+| Subscriber asks to pause or resume | `<Meter>`'s Pause and Resume post to Northwind's own `/pause` and `/resume`, which call `subscriptions.pause` / `subscriptions.resume`. Nothing is signed and nothing goes to Elapse from the page |
+| Idle for `IDLE_TIMEOUT_SECONDS` | the sweep pauses the meter through `subscriptions.pause` and the console says why. Paused seconds are never billed |
+| Paused for `PAUSED_END_SECONDS` | the sweep treats the session as abandoned and ends it |
+| Subscriber presses End session | `subscriptions.cancel`, through Northwind's `/end` |
+| Tab closed, or the heartbeat goes stale | the server calls `subscriptions.cancel` itself, retried a few times if it fails |
 | Meter stops | `subscription.canceled` → the session closes and the exact settled amount is recorded |
-| Next Run | `409 needs_start` again — a new session, because the webhook closed the old one |
+| Next Run | `409 needs_start` — a new session, because the webhook closed the old one |
 
-`<Meter>` ticks while your code runs and stops between runs; the figure it shows when the session
-ends is the **settled** amount, not the estimate. The meter is on chain, so the smallest thing it
-can bill is a confirmation, not a millisecond: a 0 ms Lambda call costs about one to three
-seconds of meter.
+`<Meter>` ticks for as long as the session is open and freezes while it is paused; the figure it
+shows when the session ends is the **settled** amount, not the estimate. The meter is on chain, so
+its edges cost a confirmation each: about one to three seconds between pressing Run and the first
+billable second, and the same again at the end. Everything between them is wall-clock — the
+seconds you were open, whether Lambda was working or you were reading the output.
 
 ## Security
 
@@ -182,11 +200,11 @@ runner/snippet.mjs what the editor opens on (hello world) plus the heavier Mande
 runner/index.d.mts its contract, so the tests typecheck against it
 src/config.ts      env, with a readable error naming anything missing
 src/executor.ts    run(input) — the real AWS runner, and a mock used only by tests/CI
-src/session.ts     sessions, evt_ dedupe, the daily cap, and the auto-end decision
+src/session.ts     sessions, evt_ dedupe, the daily cap, and the sweep's pause/end decision
 src/webhooks.ts    verify → 2xx → act (the part worth copying)
-src/server.ts      routes: / /console /cancel /run /heartbeat /end /access /session /runner-source /webhooks
-src/boot.ts        product, wiring, the auto-end sweep
-public/            the merchant's own look (see DESIGN.md); console = React + Monaco from CDN
+src/server.ts      routes: / /console /cancel /run /heartbeat /pause /resume /end /access /session /runner-source /webhooks
+src/boot.ts        product, wiring, the idle/abandoned sweep
+public/            the merchant's own look (see DESIGN.md); console = React + @elapse/react, bundled by esbuild; Monaco from a pinned CDN
 ```
 
 ## Teardown
