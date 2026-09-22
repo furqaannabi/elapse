@@ -167,7 +167,7 @@ export interface DashboardApiMore {
   search(mode: Mode, query: string): Promise<SearchHit[]>;
 }
 
-export type ProductInput = { name: string; rateUsdPerSecond: string; description: string | null; allowPause: boolean };
+export type ProductInput = { name: string; rateUsdPerSecond: string; description: string | null; allowPause: boolean; startMode?: "checkout" | "merchant" };
 
 /** Positive decimal string with at most 9 fraction digits; never a float (BR-DSH-007). */
 export const RATE_PATTERN = /^(0|[1-9]\d*)(\.\d{1,6})?$/;
@@ -803,6 +803,7 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
           description: input.description?.trim() || null,
           rateUsdPerSecond: input.rateUsdPerSecond.trim(),
           allowPause: input.allowPause,
+          startMode: input.startMode ?? "checkout",
           status: "active",
           activeSubscriptions: 0,
           createdAt: now(),

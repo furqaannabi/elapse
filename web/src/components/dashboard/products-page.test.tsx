@@ -125,11 +125,23 @@ describe("ProductsPage · FR-DSH-126 paging", () => {
     api = createMockDashboardApi({ latencyMs: 0 });
   });
 
+  it("FR_DSH_144_a_merchant_start_product_says_so_under_its_name_and_a_checkout_one_does_not", async () => {
+    const m = await signIn(api);
+    await api.createProduct("test", { name: "Serverless runtime", rateUsdPerSecond: "0.002", description: null, allowPause: true, startMode: "merchant" });
+    await api.createProduct("test", { name: "Ordinary thing", rateUsdPerSecond: "0.004", description: null, allowPause: false });
+    mount(api, m);
+    // `checkout` is the default and unremarkable; only the exception earns a line.
+    const merchantRow = await screen.findByText("Serverless runtime");
+    expect(within(merchantRow.closest("li")!).getByText("Starts when your code starts it")).toBeInTheDocument();
+    const checkoutRow = screen.getByText("Ordinary thing").closest("li")!;
+    expect(within(checkoutRow).queryByText("Starts when your code starts it")).toBeNull();
+  });
+
   it("shows 50 products, loads the next page in place, and hides the button on the last page", async () => {
     const user = userEvent.setup();
     const m = await signIn(api);
     const rows: Product[] = Array.from({ length: 120 }, (_, i) => ({
-      id: `prod_big${120 - i}` as const, livemode: false, name: `Big ${120 - i}`, description: null, rateUsdPerSecond: "0.004", allowPause: false, status: "active", activeSubscriptions: 0, createdAt: 1_757_000_000_000 - i * 60_000,
+      id: `prod_big${120 - i}` as const, livemode: false, name: `Big ${120 - i}`, description: null, rateUsdPerSecond: "0.004", allowPause: false, startMode: "checkout", status: "active", activeSubscriptions: 0, createdAt: 1_757_000_000_000 - i * 60_000,
     }));
     const big: MockDashboardApi = {
       ...api,

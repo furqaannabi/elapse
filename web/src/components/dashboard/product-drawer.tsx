@@ -27,6 +27,15 @@ import { FieldHint } from "@/components/ui/field-hint";
 import type { Product } from "@/lib/dashboard/types";
 import { formatUsd, parseRate, perHour, perMinute } from "@/lib/meter/math";
 
+/**
+ * FR-DSH-144. The second option names `subscriptions.start` because the merchant has to call it,
+ * and names the refund (FR-API-127) because that is what forgetting costs the subscriber.
+ */
+const START_MODES = [
+  { value: "checkout", label: "At checkout", hint: "The meter starts the moment the subscriber authorises." },
+  { value: "merchant", label: "When your code starts it", hint: "The meter waits for subscriptions.start. A session you never start refunds in full after 15 minutes." },
+] as const;
+
 export function ProductDrawer({
   open,
   initial,
@@ -46,6 +55,7 @@ export function ProductDrawer({
   const [rate, setRate] = useState(initial?.rateUsdPerSecond ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [allowPause, setAllowPause] = useState(initial?.allowPause ?? false);
+  const [startMode, setStartMode] = useState<"checkout" | "merchant">(initial?.startMode ?? "checkout");
 
   const editing = initial !== undefined;
   const nameProblem = check(rules.productName, name);
@@ -64,7 +74,7 @@ export function ProductDrawer({
           onSubmit={(e) => {
             e.preventDefault();
             if (!valid) return;
-            onSubmit({ name: name.trim(), rateUsdPerSecond: editing ? initial.rateUsdPerSecond : rate.trim(), description: description.trim() || null, allowPause });
+            onSubmit({ name: name.trim(), rateUsdPerSecond: editing ? initial.rateUsdPerSecond : rate.trim(), description: description.trim() || null, allowPause, startMode: editing ? initial.startMode : startMode });
           }}
           className="flex min-h-full flex-col"
           noValidate
@@ -148,6 +158,35 @@ export function ProductDrawer({
               />
               <FieldHint id="product-description-hint" error={serverFor("description") ?? descriptionProblem} />
             </div>
+            {/* FR-DSH-144: the behaviour is in the label — `checkout` and `merchant` are API words
+                and never reach this surface. Native radios rather than a new primitive: two options
+                in a bordered card the Allow pause row below already establishes. */}
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1.5 text-[14px] font-medium">Start the meter</legend>
+              {editing ? (
+                <>
+                  <p className="text-[15px]">{initial.startMode === "merchant" ? "When your code starts it" : "At checkout"}</p>
+                  <p className="text-[13px] text-ink-soft">To change this, create a new product.</p>
+                </>
+              ) : (
+                START_MODES.map((m) => (
+                  <label key={m.value} className="flex items-start gap-3 rounded-lg border border-border px-4 py-3 has-[:checked]:border-foreground/35">
+                    <input
+                      type="radio"
+                      name="product-start-mode"
+                      value={m.value}
+                      checked={startMode === m.value}
+                      onChange={() => setStartMode(m.value)}
+                      className="mt-1 size-4 accent-[var(--primary)]"
+                    />
+                    <span>
+                      <span className="block text-[14px] font-medium">{m.label}</span>
+                      <span className="block text-[12px] text-ink-soft">{m.hint}</span>
+                    </span>
+                  </label>
+                ))
+              )}
+            </fieldset>
             <label className="flex items-start justify-between gap-4 rounded-lg border border-border px-4 py-3">
               <span>
                 <span className="block text-[14px] font-medium">Allow pause</span>

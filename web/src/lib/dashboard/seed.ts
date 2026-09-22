@@ -282,6 +282,7 @@ export function seedMerchantData(opts: {
   const id = (p: string) => `${p}_${tag}${(++n).toString(36).padStart(4, "0")}`;
 
   const products: Product[] = PRODUCTS.map((p, i) => ({
+    startMode: "checkout" as const,
     ...p,
     id: id("prod") as Product["id"],
     livemode,

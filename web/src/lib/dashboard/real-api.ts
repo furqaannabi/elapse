@@ -57,7 +57,7 @@ type WireDelivery = { id: string; event: string; endpoint: string; status: "queu
 /** FR-API-136: present only on dashboard-session reads. */
 type WireEventContext = { product_name: string; customer: string; customer_email: string | null; amount_settled?: string };
 type WireEvent = { id: string; type: EventType; created: number; livemode: boolean; data: { object: Record<string, unknown> }; pending_webhooks: number; object_id: string | null; delivery_state: "pending" | "delivered" | "failed" | "not_sent"; context?: WireEventContext | null; deliveries?: WireDelivery[] };
-type WireProduct = { id: string; name: string; description: string | null; rate_usd_per_second: string; allow_pause: boolean; active: boolean; livemode: boolean; created: number; active_subscriptions: number };
+type WireProduct = { id: string; name: string; description: string | null; rate_usd_per_second: string; allow_pause: boolean; start_mode: "checkout" | "merchant"; active: boolean; livemode: boolean; created: number; active_subscriptions: number };
 type WireSubscription = {
   id: string; status: Subscription["status"]; product: string; customer: string; checkout_session: string | null; rate_usd_per_second: string;
   started_at: number | null; paused_at: number | null; paused_seconds?: number; canceled_at: number | null; ended_reason: "canceled" | "cap_reached" | null;
@@ -195,6 +195,7 @@ export function mapProduct(w: WireProduct): Product {
     description: w.description,
     rateUsdPerSecond: w.rate_usd_per_second,
     allowPause: w.allow_pause,
+    startMode: w.start_mode,
     status: w.active ? "active" : "archived",
     activeSubscriptions: w.active_subscriptions,
     createdAt: w.created * 1000,
@@ -466,7 +467,7 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       return { data: page.data.map(mapProduct), hasMore: page.has_more };
     },
     async createProduct(mode, input, opts) {
-      return mapProduct(await call<WireProduct>("POST", "/v1/products", { mode, body: { name: input.name, rate_usd_per_second: input.rateUsdPerSecond, ...(input.description ? { description: input.description } : {}), allow_pause: input.allowPause }, idempotencyKey: idem(opts) }));
+      return mapProduct(await call<WireProduct>("POST", "/v1/products", { mode, body: { name: input.name, rate_usd_per_second: input.rateUsdPerSecond, ...(input.description ? { description: input.description } : {}), allow_pause: input.allowPause, ...(input.startMode ? { start_mode: input.startMode } : {}) }, idempotencyKey: idem(opts) }));
     },
     async updateProduct(id, input, opts) {
       const body: Record<string, unknown> = {};

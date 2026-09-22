@@ -76,6 +76,8 @@ export type Product = {
   /** USD per second as a decimal string, e.g. "0.004". */
   rateUsdPerSecond: string;
   allowPause: boolean;
+  /** FR-DSH-144. `merchant` waits for `subscriptions.start`; `checkout` starts on authorise. */
+  startMode: "checkout" | "merchant";
   status: ProductStatus;
   activeSubscriptions: number;
   createdAt: number;

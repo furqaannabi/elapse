@@ -153,6 +153,10 @@ export function ProductsPage() {
                 <div className="min-w-0">
                   <p className={cn("truncate text-[14px] font-medium", !archived && "text-foreground")}>{p.name}</p>
                   {p.description && <p className="truncate text-[12px] text-ink-soft">{p.description}</p>}
+                  {/* FR-DSH-144: `checkout` is the default and unremarkable, so only the
+                      exception is named — a merchant-start product bills nothing until the
+                      merchant calls `subscriptions.start`, which is worth seeing at a glance. */}
+                  {p.startMode === "merchant" && <p className="truncate text-[12px] text-ink-soft">Starts when your code starts it</p>}
                 </div>
                 <p className="numerals text-[13px] md:text-right">
                   <span className="placard mr-2 md:hidden">Per second</span>${p.rateUsdPerSecond}

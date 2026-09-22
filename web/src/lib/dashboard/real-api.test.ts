@@ -117,8 +117,16 @@ describe("real DashboardApi", () => {
   });
 
   it("products map, archive by status, and checkout links return to the dashboard", async () => {
-    const w = { id: "prod_1", name: "GPU", description: null, rate_usd_per_second: "0.004", allow_pause: false, active: false, livemode: false, created: T0, active_subscriptions: 3 };
-    expect(mapProduct(w)).toMatchObject({ status: "archived", activeSubscriptions: 3, rateUsdPerSecond: "0.004" });
+    const w = { id: "prod_1", name: "GPU", description: null, rate_usd_per_second: "0.004", allow_pause: false, start_mode: "merchant" as const, active: false, livemode: false, created: T0, active_subscriptions: 3 };
+    expect(mapProduct(w)).toMatchObject({ status: "archived", activeSubscriptions: 3, rateUsdPerSecond: "0.004", startMode: "merchant" });
+    // FR-DSH-144: the drawer's choice reaches the wire as `start_mode`; omitting it lets the
+    // platform apply its own default, which is the same word.
+    responses = [{ ...w, id: "prod_3", start_mode: "merchant", active: true }];
+    expect((await api().createProduct("test", { name: "Serverless runtime", rateUsdPerSecond: "0.002", description: null, allowPause: true, startMode: "merchant" })).startMode).toBe("merchant");
+    expect(calls[calls.length - 1]!.body).toMatchObject({ start_mode: "merchant" });
+    responses = [{ ...w, id: "prod_4", active: true }];
+    await api().createProduct("test", { name: "Ordinary thing", rateUsdPerSecond: "0.004", description: null, allowPause: false });
+    expect(calls[calls.length - 1]!.body).not.toHaveProperty("start_mode");
     // FR-DSH-126: the archived filter is the server's `active=true` (FR-API-011 amended 2026-09-09), 50 a page.
     responses = [{ object: "list", data: [{ ...w, id: "prod_2", active: true }], has_more: false }];
     expect((await api().listProducts("test", {})).data.map((p) => p.id)).toEqual(["prod_2"]);
