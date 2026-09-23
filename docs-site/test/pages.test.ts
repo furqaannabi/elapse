@@ -87,15 +87,25 @@ describe("FR-DOC-047 React is optional", () => {
   // package ships a framework-free CDN build — but that was documented as "No bundler?" at the foot
   // of a page called React, where a Vue or Rails developer never looks. The answer has to be
   // findable from the page a server-first developer actually opens.
-  it("says so in the frontend developer's own words, and is reachable from the server page", () => {
-    const react = read("sdks/react.mdx");
-    expect(react).toContain("## Without React");
-    expect(react).toContain("elapse.browser.js");
-    for (const framework of ["Vue", "Rails"]) expect(react).toContain(framework);
+  it("has its own page, in the frontend developer's own words", () => {
+    const page = read("sdks/browser.mdx");
+    expect(page).toContain("elapse.browser.js");
+    for (const framework of ["Vue", "Rails", "Django"]) expect(page).toContain(framework);
+  });
 
-    // The server-side page has to point at it: that is where someone asking "do I need React?" is.
-    const ts = read("sdks/typescript.mdx");
-    expect(ts).toContain("/sdks/react#without-react");
+  it("is reachable from both other SDK pages, not only by knowing it exists", () => {
+    expect(read("sdks/typescript.mdx")).toContain("/sdks/browser");
+    expect(read("sdks/react.mdx")).toContain("/sdks/browser");
+  });
+
+  // A script tag on its own reads as the whole integration, and it is not: the session comes from
+  // the merchant's own server and access is granted on the webhook, never on a browser callback.
+  it("shows where the session comes from and where access is decided", () => {
+    const page = read("sdks/browser.mdx");
+    expect(page).toContain("/quickstart");
+    expect(page).toMatch(/fetch\(/);
+    expect(page).toContain("subscription.canceled");
+    expect(page).toMatch(/webhook/i);
   });
 });
 

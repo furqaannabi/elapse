@@ -1,0 +1,100 @@
+---
+title: "Without React"
+description: "Meter a per-second subscription from Vue, Svelte, Rails, Django or plain HTML — one script tag, no framework."
+---
+
+Elapse does not put React in your frontend. Your app can be Vue, Svelte, Rails, Django or plain
+HTML. The subscriber signs with their passkey in a window Elapse opens, and one script draws the
+meter afterwards — that script is the only thing Elapse adds to your page.
+
+<Note>
+  Already using React? Install [`@elapse/react`](/sdks/react) and compose `<Authorize>` and
+  `<Meter>` yourself, so your app ships one copy of React instead of two.
+</Note>
+
+## Your server does not change
+
+Everything before the page is the same for every language. Follow the
+[Quickstart](/quickstart) — it has a cURL tab beside every call, so creating the Product, creating
+the Checkout session and handling `subscription.canceled` work in Python, Go, Ruby, PHP or anything
+that speaks HTTP. Your secret key stays there, where it belongs.
+
+Only the Quickstart's last step — rendering the meter — is written in React. This page is that step
+in your stack instead.
+
+## Your page
+
+The `cs_…` session id is created per subscriber by your server, so the page asks for one when the
+subscriber starts:
+
+```html
+<button id="start">Start</button>
+<div id="elapse"></div>
+
+<script type="module">
+  import { mount } from "https://cdn.jsdelivr.net/npm/@elapse/react/dist/elapse.browser.js";
+
+  document.querySelector("#start").onclick = async () => {
+    // Your own endpoint. It calls POST /v1/checkout/sessions with your secret key and
+    // returns the cs_… id — Quickstart, "Create a Checkout session on your server".
+    const { session } = await fetch("/api/session", { method: "POST" }).then((r) => r.json());
+
+    mount("#elapse", {
+      publishableKey: "pk_test_…",   // publishable, safe in the page; an sk_ key throws
+      session,
+      onStarted: () => showYourProduct(),
+      onStopped: () => hideYourProduct(),
+    });
+  };
+</script>
+```
+
+That is the whole frontend. `mount` renders the authorisation step, opens the signing window, and
+replaces itself with the live meter when the subscriber accepts.
+
+The build carries its own React, react-dom and motion (~65 KB gzipped), so you install nothing and
+your framework never sees them.
+
+## Options
+
+| Option | | |
+| --- | --- | --- |
+| `publishableKey` | — | `pk_test_…` or `pk_live_…`. A key starting with `sk_` throws. |
+| `session` | — | The `cs_…` your server created. |
+| `onAuthorised` | | The subscriber signed. |
+| `onStarted` | | The meter is running. |
+| `onStopped` | | It stopped; the receipt is on screen. |
+| `onPauseRequest` | | Shows Pause. See below. |
+| `onResumeRequest` | | Shows Resume. See below. |
+| `onError` | | Something failed; the message is safe to show. |
+| `sound` | `true` | Two short cues, at start and stop. Never one per second. |
+| `baseUrl` | `https://api.elapse.finance` | The Elapse API. |
+| `appOrigin` | `https://elapse.finance` | Where the signing window lives. |
+
+A second `mount` on the same element replaces the first rather than stacking.
+
+## Where access is really decided
+
+`onStarted` and `onStopped` are for your interface — reveal the product, hide it again. They are
+browser callbacks, so they are not proof of anything: a closed laptop fires no callback, and
+neither does a tab that crashed.
+
+Entitlement belongs on your webhook endpoint, where `subscription.created` and
+`subscription.canceled` arrive signed from Elapse. Grant on one, revoke on the other, and verify
+the signature before you parse the body. [Signatures](/webhooks/signatures) has the scheme and a
+test vector; the [events catalogue](/webhooks/events) has every payload you can receive.
+
+While you are building, `elapse listen --forward localhost:3000/webhooks` delivers them to your
+laptop with no tunnel.
+
+## Pause and Resume
+
+Leave `onPauseRequest` and `onResumeRequest` out and the meter shows no such buttons.
+
+Pass them and it shows both — as requests to **you**. Nothing is signed in the browser and nothing
+reaches Elapse from it. Your server answers by calling `subscriptions.pause` and
+`subscriptions.resume`, and the meter follows once the change confirms. Paused seconds are never
+billed.
+
+The subscriber never gets a Stop button for a meter you started; stopping it stays yours, through
+whatever control your own page offers. [Subscriptions](/subscriptions) has the rule.

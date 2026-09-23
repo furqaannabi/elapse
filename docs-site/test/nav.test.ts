@@ -29,15 +29,20 @@ describe("FR-DOC-002 navigation", () => {
     ]);
   });
 
-  it("puts both packages under SDKs, TypeScript before React", () => {
+  // Amended 2026-09-23 (signed): a third page under SDKs, so a developer who does not use React
+  // finds that out from the sidebar rather than from the foot of a page called React. The group
+  // grows; the ten top-level entries do not move.
+  it("puts the three pages under SDKs, server first, then React, then without it", () => {
     const sdks = docs.navigation.pages.find((e) => typeof e !== "string" && e.group === "SDKs") as { pages?: unknown[] };
-    expect(sdks.pages).toEqual(["sdks/typescript", "sdks/react"]);
+    expect(sdks.pages).toEqual(["sdks/typescript", "sdks/react", "sdks/browser"]);
   });
 
   it("redirects the paths those two pages used to live at", () => {
     expect(docs.redirects).toEqual([
       { source: "/sdks", destination: "/sdks/typescript" },
       { source: "/react", destination: "/sdks/react" },
+      { source: "/without-react", destination: "/sdks/browser" },
+      { source: "/sdks/without-react", destination: "/sdks/browser" },
     ]);
   });
 

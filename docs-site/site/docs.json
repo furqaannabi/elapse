@@ -61,7 +61,8 @@
         "group": "SDKs",
         "pages": [
           "sdks/typescript",
-          "sdks/react"
+          "sdks/react",
+          "sdks/browser"
         ]
       },
       {
@@ -84,6 +85,14 @@
     {
       "source": "/react",
       "destination": "/sdks/react"
+    },
+    {
+      "source": "/without-react",
+      "destination": "/sdks/browser"
+    },
+    {
+      "source": "/sdks/without-react",
+      "destination": "/sdks/browser"
     }
   ],
   "api": {

@@ -133,21 +133,6 @@ turns it off for everyone.
 
 ## Without React
 
-Elapse does not require React. Your app can be Vue, Svelte, Rails, Django or plain HTML — the
-subscriber still has to sign with their passkey in a window Elapse opens, and this is the one line
-that opens it and draws the meter afterwards.
-
-```html
-<div id="elapse"></div>
-<script type="module">
-  import { mount } from "https://cdn.jsdelivr.net/npm/@elapse/react/dist/elapse.browser.js";
-  mount("#elapse", { publishableKey: "pk_test_…", session: "cs_…" });
-</script>
-```
-
-That build carries its own React (~65 KB gzipped), so you never install it. If your app already
-runs React, install the package instead and keep one copy.
-
-`mount` takes the same `publishableKey` and `cs_…` session id the components take, and the same
-`onAuthorised`, `onStarted` and `onStopped` callbacks. Everything above this section is about
-composing the flow yourself; this is the whole flow in one call.
+You do not need this package. If your app is Vue, Svelte, Rails, Django or plain HTML, one script
+tag does the whole subscriber flow with no framework and nothing to install —
+see [Without React](/sdks/browser).

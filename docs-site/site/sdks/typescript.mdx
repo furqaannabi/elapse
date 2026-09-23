@@ -28,7 +28,7 @@ curl "$ELAPSE_API_URL/v1/…" -H "Authorization: Bearer $ELAPSE_SECRET_KEY"
   **This package does not put React in your frontend.** It runs on your server, where your secret key
   belongs. On the page, the subscriber signs in a window Elapse opens — with the
   [React components](/sdks/react), or with [one script tag and no framework at
-  all](/sdks/react#without-react) if your app is Vue, Rails, Django or plain HTML.
+  all](/sdks/browser) if your app is Vue, Rails, Django or plain HTML.
 </Note>
 
 Parameters are camelCase in TypeScript and `snake_case` on the wire; the SDK maps them. Rates and amounts are decimal strings in both. Errors throw typed classes that all extend `ElapseError`: `ElapseAuthenticationError`, `ElapseInvalidRequestError` (a `404` is one of these with `type: "not_found"`), `ElapseRateLimitError`, `ElapseAPIError`, and `ElapseSignatureVerificationError` from `constructEvent`.
