@@ -106,7 +106,7 @@ indexer is reported as `indexer.ok: false`, never as a 500.
 ## Keeper
 
 Inside the worker process (`src/worker/keeper.ts`): every tick it calls `settleBatch` for active streams
-last settled over `KEEPER_CADENCE_S` ago (3600 on Railway, [ADR 2026-09-08](../docs/decisions/2026-09-08-keeper-cadence-one-hour.md))
+last settled over `KEEPER_CADENCE_S` ago (3600 in production, [ADR 2026-09-08](../docs/decisions/2026-09-08-keeper-cadence-one-hour.md))
 and for any stream past its cap, whose first `settle()` emits the cap-end pair. It stamps `last_settle_requested_at` and nothing else; the `Settled`/`StreamCanceled` logs come back
 through the indexer. Proven live 2026-09-05: a 60 s cap ended by the keeper, `invoice.payment_failed` +
 `subscription.canceled` + `invoice.settled` delivered 78 s after the start click. `KEEPER=0` disables it.
@@ -117,8 +117,22 @@ Spec: [`docs/specs/worker-frd.md`](../docs/specs/worker-frd.md) (signed 2026-09-
 
 ## Modes and chains
 
-Both modes drive real streams on Monad testnet (10143) and escrow testnet **AUSD** ([ADR 2026-09-13 AUSD only](../docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)): nothing is minted, a short wallet sees Add funds on the checkout, and `start` refuses before any gas is spent (FR-API-034). The escrow token is a property of the chain, so live mode moves to mainnet (143) with mainnet AUSD when `contracts/deployments/143.json` lands, with no code change (`LIVE_CHAIN_ID`, default 10143). The relayer's own testnet MON comes from <https://faucet.monad.xyz>: a platform chore, not a user's.
+Both modes drive real streams on Monad testnet (10143) and escrow testnet **AUSD** ([ADR 2026-09-13 AUSD only](../docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)): nothing is minted, a short wallet sees Add funds in the Elapse window, and `start` refuses before any gas is spent (FR-API-034). The escrow token is a property of the chain, so live mode moves to mainnet (143) with mainnet AUSD when `contracts/deployments/143.json` lands, with no code change (`LIVE_CHAIN_ID`, default 10143). The relayer's own testnet MON comes from <https://faucet.monad.xyz>: a platform chore, not a user's.
 
 ## Hosting (Undecided 11, decided)
 
-API and worker run on Railway as two services from this repo (built from the `codypharm/elapse` fork); Postgres is Neon. `RELAYER_PRIVATE_KEY` lives in both services' Railway environments (the API opens and cancels streams, the worker's keeper settles them), holds MON for gas and never AUSD. The relayer is its own wallet, set as the factory's `keeper`; the factory owner and fee treasury are a separate wallet William holds. A hardware wallet or multisig for the owner is post-submission (Undecided 12, [ADR 2026-09-07](../docs/decisions/2026-09-07-submission-on-testnet-live-mode-mockusd.md)).
+API, worker and Postgres run as three containers on **one EC2 host** (`api/docker-compose.ec2.yml`), behind
+the host's nginx: it terminates TLS for `api.elapse.finance` and proxies to `127.0.0.1:4000`, which is the
+only published port. Postgres publishes nothing at all and is reached only over the compose network; its
+volume, `elapse-pg`, is the database, so backups are EBS snapshots or a `pg_dump` cron, not someone else's
+job. `.github/workflows/deploy-ec2.yml` deploys on a green CI run from `master`: it pipes
+`api/scripts/deploy-ec2.sh` over SSH, which fast-forwards the checkout to that commit, rebuilds, and waits
+for `/v1/status`. Migrations run as the api container starts; the worker waits for the api to be healthy,
+and there is exactly one worker because two keepers would both submit settle transactions.
+
+This replaced **Railway + Neon** ([ADR 2026-09-15](../docs/decisions/2026-09-15-api-on-one-ec2-host.md)), which is what every record written before it describes.
+
+Production environment lives in `api/.env` on the box (`chmod 600`, gitignored, names in `api/.env.example`).
+`RELAYER_PRIVATE_KEY` is in it — read by both containers, since the API opens and cancels streams and the
+worker's keeper settles them — holds MON for gas and never AUSD; AWS Secrets Manager or SSM is the better
+home for it than a file on the disk. The relayer is its own wallet, set as the factory's `keeper`; the factory owner and fee treasury are a separate wallet William holds. A hardware wallet or multisig for the owner is post-submission (Undecided 12, [ADR 2026-09-07](../docs/decisions/2026-09-07-submission-on-testnet-live-mode-mockusd.md)).

@@ -88,16 +88,18 @@ Furqaan holds the registrar account (passkey 2FA) and adds every record; William
 
 | Host | Points to | Who creates the project | Record |
 | --- | --- | --- | --- |
-| `elapse.finance`, `www` | Vercel — the Next.js app in `web/` (landing, checkout, dashboard) | William | A for the root, CNAME for `www`, both shown under the project's Domains |
+| `elapse.finance`, `www` | Vercel — the Next.js app in `web/` (landing, `/authorize`, `/account`, dashboard) | William | A for the root, CNAME for `www`, both shown under the project's Domains |
 | `docs.elapse.finance` | Mintlify — `docs-site/site` from the GitHub repo | William | one CNAME, shown after adding the custom domain |
-| `api.elapse.finance` | Railway — the Bun API; the worker is a second Railway service with no host | Furqaan | one CNAME, shown on the API service |
+| `api.elapse.finance` | An EC2 host — nginx terminating TLS in front of the API, worker and Postgres containers | Furqaan | one A record for the instance |
 | `elapse.finance` (mail) | Resend — receipts and dashboard sign-in mail | William | the TXT and CNAME set Resend lists on its Domains page |
 
 Order that unblocks the most first: Resend records (mail delivers to anyone), docs (every Docs link on the landing goes live), API, then the app off its Vercel subdomain.
 
-**Railway.** Both services build `api/Dockerfile` (build context = repo root, selected by the root `railway.toml`). `api` keeps the image's default command (`bun run migrate && bun src/index.ts`; migrations are idempotent and advisory-locked, so a redeploy or a second replica is safe); `worker` overrides the start command with `bun src/worker/index.ts`. Postgres from the Railway plugin, referenced as `DATABASE_URL` on both services. Environment on Railway only, never committed — the names are in `api/.env.example`: database URL, webhook KEK, Privy app id and verification key, Resend key and sender, ingest token, Monad RPC and chain id, relayer private key, dashboard and docs origins. `pnpm sync-deployments` must have run before the build so `api/deployments/10143.json` is present.
+**The API host.** One EC2 instance runs `api/docker-compose.ec2.yml`: Postgres, the API (`bun run migrate && bun src/index.ts`, migrations advisory-locked so a rebuild is safe) and one worker (`bun src/worker/index.ts` — exactly one, or two keepers would both submit settle transactions). Only the API is published, on `127.0.0.1:4000`, and the host's nginx terminates TLS in front of it; Postgres publishes nothing and lives in the `elapse-pg` volume, so backups are ours now. Setup, the nginx server block and the certbot line are in the compose file's own header. Deploys are automatic: `.github/workflows/deploy-ec2.yml` runs after a green CI on `master` and pipes `api/scripts/deploy-ec2.sh` over SSH, which fast-forwards the checkout, rebuilds and waits for `/v1/status`; it never force-resets, so a box that has diverged fails the deploy instead of losing work. Environment lives in `api/.env` on the instance (`chmod 600`, gitignored) — the names are in `api/.env.example`: webhook KEK, Privy app id and verification key, Resend key and sender, ingest token, Monad RPC and chain id, relayer private key, dashboard and docs origins. `pnpm sync-deployments` must have run before the build so `api/deployments/10143.json` is present.
 
-**After each host answers.** Vercel: set `NEXT_PUBLIC_ELAPSE_API_URL=https://api.elapse.finance` on the web project. Railway: `DASHBOARD_ORIGIN=https://elapse.finance`, `DOCS_ORIGIN=https://docs.elapse.finance`, `PUBLIC_API_URL=https://api.elapse.finance`. The SDK and CLI defaults already name `api.elapse.finance` and need no change. Then delete the `EMAIL_FROM` override wherever it is set, once Resend shows the domain verified.
+This replaced Railway + Neon ([ADR 2026-09-15](./decisions/2026-09-15-api-on-one-ec2-host.md)); `railway.toml` is still in the repo root and is no longer what serves `api.elapse.finance`.
+
+**After each host answers.** Vercel: set `NEXT_PUBLIC_ELAPSE_API_URL=https://api.elapse.finance` on the web project. In `api/.env` on the instance: `DASHBOARD_ORIGIN=https://elapse.finance`, `DOCS_ORIGIN=https://docs.elapse.finance`, `PUBLIC_API_URL=https://api.elapse.finance`. The SDK and CLI defaults already name `api.elapse.finance` and need no change. Then delete the `EMAIL_FROM` override wherever it is set, once Resend shows the domain verified.
 
 ## Before a demo
 
