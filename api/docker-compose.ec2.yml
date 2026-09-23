@@ -1,24 +1,27 @@
 # Production on one EC2 host: Postgres, the API and the webhook worker, behind the host's existing nginx.
 # nginx terminates TLS and proxies to the API on 127.0.0.1:4000; its server block is at the end of this header.
-# This replaces Railway + Neon (api/README "Hosting"); record that move as an ADR before cutover.
+# This replaced Railway + Neon: ADR 2026-09-15 one EC2 host, api/README "Hosting".
 # Local development keeps using api/docker-compose.yml (Postgres on :55434, test credentials).
 #
 # On the instance (Ubuntu 24.04, Docker + compose plugin, security group: 22 from your IP, 80/443 open, nothing else):
 #   git clone https://github.com/furqaannabi/elapse.git && cd elapse
-#   add POSTGRES_PASSWORD to api/.env (the same file that holds the production values):
-#     printf '\nPOSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> api/.env && chmod 600 api/.env
+#   write the production values into api/.env — the names are listed below — then lock it down:
+#     chmod 600 api/.env
 #   docker compose -f api/docker-compose.ec2.yml up -d --build
+#   docker compose -f api/docker-compose.ec2.yml ps        # api healthy, worker up, db healthy
 #
-# Compose reads api/.env twice: to fill in ${POSTGRES_PASSWORD} (it sits next to this file) and as the
-# containers' env_file. It is gitignored and .dockerignore keeps it out of the image.
+# The database credential is fixed below and is not a secret to manage. `db` publishes no port at all,
+# so it is reachable only by the containers on this compose network; anything that could reach it is
+# already on the host, where api/.env is readable. That file is the thing worth protecting, not this
+# password. It is gitignored and .dockerignore keeps it out of the image.
 #
-# api/.env holds everything from api/.env.example plus POSTGRES_PASSWORD; DATABASE_URL is set below:
+# api/.env holds everything from api/.env.example; DATABASE_URL is set below and overrides it:
 #   PORT WEBHOOK_SECRET_KEK DASHBOARD_ORIGIN DOCS_ORIGIN PUBLIC_API_URL NEXT_PUBLIC_CHECKOUT_URL
 #   PRIVY_APP_ID PRIVY_VERIFICATION_KEY RESEND_API_KEY EMAIL_FROM INGEST_TOKEN MONAD_RPC_URL CHAIN_ID
 #   RELAYER_PRIVATE_KEY INDEXER_GRAPHQL_URL
 # RELAYER_PRIVATE_KEY controls a funded wallet: prefer AWS Secrets Manager / SSM over a file on the disk.
 #
-# Moving data off Neon (once, before switching DNS; stop the Railway worker first so nothing writes):
+# Done at cutover, kept for the record — moving the data off Neon (stop the old worker first so nothing writes):
 #   docker compose -f api/docker-compose.ec2.yml up -d db
 #   docker run --rm postgres:16 pg_dump --no-owner --no-acl "$NEON_DATABASE_URL" \
 #     | docker compose -f api/docker-compose.ec2.yml exec -T db psql -U elapse -d elapse
