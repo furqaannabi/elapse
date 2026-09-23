@@ -64,8 +64,13 @@ describe("FR-API-075 relayer runway", () => {
     expect(await relayer()).toEqual({ address: null, balance_mon: null, sampled_at: null, burn_mon_per_hour: null, hours_left: null, low: false, stale: true });
   });
 
+  // The window is `sampled_at >= now - 3600`, and the request computes its own `now` a moment after
+  // `seed` computed this one. A sample planted at exactly 3600 s falls out of the window as soon as
+  // that clock ticks, the oldest-in-hour collapses onto the newest, and the burn comes back null —
+  // which is how this test failed on three scheduled runs before 2026-09-23 and passed on the rest.
+  // Ten seconds inside the boundary is the fix; the arithmetic it asserts is unchanged.
   it("FR_API_075_a_slow_burn_reports_hours_left_and_is_not_low", async () => {
-    await seed([[3600, 4.664], [10, 4.64]]);
+    await seed([[3590, 4.664], [10, 4.64]]);
     const r = await relayer();
     expect(r).toMatchObject({ address: RELAYER, balance_mon: "4.64", low: false, stale: false });
     expect(r.burn_mon_per_hour).toBeCloseTo(0.024, 3);
@@ -74,7 +79,7 @@ describe("FR-API-075 relayer runway", () => {
   });
 
   it("FR_API_075_under_24_hours_left_is_low", async () => {
-    await seed([[3600, 4.64], [10, 2.0]]);
+    await seed([[3590, 4.64], [10, 2.0]]);
     const r = await relayer();
     expect(r.hours_left).toBeLessThan(24);
     expect(r.low).toBe(true);
