@@ -10,6 +10,7 @@
  */
 import type { Metadata, Viewport } from "next";
 import { Archivo, Martian_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const archivo = Archivo({
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
         */}
         {children}
+        <Analytics />
       </body>
     </html>
   );
