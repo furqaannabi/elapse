@@ -154,6 +154,55 @@ describe("FR-EXM-125 the first Run starts the meter", () => {
   });
 });
 
+describe("FR-EXM-125 a start refused because the escrow has not ingested yet", () => {
+  // 2026-09-23, from the recording: the console claims the session the instant the popup signs, so
+  // the first Run can reach `subscriptions.start` a second before `checkout.session.completed`
+  // ingests. The platform then has no `stream_address` yet and answers "The subscriber has not
+  // authorised this session yet." Giving up there strands a funded meter the subscriber already
+  // paid for, and leaves the console offering to end a session that never ran.
+  it("retries inside the start window instead of stranding a funded session", async () => {
+    const attempts: string[] = [];
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const { base, executor, canceled } = await start({
+      sessions,
+      startSubscription: async (sub: string) => {
+        attempts.push(sub);
+        if (attempts.length === 1) throw new Error("The subscriber has not authorised this session yet.");
+        setTimeout(() => sessions.applyActive(sub, { startedAt: NOW, nowMs: NOW }), 10);
+      },
+    });
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const res = await run(base, "sub_1");
+    expect(res.status).toBe(200);
+    expect(attempts).toEqual(["sub_1", "sub_1"]);
+    expect(executor.calls).toEqual([CODE]);
+    expect(canceled).toEqual([]);
+  });
+
+  it("gives up at the window rather than retrying for ever", async () => {
+    const attempts: string[] = [];
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const { base, executor, lines } = await start({
+      sessions,
+      startSubscription: async (sub: string) => {
+        attempts.push(sub);
+        throw new Error("The subscriber has not authorised this session yet.");
+      },
+    });
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+
+    const res = await run(base, "sub_1");
+    expect(res.status).toBe(503);
+    expect(attempts.length).toBeGreaterThan(1);
+    expect(executor.calls).toEqual([]);
+    // Reported once, not once per retry, and the session is left for another Run to try.
+    expect(lines.filter((l) => l.includes("waiting for the escrow"))).toHaveLength(1);
+    expect(lines.some((l) => l.startsWith("\u2717 start"))).toBe(true);
+    expect(sessions.state("sub_1")).toBe("authorised");
+  });
+});
+
 describe("FR-EXM-125 a Run that arrives before the webhook does", () => {
   it("waits for subscription.created instead of calling it an unknown session", async () => {
     // The subscriber authorises, the popup hands the page its sub_ id, and the page runs at once —

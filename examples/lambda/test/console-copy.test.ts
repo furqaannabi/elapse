@@ -33,6 +33,17 @@ describe("FR-EXM-153 the pages say what the code does", () => {
     }
   });
 
+  it("does not call a meter running when the run that would have started it failed", () => {
+    // 2026-09-23, from the recording: a start refused because the escrow had not ingested yet came
+    // back 503, and the console set the running status anyway — so the page said the meter was on
+    // and costing money while nothing had started. The session is open and worth ending; it is the
+    // word "Running" that is untrue.
+    expect(console_, "a failed run must not set the running status").not.toMatch(
+      /outcome\.k === "error"[\s\S]{0,300}RUNNING_STATUS/,
+    );
+    expect(console_).toMatch(/RUN_FAILED_STATUS/);
+  });
+
   it("explains a pause the subscriber did not ask for", () => {
     // FR-EXM-154: the sweep pauses an idle meter. <Meter> narrates the pauses a subscriber asked
     // for (FR-RCT-046); an automatic one has no other voice, and a meter that silently stops

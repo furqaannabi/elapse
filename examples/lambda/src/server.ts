@@ -449,21 +449,43 @@ async function ensureRunning(sub: string, state: SessionState, deps: ServerDeps)
       return false;
     }
   }
-  if (state === "authorised") {
-    deps.sessions.markStarting(sub, deps.now());
-    try {
-      await deps.startSubscription(sub);
-      deps.log(`▶ starting meter ${sub}`);
-    } catch (err) {
-      // The start never happened: put the session back so the next Run can try again.
-      deps.sessions.applyAuthorised(sub, { nowMs: deps.now() });
-      deps.log(`✗ start ${sub}: ${(err as Error).message}`);
-      return false;
-    }
-  }
   const timeoutMs = deps.startTimeoutMs ?? 30_000;
   const pollMs = deps.startPollMs ?? 250;
   const deadline = Date.now() + timeoutMs;
+  if (state === "authorised") {
+    // FR-EXM-125 (amended 2026-09-23): the escrow reaches the platform by ingest, a second or two
+    // after the popup signs, and a start submitted before it lands is refused for want of a stream
+    // address. That refusal means "not yet", not "no", so it is retried for as long as the start
+    // window allows rather than stranding a session the subscriber has already paid for.
+    deps.sessions.markStarting(sub, deps.now());
+    let waiting = false;
+    for (;;) {
+      try {
+        await deps.startSubscription(sub);
+        deps.log(`▶ starting meter ${sub}`);
+        break;
+      } catch (err) {
+        const refusal = (err as Error).message;
+        // A start already in flight, or a meter already running, is the outcome this loop wants.
+        // Only the platform's webhook can confirm it, so fall through to the wait below.
+        if (/already/i.test(refusal)) break;
+        if (deps.sessions.state(sub) === "ended") return false;
+        if (Date.now() + pollMs >= deadline) {
+          // It never happened: put the session back so the next Run can try again.
+          deps.sessions.applyAuthorised(sub, { nowMs: deps.now() });
+          deps.log(`✗ start ${sub}: ${refusal}`);
+          return false;
+        }
+        // One line, on the first refusal only: a slow chain makes this a visible pause, and a
+        // silent terminal reads as a hang — but a line per retry would bury the run that follows.
+        if (!waiting) {
+          waiting = true;
+          deps.log(`… waiting for the escrow ${sub}: ${refusal}`);
+        }
+        await new Promise((r) => setTimeout(r, pollMs));
+      }
+    }
+  }
   while (Date.now() < deadline) {
     if (deps.sessions.isActive(sub)) return true;
     if (deps.sessions.state(sub) === "ended") return false;

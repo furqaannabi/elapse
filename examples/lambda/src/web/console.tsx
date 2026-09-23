@@ -17,6 +17,11 @@ type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "sessi
 // running" answers a question they have not asked yet. Every other line names what is costing money.
 const IDLE_STATUS = "Press Run — editing is free, the meter opens with your first run";
 const RUNNING_STATUS = "Running — end the session when you are done";
+// FR-EXM-125 (amended 2026-09-23): a run can fail with the session still open — most often a start
+// refused because the escrow has not ingested yet, which charges nothing. Saying "Running" there
+// tells the subscriber money is moving when none is. What is true either way is that the session is
+// open, that another Run is free to try, and that End session closes it.
+const RUN_FAILED_STATUS = "Your session is open — press Run to try again, or End session to close it";
 // FR-EXM-154/155: a pause the subscriber did not ask for has to say so. <Meter> narrates the ones
 // they did ask for (FR-RCT-046); this is the only voice the automatic one has.
 const AUTO_PAUSED = "Paused — nothing has run for a minute. Press Run or Resume to carry on.";
@@ -116,7 +121,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
       }
       if (outcome.k === "error") {
         setOut({ error: outcome.message });
-        setStatus(on.k === "session" ? RUNNING_STATUS : IDLE_STATUS);
+        setStatus(on.k === "session" ? RUN_FAILED_STATUS : IDLE_STATUS);
         if (on.k !== "session") setPhase({ k: "idle" });
         return;
       }
