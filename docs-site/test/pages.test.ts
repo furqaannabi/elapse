@@ -98,6 +98,16 @@ describe("FR-DOC-047 React is optional", () => {
     expect(read("sdks/react.mdx")).toContain("/sdks/browser");
   });
 
+  // `onAuthorised` and `onStarted` are mutually exclusive: which one fires is decided by the
+  // product's start mode (use-authorize.ts). A page that shows only `onStarted` strands every
+  // merchant-mode integration on a callback that never comes.
+  it("says which callback fires for which start mode", () => {
+    const page = read("sdks/browser.mdx");
+    expect(page).toContain("onAuthorised");
+    expect(page).toMatch(/start_mode|start mode/);
+    expect(page).toMatch(/subscriptions\.start/);
+  });
+
   // A script tag on its own reads as the whole integration, and it is not: the session comes from
   // the merchant's own server and access is granted on the webhook, never on a browser callback.
   it("shows where the session comes from and where access is decided", () => {

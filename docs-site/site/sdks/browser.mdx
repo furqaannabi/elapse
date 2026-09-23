@@ -42,7 +42,8 @@ subscriber starts:
     mount("#elapse", {
       publishableKey: "pk_test_…",   // publishable, safe in the page; an sk_ key throws
       session,
-      onStarted: () => showYourProduct(),
+      onStarted: () => showYourProduct(),      // checkout-mode products
+      onAuthorised: () => yourServerStarts(),  // merchant-mode products — see below
       onStopped: () => hideYourProduct(),
     });
   };
@@ -61,8 +62,8 @@ your framework never sees them.
 | --- | --- | --- |
 | `publishableKey` | — | `pk_test_…` or `pk_live_…`. A key starting with `sk_` throws. |
 | `session` | — | The `cs_…` your server created. |
-| `onAuthorised` | | The subscriber signed. |
-| `onStarted` | | The meter is running. |
+| `onAuthorised` | | The subscriber signed, and the meter is **held**. Merchant-mode products only. |
+| `onStarted` | | The subscriber signed and the meter is running. Checkout-mode products only. |
 | `onStopped` | | It stopped; the receipt is on screen. |
 | `onPauseRequest` | | Shows Pause. See below. |
 | `onResumeRequest` | | Shows Resume. See below. |
@@ -72,6 +73,25 @@ your framework never sees them.
 | `appOrigin` | `https://elapse.finance` | Where the signing window lives. |
 
 A second `mount` on the same element replaces the first rather than stacking.
+
+### Which of the two fires
+
+`onAuthorised` and `onStarted` are alternatives, not a sequence. Exactly one of them fires when the
+subscriber signs, and which one is decided by the Product's `start_mode`:
+
+| `start_mode` | Fires | What it means |
+| --- | --- | --- |
+| `checkout` | `onStarted` | the meter is already running; show your product |
+| `merchant` | `onAuthorised` | the money is held and nothing is accruing yet |
+
+Merchant mode exists for a resource that has to be ready first — a container to boot, a runner to
+warm, a stream to open. You do that work, then call `subscriptions.start` from your server, and the
+meter begins. Until you do, the subscriber is charged nothing; a session you never start is
+cancelled and refunded in full after fifteen minutes.
+
+So a checkout-mode integration listens for `onStarted`, and a merchant-mode one listens for
+`onAuthorised` and starts the meter itself. Passing both, as above, is the safe default while you
+are deciding.
 
 ## Where access is really decided
 
