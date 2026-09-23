@@ -23,7 +23,7 @@ const session = await elapse.checkout.sessions.create({
 
 const event = elapse.webhooks.constructEvent(
   rawBody,                          // unparsed bytes
-  headers["x-elapse-signature"],
+  signature,                        // the X-Elapse-Signature header
   process.env.ELAPSE_WEBHOOK_SECRET
 );`;
 

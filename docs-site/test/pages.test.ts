@@ -82,6 +82,19 @@ describe("FR-DOC-024 testing page", () => {
   });
 });
 
+describe("FR-DOC-021 signatures", () => {
+  // 2026-09-23: the landing page's snippet passed `req.headers["x-elapse-signature"]` straight into
+  // `constructEvent`. Node types that as `string | string[] | undefined` and the parameter is
+  // `string | undefined`, so the first thing a merchant copies does not compile. Both working
+  // examples narrow it; the docs did not show that.
+  it("narrows the Node header before verifying, as the examples do", () => {
+    const src = read("webhooks/signatures.mdx");
+    // Every raw Node/Express header read is narrowed, never passed through as-is.
+    expect(src).not.toMatch(/constructEvent\([^)]*req\.headers\[/);
+    expect(src).toMatch(/Array\.isArray/);
+  });
+});
+
 describe("FR-DOC-047 React is optional", () => {
   // 2026-09-23: a merchant asked whether Elapse forces React on their frontend. It does not — the
   // package ships a framework-free CDN build — but that was documented as "No bundler?" at the foot

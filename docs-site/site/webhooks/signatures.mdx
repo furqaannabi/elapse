@@ -23,7 +23,11 @@ Verification rejects a header older than **300 seconds**, and compares in consta
 ```ts TypeScript
 import { constructEvent } from "@elapse/sdk";
 
-const event = constructEvent(rawBody, req.headers["x-elapse-signature"], process.env.ELAPSE_WEBHOOK_SECRET);
+// Node types a header as `string | string[] | undefined`, so narrow it first.
+const sent = req.headers["x-elapse-signature"];
+const signature = Array.isArray(sent) ? sent[0] : sent;
+
+const event = constructEvent(rawBody, signature, process.env.ELAPSE_WEBHOOK_SECRET);
 // Throws ElapseSignatureVerificationError on a missing, malformed, expired or mismatched signature.
 ```
 ```bash cURL
@@ -37,12 +41,14 @@ printf '%s.%s' "$T" "$RAW_BODY" | openssl dgst -sha256 -hmac "$ELAPSE_WEBHOOK_SE
 <CodeGroup>
 ```ts Express
 app.post("/webhooks", express.raw({ type: "*/*" }), (req, res) => {
-  const event = constructEvent(req.body, req.headers["x-elapse-signature"], secret);
+  const sent = req.headers["x-elapse-signature"];
+  const event = constructEvent(req.body, Array.isArray(sent) ? sent[0] : sent, secret);
   res.sendStatus(200);
 });
 ```
 ```ts Hono
 app.post("/webhooks", async (c) => {
+  // Hono's `header()` already returns `string | undefined`, so there is nothing to narrow.
   const event = constructEvent(await c.req.text(), c.req.header("x-elapse-signature"), secret);
   return c.json({ received: true });
 });
