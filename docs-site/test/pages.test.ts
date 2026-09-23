@@ -82,6 +82,23 @@ describe("FR-DOC-024 testing page", () => {
   });
 });
 
+describe("FR-DOC-047 React is optional", () => {
+  // 2026-09-23: a merchant asked whether Elapse forces React on their frontend. It does not — the
+  // package ships a framework-free CDN build — but that was documented as "No bundler?" at the foot
+  // of a page called React, where a Vue or Rails developer never looks. The answer has to be
+  // findable from the page a server-first developer actually opens.
+  it("says so in the frontend developer's own words, and is reachable from the server page", () => {
+    const react = read("sdks/react.mdx");
+    expect(react).toContain("## Without React");
+    expect(react).toContain("elapse.browser.js");
+    for (const framework of ["Vue", "Rails"]) expect(react).toContain(framework);
+
+    // The server-side page has to point at it: that is where someone asking "do I need React?" is.
+    const ts = read("sdks/typescript.mdx");
+    expect(ts).toContain("/sdks/react#without-react");
+  });
+});
+
 describe("FR-DOC-043 and business rules across every page", () => {
   const all = pages().map((p) => [p, readFileSync(p, "utf8")] as const);
   it("every TypeScript block is inside a CodeGroup or Tabs with a cURL sibling", () => {
