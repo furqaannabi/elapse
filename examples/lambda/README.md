@@ -131,7 +131,7 @@ The console is a React page with the **VS Code editor** (Monaco) holding the Jav
 runner's own source read-only beneath it, and the result as output — rendered as an image when
 the code returns a `data:image` string, printed as a value otherwise. There is no Start button:
 press Run, and the first one shows `<Authorize>` from [`@elapse/react`](../../sdk/react) **in this
-page** — one signature, in a frame Elapse opens over the console — then your code runs and
+page** — one signature, in a window Elapse opens ([ADR 2026-09-20](../../docs/decisions/2026-09-20-authorise-in-a-window-only.md)) — then your code runs and
 `<Meter>` ticks in a card that sticks to the bottom of the viewport, in Northwind's colours.
 When the meter starts and when it ends, a card drops in with that transaction (`proof`), since
 this console is read by developers. Nobody is sent to a hosted checkout.
@@ -201,9 +201,14 @@ runner/index.d.mts its contract, so the tests typecheck against it
 src/config.ts      env, with a readable error naming anything missing
 src/executor.ts    run(input) — the real AWS runner, and a mock used only by tests/CI
 src/session.ts     sessions, evt_ dedupe, the daily cap, and the sweep's pause/end decision
+src/claim.ts       claimVerdict: whether a console may claim a session the webhook has not
+                   announced yet, so a Run is never lost to a late delivery (ADR 2026-09-22)
 src/webhooks.ts    verify → 2xx → act (the part worth copying)
-src/server.ts      routes: / /console /cancel /run /heartbeat /pause /resume /end /access /session /runner-source /webhooks
-src/boot.ts        product, wiring, the idle/abandoned sweep
+src/server.ts      routes: / /console /cancel /run /claim /heartbeat /pause /resume /end
+                   /access/:sub /session/:sub /runner-source /default-snippet /webhooks
+src/boot.ts        product, wiring, the idle/abandoned sweep, and boot reconciliation
+src/index.ts       npm start: reads .env, boots, prints
+src/demo-check.ts  npm run demo:check
 public/            the merchant's own look (see DESIGN.md); console = React + @elapse/react, bundled by esbuild; Monaco from a pinned CDN
 ```
 

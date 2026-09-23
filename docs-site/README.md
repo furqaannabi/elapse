@@ -16,4 +16,4 @@ pnpm check           # snippets in sync, SDK surface matches the docs, mintlify 
 pnpm test            # vitest over the pages and snippets
 ```
 
-Snippets are never hand-edited in `site/snippets/`; change the source and rerun the sync. Hosting builds from the `codypharm/elapse` fork on every push to `master`.
+Snippets are never hand-edited in `site/snippets/`; change the source and rerun the sync. Mintlify builds from `furqaannabi/elapse` on every push to `master`; nothing here is deployed by hand.

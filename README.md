@@ -13,11 +13,11 @@ Track 2 · Monad Metropolis · Consumer Products & Payments. Submission 13 Octob
 | App: landing, `/authorize`, subscriber account, merchant dashboard | https://elapse.finance |
 | API | https://api.elapse.finance (`GET /v1/status` is public) |
 | Docs | https://docs.elapse.finance — start at the Quickstart |
-| SDK | `npm install @elapse/sdk` (0.3.0, Node 20+) |
-| React | `npm install @elapse/react` (0.3.0) — `<Authorize>` and `<Meter>` in your own page |
-| CLI | `npx @elapse/cli listen --forward http://localhost:3000/webhooks` (0.1.3) |
+| SDK | `npm install @elapse/sdk` (0.3.1, Node 20+) |
+| React | `npm install @elapse/react` (0.5.1) — `<Authorize>` and `<Meter>` in your own page |
+| CLI | `npx @elapse/cli listen --forward http://localhost:3000/webhooks` (0.1.5) |
 
-Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)); nothing is minted, and a wallet short of the cap sees Add funds on the checkout. Live mode (`sk_live_`) moves to mainnet AUSD when a chain-143 record lands, with no integration change.
+Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)); nothing is minted, and a wallet short of the cap sees Add funds in the Elapse window. Live mode (`sk_live_`) moves to mainnet AUSD when a chain-143 record lands, with no integration change.
 
 ## Surfaces
 
@@ -37,7 +37,7 @@ Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-
 
 ## System architecture
 
-One Next.js app, one Bun API with a second worker process, one Postgres, two contracts on Monad, an Envio indexer that reports chain events back to the API, and a relayer wallet that pays gas so subscribers never hold MON. Merchants talk to the API with `@elapse/sdk` and receive signed webhooks; subscribers only ever see the hosted checkout.
+One Next.js app, one Bun API with a second worker process, one Postgres, two contracts on Monad, an Envio indexer that reports chain events back to the API, and a relayer wallet that pays gas so subscribers never hold MON. Merchants talk to the API with `@elapse/sdk` and receive signed webhooks; subscribers never leave the merchant's own page, and the one Elapse surface they see is the window that takes the signature ([ADR 2026-09-17](docs/decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md), [ADR 2026-09-20](docs/decisions/2026-09-20-authorise-in-a-window-only.md)).
 
 ```mermaid
 flowchart LR
@@ -46,7 +46,7 @@ flowchart LR
   server["Merchant server<br/>@elapse/sdk"]
   cli["elapse listen --forward"]
   web["web/ · Next.js on Vercel<br/>/ landing · /authorize · /account · /dashboard"]
-  api["api/ · Bun + Hono on Railway<br/>REST /v1 · dashboard · /internal/ingest"]
+  api["api/ · Bun + Hono on EC2<br/>REST /v1 · dashboard · /internal/ingest"]
   worker["worker process<br/>deliveries · keeper · reconcile · notices"]
   pg[("Postgres")]
   chain["Monad testnet 10143<br/>StreamFactory → AccrualStream per subscription<br/>AUSD, both modes"]
@@ -58,8 +58,8 @@ flowchart LR
   dev --> web
   dev -- "integrates" --> server
   server -- "sk_ key" --> api
-  server -- "Checkout URL" --> sub
-  sub --> web
+  server -- "session id" --> sub
+  sub -- "@elapse/react · /authorize window" --> web
   web -- "cookie · checkout pass" --> api
   web <-- "sign in · permit" --> privy
   api --- pg
@@ -83,7 +83,7 @@ sequenceDiagram
   participant M as Merchant server
   participant A as API
   participant W as Worker
-  participant S as Subscriber (checkout)
+  participant S as Subscriber (merchant's page)
   participant C as Monad (StreamFactory · AccrualStream)
   participant E as Envio
 
@@ -139,9 +139,13 @@ const session = await elapse.checkout.sessions.create({
   cancelUrl: "https://merchant.example/cancel",
 });
 
+// Node types a header as `string | string[] | undefined`, so narrow it first.
+const sent = req.headers["x-elapse-signature"];
+const signature = Array.isArray(sent) ? sent[0] : sent;
+
 const event = elapse.webhooks.constructEvent(
   rawBody,
-  headers["x-elapse-signature"],
+  signature,
   process.env.ELAPSE_WEBHOOK_SECRET
 );
 ```
@@ -159,8 +163,8 @@ import "@elapse/react/styles.css";
 </ElapseProvider>
 ```
 
-Face ID happens in a frame on Elapse's origin over the merchant's page, so the merchant's code
-never touches the subscriber's wallet. `dock` floats the meter as a capsule, `proof` drops the
+Face ID happens in a window on Elapse's origin, one window per signature ([ADR 2026-09-20](docs/decisions/2026-09-20-authorise-in-a-window-only.md)),
+so the merchant's code never touches the subscriber's wallet. `dock` floats the meter as a capsule, `proof` drops the
 start and end transactions in, and `controls={false}` hides Stop for a meter only the merchant
 stops. Full options in [`sdk/react/README.md`](sdk/react/README.md).
 

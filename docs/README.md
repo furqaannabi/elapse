@@ -16,7 +16,7 @@
 
 ## One-paragraph version
 
-Elapse is Stripe Billing for things that should charge by the second. A merchant installs `@elapse/sdk`, creates a product with a rate in USD per second, and sends their customer to a hosted checkout. The customer signs in with Face ID, adds funds, presses Start, watches a live counter, and presses Cancel whenever they like; they pay only the seconds that elapsed and the rest comes back. Accrual happens onchain in an `AccrualStream` contract on Monad, settled in AUSD; the merchant never sees a chain, only six lifecycle webhooks signed the way Stripe signs them. Submission for Monad Metropolis Track 2 is **13 October 2026**.
+Elapse is Stripe Billing for things that should charge by the second. A merchant installs `@elapse/sdk`, creates a product with a rate in USD per second, and renders `<Authorize>` and `<Meter>` from `@elapse/react` in their own page. The customer signs in with Face ID and authorises in a window Elapse opens, adds funds, watches a live counter without leaving the merchant's page, and stops whenever they like; they pay only the seconds that elapsed and the rest comes back. Accrual happens onchain in an `AccrualStream` contract on Monad, settled in AUSD; the merchant never sees a chain, only six lifecycle webhooks signed the way Stripe signs them. Submission for Monad Metropolis Track 2 is **13 October 2026**.
 
 ## Status board
 

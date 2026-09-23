@@ -14,7 +14,7 @@ Spec-driven development for the whole project. **No code without a signed spec.*
 | Prefix | Surface |
 | --- | --- |
 | `FR-LND-nnn` | Landing (`/`) |
-| `FR-CHK-nnn` | Hosted checkout (`/c/[session]`) |
+| `FR-CHK-nnn` | The subscriber's side: `/authorize`, `/account`, and the retired `/c/[session]` |
 | `FR-DSH-nnn` | Merchant dashboard (`/dashboard/*`) |
 | `FR-MTR-nnn` | Meter primitives (math, `useMeter`, `Readout`, `ChartStrip`) shared by all surfaces |
 | `FR-CON-nnn` | Contracts (`StreamFactory`, `AccrualStream`) |

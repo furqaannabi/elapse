@@ -2,7 +2,7 @@
 
 ## What this is
 
-The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second and serves one product page where the subscriber authorises and watches the meter **without leaving the page** — `<Authorize>` and `<Meter>` from [`@elapse/react`](../../sdk/react), with Face ID in a frame Elapse opens over the page. When the subscriber stops, the server receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
+The smallest correct Elapse merchant. It creates a Product billed at $0.004 per second and serves one product page where the subscriber authorises and watches the meter **without leaving the page** — `<Authorize>` and `<Meter>` from [`@elapse/react`](../../sdk/react), with Face ID in a window Elapse opens ([ADR 2026-09-20](../../docs/decisions/2026-09-20-authorise-in-a-window-only.md)). When the subscriber stops, the server receives `subscription.canceled` and revokes access. No cron job: the webhook tells it.
 
 It is the code the [Quickstart](https://docs.elapse.finance/quickstart) is built from, and the server in the demo video.
 
@@ -84,6 +84,7 @@ Six types, six actions: provision on `checkout.session.completed`, entitle on `s
 | File | What |
 | --- | --- |
 | `src/index.ts` | `npm start`: reads `.env`, boots, prints |
+| `src/config.ts` | Env, with a readable error naming anything missing |
 | `src/boot.ts` | Product find-or-create, first checkout session, server |
 | `src/server.ts` | Node `http` routes: `/`, `/ok`, `/cancel`, `/access/:sub`, `/pause`, `/resume`, `/webhooks` |
 | `src/webhooks.ts` | Verify, respond, act |
