@@ -244,7 +244,7 @@ checkoutSessions.openapi(
     middleware: [merchantAuth()] as const,
     request: { body: { content: { "application/json": { schema: CreateBody } }, required: true } },
     responses: {
-      200: { description: "The session; send the subscriber to `url`.", content: { "application/json": { schema: CheckoutSessionSchema } } },
+      200: { description: "The session. Hand `id` to `<Authorize session>` in your own page; there is no hosted page to send anyone to.", content: { "application/json": { schema: CheckoutSessionSchema } } },
     },
   }),
   async (c) => {

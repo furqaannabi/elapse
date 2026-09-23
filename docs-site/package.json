@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "mintlify dev --port 3333",
     "sync-snippets": "NEXT_PUBLIC_CHECKOUT_URL=https://elapse.finance DASHBOARD_ORIGIN=https://elapse.finance tsx scripts/sync-snippets.ts",
-    "check": "tsx scripts/sync-snippets.ts --check && tsx ci/surface-check.ts && cd site && mintlify validate && mintlify broken-links",
+    "check": "NEXT_PUBLIC_CHECKOUT_URL=https://elapse.finance DASHBOARD_ORIGIN=https://elapse.finance tsx scripts/sync-snippets.ts --check && tsx ci/surface-check.ts && cd site && mintlify validate && mintlify broken-links",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

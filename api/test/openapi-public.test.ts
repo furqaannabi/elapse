@@ -66,6 +66,20 @@ describe("FR-API-085 shape", () => {
     expect((event!.properties!.type as { enum: string[] }).enum).toHaveLength(6);
   });
 
+  // 2026-09-23: the create response still read "send the subscriber to `url`", a leftover from the
+  // hosted checkout (ADR 2026-09-17). There is no `url` on a session and nowhere to send anyone: the
+  // merchant hands the id to `<Authorize session>` in its own page. It was live in the published
+  // reference, so the first thing a merchant read about Checkout was an instruction they cannot follow.
+  it("never promises a hosted checkout URL to send the subscriber to", () => {
+    const session = (doc.components?.schemas as Record<string, { properties?: Record<string, unknown> }>).CheckoutSession;
+    expect(Object.keys(session?.properties ?? {})).not.toContain("url");
+    for (const op of ops) {
+      for (const res of Object.values(op.responses ?? {}) as Array<{ description?: string }>) {
+        expect(res.description ?? "").not.toMatch(/send the subscriber to/i);
+      }
+    }
+  });
+
   it("matches the committed api/openapi.json byte for byte (run `bun run openapi` after a public route change)", async () => {
     const { renderPublicOpenApi } = await import("../src/openapi/public");
     const committed = await Bun.file(new URL("../openapi.json", import.meta.url)).text();
