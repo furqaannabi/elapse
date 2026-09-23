@@ -8,10 +8,11 @@ This is the "how". The "what" lives in the per-surface FRDs. Where this page say
 
 | Service | Job | Runtime | State |
 | --- | --- | --- | --- |
-| `api/` | REST for merchants and the checkout; ingest for the indexer; enqueues deliveries; drives the contract via a relayer | **Bun + Hono** (decided 2026-09-03, Furqaan). OpenAPI via `@hono/zod-openapi`. Separate service from `web/`. | Postgres |
+| `api/` | REST for merchants and for the authorise window; ingest for the indexer; enqueues deliveries; drives the contract via a relayer | **Bun + Hono** (decided 2026-09-03, Furqaan). OpenAPI via `@hono/zod-openapi`. Separate service from `web/`. | Postgres |
 | `worker/` | Delivers webhooks from a Postgres queue with retries; runs the keeper loop for `settle()` | Bun, same codebase as `api/` (shared package), separate process | Postgres |
 | `indexer/` | Envio HyperIndex on Monad; Effect API posts events to `api/` ingest | Envio hosted or self-hosted | Envio's store |
-| `web/` | Landing, hosted checkout, merchant dashboard | Next.js 16, Vercel | none (calls `api/`) |
+| `web/` | Landing, `/authorize` (the window `@elapse/react` opens for every signature), subscriber `/account`, merchant dashboard | Next.js 16, Vercel | none (calls `api/`) |
+| `sdk/react` | `@elapse/react`: `<Authorize>` and `<Meter>` inside the merchant's own page; replaced the hosted checkout ([ADR 2026-09-17](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md)) | React 18/19 + a framework-free CDN build | none (calls `api/` with `pk_`) |
 | `contracts/` | `StreamFactory`, `AccrualStream` | Foundry, Monad testnet 10143 → mainnet 143 | chain |
 
 ## 2. Data model (Postgres)
@@ -51,17 +52,17 @@ Base `https://api.elapse.finance/v1`. JSON, `snake_case` on the wire (FR-API-083
 | Method | Path | Auth | Notes |
 | --- | --- | --- | --- |
 | POST/GET | `/products`, `/products/:id` | `sk_` | `rate_usd_per_second` decimal string, must fit the token's 6 decimals exactly (BR-API-004); rate immutable after create |
-| POST | `/checkout/sessions` | `sk_` | returns `url` = `https://pay.elapse.finance/c/:id` |
-| GET | `/checkout/sessions/:id` | `pk_` or session token | what the hosted checkout reads; never leaks merchant secrets |
+| POST | `/checkout/sessions` | `sk_` | returns the session; the merchant hands `id` to `<Authorize session>` in its own page. There is no hosted checkout URL ([ADR 2026-09-17](../decisions/2026-09-17-delete-hosted-checkout-now.md)) |
+| GET | `/checkout/sessions/:id` | `pk_` or session token | what `@elapse/react` and `/authorize` read; never leaks merchant secrets |
 | POST | `/checkout/sessions/:id/prepare`, `/start` | `pk_` + Privy identity | prepare returns the EIP-2612 permit payload; start submits `createWithPermit` through the relayer (FR-API-032) |
 | GET/POST | `/account/subscriptions`, `/account/invoices`, `/account/subscriptions/:id/cancel` | Privy access token | subscriber account page, cross-merchant (FR-API-120–123) |
-| GET/POST | `/subscriptions`, `/subscriptions/:id`, `/subscriptions/:id/cancel` | `sk_` | merchant-side; `pause`/`resume` are dashboard-internal and absent from OpenAPI (FR-API-043) |
+| GET/POST | `/subscriptions`, `/subscriptions/:id`, `/subscriptions/:id/cancel`, `/start`, `/pause`, `/resume` | `sk_` | merchant-side. `start` runs a merchant-mode meter (FR-API-137); `pause`/`resume` became public for merchants (FR-API-141/142) |
 | GET | `/customers/:id`, `/invoices?subscription=` | `sk_` | |
 | CRUD | `/webhook_endpoints`, `…/:id/roll_secret`, `…/:id/test` | `sk_` | secret returned once on create/roll |
 | GET | `/events`, `/events/:id`, `/webhook_endpoints/:id/deliveries`, `/deliveries/:id`, POST `/deliveries/:id/resend` | `sk_` or dashboard cookie | delivery log (FR-API-063/064) |
 | * | `/dashboard/*` | `elapse_session` cookie | magic link auth, profile, branding, ledger, balance, notifications, activity, stats (FR-API-100–112) |
 | POST | `/internal/ingest` | `Authorization: Bearer $INGEST_TOKEN` | indexer only; body `{chain_id, block_number, block_hash, block_timestamp, tx_hash, log_index, address, event_name, args, ledger[]}` (FR-API-070) |
-| POST | `/test_helpers/test_clocks`, `…/:id/advance` | `sk_test_` only | demo fast-forward for `simulated` subscriptions (FR-API-090/091) |
+| POST | `/test_helpers/test_clocks`, `…/:id/advance` | `sk_test_` only | **Not built for 13 October** (API FRD FR-API-090/091): the demo cancels after real seconds and the docs page is Testing, with no test clock |
 | GET | `/status` | public | chain, indexer lag, worker queue for judge mode (FR-API-074) |
 | — | `/openapi.json` | public | generated from route schemas; published into the docs |
 
@@ -102,7 +103,7 @@ The signing must round-trip with `sdk/ts/src/index.ts` `constructEvent` unchange
 | `NEXT_PUBLIC_API_URL` | web | `https://api.elapse.finance` |
 | `ELAPSE_SECRET_KEY`, `ELAPSE_WEBHOOK_SECRET` | examples, cli | a merchant's credentials |
 
-Environments: `local` (`api/docker-compose.yml` Postgres on :55434, Monad testnet), `testnet` (shared, used by the docs quickstart CI), `mainnet` (Week 5+). Hosting decided 2026-09-05 (William): Railway for the API and worker as two processes from this repo, Neon for Postgres, Vercel for `web/`, Envio hosted for the indexer.
+Environments: `local` (`api/docker-compose.yml` Postgres on :55434, Monad testnet), `testnet` (shared, used by the docs quickstart CI), `mainnet` (Week 5+). Hosting decided 2026-09-05 (William): Railway for the API and worker, Neon for Postgres, Vercel for `web/`, Envio hosted for the indexer. **The API half changed** ([ADR 2026-09-15](../decisions/2026-09-15-api-on-one-ec2-host.md)): the API, the worker and Postgres now run as three containers on one EC2 host behind nginx, deployed by `.github/workflows/deploy-ec2.yml` after a green CI on `master` (`api/docker-compose.ec2.yml`, `api/README.md` Hosting). `web/` is still Vercel and the indexer is still Envio hosted.
 
 ## 7. Security checklist (every PR)
 
@@ -128,7 +129,7 @@ Environments: `local` (`api/docker-compose.yml` Postgres on :55434, Monad testne
 
 1. ~~API framework~~ — decided: Bun + Hono (Furqaan, 2026-09-03).
 2. ~~Gas sponsorship mechanism~~ — decided: subscriber permit, relayer pays gas ([ADR 2026-09-04](../decisions/2026-09-04-subscriber-permit-relayer-signs.md)).
-3. ~~Hosting~~ — decided 2026-09-05: Railway + Neon (API FRD Undecided 11).
+3. ~~Hosting~~ — decided 2026-09-05: Railway + Neon (API FRD Undecided 11); the API and its database moved to a single EC2 host before the demo ([ADR 2026-09-15](../decisions/2026-09-15-api-on-one-ec2-host.md)).
 4. ~~Rate-limit numbers; secret-roll overlap window~~ — decided (API FRD Undecided 6, FR-API-105); endpoint auto-disable threshold lives in the worker FRD.
 5. Correction events on reorg (recommend none in MVP).
 
@@ -139,3 +140,4 @@ Environments: `local` (`api/docker-compose.yml` Postgres on :55434, Monad testne
 | 2026-09-03 | Claude (for William) | First draft from the detailed doc and design brief. |
 | 2026-09-03 | Furqaan (via William) | Bun + Hono decided for api/worker; Foundry for contracts ([ADR](../decisions/2026-09-03-bun-hono-backend.md)). |
 | 2026-09-05 | Claude (for William) | Aligned with the signed API FRD: SHA-256 keys, `livemode`, wei columns, permit funding, `/internal/ingest` with `INGEST_TOKEN`, dashboard and account route groups, Railway + Neon, `bun test`. The FRD is authoritative where this page and it differ. |
+| 2026-09-23 | Claude (for William) | Caught the page up with eighteen days of shipped decisions it had missed: the hosted checkout is gone and `sdk/react` is a service on this page ([ADR 2026-09-17](../decisions/2026-09-17-react-sdk-replaces-hosted-checkout.md), [ADR 2026-09-17](../decisions/2026-09-17-delete-hosted-checkout-now.md)), `/checkout/sessions` returns no `url`, merchant `start`/`pause`/`resume` are public, test clocks are marked not built, and the API's hosting is EC2 rather than Railway + Neon. No design changed here; the page was describing a system that no longer existed. |
