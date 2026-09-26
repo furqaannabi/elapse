@@ -1,7 +1,7 @@
 # Acme GPU (examples/saas) at examples.elapse.finance/saas/ — FR-EXM-037.
 #
 #   cd /elapse/examples/saas && npm ci            # never `npm install` here: it rewrites the lockfile
-#   write .env (from .env.example) with PORT=3001 and BASE_URL=https://examples.elapse.finance/saas,
+#   write .env (from .env.example) with PORT=3007 and BASE_URL=https://examples.elapse.finance/saas,
 #   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/saas/webhooks
 #   chmod 600 .env
 #   sudo cp /elapse/examples/deploy/elapse-saas.service /etc/systemd/system/

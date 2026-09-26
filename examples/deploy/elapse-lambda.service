@@ -1,7 +1,7 @@
 # Northwind (examples/lambda) at examples.elapse.finance/lambda/ — FR-EXM-037.
 #
 #   cd /elapse/examples/lambda && npm ci          # never `npm install` here: it rewrites the lockfile
-#   write .env (from .env.example) with PORT=3002 and BASE_URL=https://examples.elapse.finance/lambda,
+#   write .env (from .env.example) with PORT=3006 and BASE_URL=https://examples.elapse.finance/lambda,
 #   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/lambda/webhooks
 #   chmod 600 .env
 #   AWS: prefer an instance role with lambda:InvokeFunction on elapse-lambda-runner only, and leave the
