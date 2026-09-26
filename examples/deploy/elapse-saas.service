@@ -8,6 +8,9 @@
 #   sudo systemctl daemon-reload && sudo systemctl enable --now elapse-saas
 #   journalctl -u elapse-saas -f
 #
+# After that, Deploy EC2 runs npm ci and restarts this service on every green push to master
+# (ADR 2026-09-26): nobody needs to log in to ship a change.
+#
 # Sessions live in memory: a restart silently breaks any meter in flight. Do not restart mid-demo.
 [Unit]
 Description=Elapse example merchant: Acme GPU (examples/saas)

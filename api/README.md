@@ -129,6 +129,10 @@ job. `.github/workflows/deploy-ec2.yml` deploys on a green CI run from `master`:
 `api/scripts/deploy-ec2.sh` over SSH, which fast-forwards the checkout to that commit, rebuilds, and waits
 for `/v1/status`. Migrations run as the api container starts; the worker waits for the api to be healthy,
 and there is exactly one worker because two keepers would both submit settle transactions.
+Then it redeploys both examples ([ADR 2026-09-26](../docs/decisions/2026-09-26-deploy-ec2-redeploys-the-examples.md)): `npm ci` and a restart of `elapse-saas` and
+`elapse-lambda`, each waited on at its own port, then checked publicly at `examples.elapse.finance`.
+That happens on **every** deploy, so a meter running on the examples at that moment is dropped — don't
+push to `master` mid-demo.
 
 This replaced **Railway + Neon** ([ADR 2026-09-15](../docs/decisions/2026-09-15-api-on-one-ec2-host.md)), which is what every record written before it describes.
 

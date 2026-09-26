@@ -55,7 +55,11 @@ jobs:
             "$EC2_USER@$EC2_HOST" "bash -s -- $SHA" < api/scripts/deploy-ec2.sh
 
       - name: Public health check
-        run: curl -fsS -m 15 https://api.elapse.finance/v1/status > /dev/null
+        # The API, and both examples the deploy just restarted (ADR 2026-09-26), through nginx and TLS.
+        run: |
+          curl -fsS -m 15 https://api.elapse.finance/v1/status > /dev/null
+          curl -fsS -m 15 -o /dev/null https://examples.elapse.finance/saas/
+          curl -fsS -m 15 -o /dev/null https://examples.elapse.finance/lambda/
 
       - name: Remove key
         if: always()

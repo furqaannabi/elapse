@@ -74,3 +74,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-22 | [Northwind learns a subscription from a verified claim, and reconciles its own meters on boot](./2026-09-22-northwind-learns-a-subscription-without-the-webhook.md) | William |
 | 2026-09-26 | [Both examples live on one subdomain, under path prefixes](./2026-09-26-examples-on-one-subdomain.md) | Furqaan |
 | 2026-09-26 | [The Lambda session ends with its run](./2026-09-26-lambda-session-ends-with-its-run.md) | Furqaan |
+| 2026-09-26 | [Deploy EC2 redeploys the examples on every deploy](./2026-09-26-deploy-ec2-redeploys-the-examples.md) | Furqaan |
