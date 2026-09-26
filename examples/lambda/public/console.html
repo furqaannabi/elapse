@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#23262a">
 <title>Console · {{merchant}}</title>
-<link rel="stylesheet" href="/northwind.css">
+<link rel="stylesheet" href="northwind.css">
 <!-- The console's own bundle: React, @elapse/react and its styles (npm run build:web, FR-EXM-152). -->
-<link rel="stylesheet" href="/web.css">
+<link rel="stylesheet" href="web.css">
 <!-- Monaco stays on its pinned CDN; the console falls back to a textarea if it is unreachable. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js" crossorigin></script>
 </head>
 <body>
 <main class="term">
   <header class="id">
-    <a class="mark" href="/">North<b>wind</b></a>
+    <a class="mark" href="">North<b>wind</b></a>
     <span class="loc">Field terminal<br>Unit 07</span>
   </header>
 
@@ -26,7 +26,7 @@
        data-app-url="{{app_url}}"
        data-merchant="{{merchant}}"
        data-max-duration="{{max_duration_seconds}}"></div>
-  <script type="module" src="/web.js"></script>
+  <script type="module" src="web.js"></script>
 
   <p class="note">You pay for the seconds your session is open. Pause it while you think, end it when you are done, and you are
   shown the exact amount settled.</p>

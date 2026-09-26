@@ -75,9 +75,9 @@ describe("FR-EXM-010/011 pages", () => {
     expect(html).toContain('data-publishable-key="pk_test_abc"');
     expect(html).toContain('data-api-url="https://api.elapse.finance"');
     expect(html).toContain('data-app-url="https://elapse.finance"');
-    expect(html).toContain('<script type="module" src="/web.js"></script>');
+    expect(html).toContain('<script type="module" src="web.js"></script>');
     // The components' stylesheet rides along in the bundle (FR-RCT-001).
-    expect(html).toContain('<link rel="stylesheet" href="/web.css">');
+    expect(html).toContain('<link rel="stylesheet" href="web.css">');
     // Same open session on reload; a fresh one once it has been used.
     expect(await (await fetch(base)).text()).toContain('data-session="cs_1"');
     await fetch(`${base}/ok?session_id=cs_1`);
@@ -129,7 +129,7 @@ describe("FR-EXM-010/011 the merchant's own look", () => {
     expect(await css.text()).toContain(".push");
     for (const path of ["/", "/ok?session_id=cs_1", "/cancel"]) {
       const html = await (await fetch(`${base}${path}`)).text();
-      expect(html).toContain('href="/acme.css"');
+      expect(html).toContain('href="acme.css"');
       expect(html).toContain("Acme GPU");
     }
   });

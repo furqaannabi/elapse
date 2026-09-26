@@ -21,7 +21,7 @@ import { createRoot } from "react-dom/client";
 // region:react-components
 /** Ask your own server, which holds the secret key. A refusal throws; that is how `<Meter>` knows. */
 const askAcme = (what: "pause" | "resume", session: string) => async () => {
-  const res = await fetch(`/${what}`, {
+  const res = await fetch(`./${what}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ session }),

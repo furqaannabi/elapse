@@ -1,0 +1,28 @@
+# Northwind (examples/lambda) at examples.elapse.finance/lambda/ — FR-EXM-037.
+#
+#   cd /elapse/examples/lambda && npm ci          # never `npm install` here: it rewrites the lockfile
+#   write .env (from .env.example) with PORT=3002 and BASE_URL=https://examples.elapse.finance/lambda,
+#   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/lambda/webhooks
+#   chmod 600 .env
+#   AWS: prefer an instance role with lambda:InvokeFunction on elapse-lambda-runner only, and leave the
+#   AWS keys out of .env; the SDK finds the role by itself.
+#   sudo cp /elapse/examples/deploy/elapse-lambda.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now elapse-lambda
+#   journalctl -u elapse-lambda -f
+#
+# This runs arbitrary JavaScript on AWS with outbound internet. Whether /lambda/ sits behind basic
+# auth is examples FRD Undecided 6.
+[Unit]
+Description=Elapse example merchant: Northwind (examples/lambda)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/elapse/examples/lambda
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

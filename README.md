@@ -33,7 +33,8 @@ Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-
 | Docs | `docs/` | **Start here:** `docs/README.md` — product doc, architecture, glossary, specs, onboarding |
 | Docs site | `docs-site/` | Mintlify site in `docs-site/site/`: Quickstart, guides, generated API reference. `pnpm --filter docs-site dev`; snippets synced from code by `pnpm --filter docs-site sync-snippets` |
 | Example | `examples/saas/` | Merchant in the demo video: authorise and meter in Acme's own page |
-| Example | `examples/lambda/` | Per-second serverless compute on real AWS Lambda; the meter runs only while code runs |
+| Example | `examples/lambda/` | Per-second serverless compute on real AWS Lambda; the meter runs until you end it, and Northwind pauses it on request |
+| Example hosting | `examples/deploy/` | Both examples at `examples.elapse.finance/saas/` and `/lambda/`: one nginx server block, two systemd units, the page linking them |
 
 ## System architecture
 

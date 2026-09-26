@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elapse examples</title>
+<style>
+  :root { --paper: #fafafa; --ink: #171717; --ink-soft: #666; --border: rgba(0,0,0,.1); --card: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #0a0a0a; --ink: #ededed; --ink-soft: #a1a1a1; --border: rgba(255,255,255,.12); --card: #111; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink);
+         font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 64px 16px; }
+  h1 { font-size: 28px; letter-spacing: -.01em; margin: 0 0 8px; }
+  p.lede { color: var(--ink-soft); margin: 0 0 32px; }
+  a.card { display: block; padding: 20px; margin-bottom: 12px; border: 1px solid var(--border);
+           border-radius: 12px; background: var(--card); color: inherit; text-decoration: none; }
+  a.card:hover, a.card:focus-visible { border-color: var(--ink-soft); outline: none; }
+  a.card strong { display: block; font-size: 17px; }
+  a.card span { color: var(--ink-soft); }
+  footer { margin-top: 32px; color: var(--ink-soft); font-size: 14px; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Elapse examples</h1>
+  <p class="lede">Two merchants that bill by the second. Both run in test mode: nothing real is charged.</p>
+
+  <a class="card" href="/saas/">
+    <strong>Acme GPU</strong>
+    <span>Rent a GPU by the second. Authorise once, watch the meter, stop whenever you like.</span>
+  </a>
+
+  <a class="card" href="/lambda/">
+    <strong>Northwind</strong>
+    <span>Run JavaScript on real AWS Lambda and pay for the seconds it runs.</span>
+  </a>
+
+  <footer>Source: <a href="https://github.com/furqaannabi/elapse/tree/master/examples">examples/</a> · Built on <a href="https://elapse.finance">Elapse</a></footer>
+</main>
+</body>
+</html>

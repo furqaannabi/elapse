@@ -555,7 +555,7 @@ describe("FR-EXM-110/111/112 the pages", () => {
     const html = await (await fetch(base)).text();
     expect(html).toContain("Serverless runtime");
     expect(html).toContain("$0.002 / second · ~$7.20 / hour");
-    expect(html).toMatch(/href="\/console"/);
+    expect(html).toMatch(/href="console"/);
     // Navigation only: the landing hands out no checkout link, because nothing starts here.
     expect(html).not.toContain("/c/cs_");
   });
@@ -579,8 +579,8 @@ describe("FR-EXM-110/111/112 the pages", () => {
 
     // FR-EXM-152: React and @elapse/react are bundled (npm run build:web), not loaded as UMD.
     expect(html).not.toMatch(/react[/@]18\.3\.1/);
-    expect(html).toContain('<script type="module" src="/web.js"></script>');
-    expect(html).toContain('<link rel="stylesheet" href="/web.css">');
+    expect(html).toContain('<script type="module" src="web.js"></script>');
+    expect(html).toContain('<link rel="stylesheet" href="web.css">');
     // Monaco may stay on its own CDN (FR-EXM-152).
     expect(html).toMatch(/monaco-editor\/0\.52\.2/);
 
@@ -622,7 +622,7 @@ describe("FR-EXM-110/111/112 the pages", () => {
     expect(css.status).toBe(200);
     expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8");
     for (const path of ["/", "/console", "/cancel"]) {
-      expect(await (await fetch(`${base}${path}`)).text()).toContain('href="/northwind.css"');
+      expect(await (await fetch(`${base}${path}`)).text()).toContain('href="northwind.css"');
     }
   });
 });

@@ -39,7 +39,7 @@ export function useEditor(): Editor {
     let alive = true;
     const w = window as unknown as MonacoWindow;
     const start = async () => {
-      const snippet = await fetch("/default-snippet").then((r) => (r.ok ? r.text() : "")).catch(() => "");
+      const snippet = await fetch("./default-snippet").then((r) => (r.ok ? r.text() : "")).catch(() => "");
       if (!alive) return;
       if (snippet && areaRef.current && areaRef.current.value === "") areaRef.current.value = snippet;
       if (!w.require) return;

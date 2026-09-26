@@ -53,7 +53,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   const readopted = useRef(false);
 
   useEffect(() => {
-    fetch("/runner-source").then((r) => (r.ok ? r.text() : "")).then(setSource).catch(() => {});
+    fetch("./runner-source").then((r) => (r.ok ? r.text() : "")).then(setSource).catch(() => {});
   }, []);
 
   // FR-EXM-116/118: while a session is open the console says "still here", and says "I'm gone"
@@ -62,12 +62,12 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   useEffect(() => {
     if (!sub) return;
     const beat = setInterval(() => {
-      if (navigator.sendBeacon) navigator.sendBeacon(`/heartbeat?sub=${sub}`);
-      else void fetch(`/heartbeat?sub=${sub}`, { method: "POST" });
+      if (navigator.sendBeacon) navigator.sendBeacon(`./heartbeat?sub=${sub}`);
+      else void fetch(`./heartbeat?sub=${sub}`, { method: "POST" });
       // FR-EXM-111/154: the server is the authority on whether this session is still open. It can
       // be paused by the sweep or ended from anywhere — the merchant's dashboard, a `sk_` call —
       // and `<Meter>` reports neither of those to this page, so `/access` is what tells it.
-      void fetch(`/access/${sub}`)
+      void fetch(`./access/${sub}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((a) => {
           const signal = readAccess(a);
@@ -92,7 +92,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         })
         .catch(() => {});
     }, 5_000);
-    const bye = () => navigator.sendBeacon?.(`/end?sub=${sub}`);
+    const bye = () => navigator.sendBeacon?.(`./end?sub=${sub}`);
     window.addEventListener("pagehide", bye);
     return () => {
       clearInterval(beat);
@@ -176,7 +176,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   const ask = (what: "pause" | "resume") => async () => {
     if (phase.k !== "session") return;
     asked.current = true;
-    const res = await fetch(`/${what}?sub=${phase.sub}`, { method: "POST" });
+    const res = await fetch(`./${what}?sub=${phase.sub}`, { method: "POST" });
     if (!res.ok) {
       asked.current = false;
       throw new Error(`${merchant} could not ${what} that meter.`);
@@ -191,7 +191,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
     setStatus("Ending your session…");
     try {
       // FR-EXM-155: say who ended it. The beacon posts to the same route when the tab goes.
-      await fetch(`/end?sub=${phase.sub}&by=subscriber`, { method: "POST" });
+      await fetch(`./end?sub=${phase.sub}&by=subscriber`, { method: "POST" });
     } catch (e) {
       setEnding(false);
       setOut({ error: (e as Error).message });

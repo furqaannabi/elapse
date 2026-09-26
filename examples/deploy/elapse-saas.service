@@ -1,0 +1,25 @@
+# Acme GPU (examples/saas) at examples.elapse.finance/saas/ — FR-EXM-037.
+#
+#   cd /elapse/examples/saas && npm ci            # never `npm install` here: it rewrites the lockfile
+#   write .env (from .env.example) with PORT=3001 and BASE_URL=https://examples.elapse.finance/saas,
+#   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/saas/webhooks
+#   chmod 600 .env
+#   sudo cp /elapse/examples/deploy/elapse-saas.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now elapse-saas
+#   journalctl -u elapse-saas -f
+#
+# Sessions live in memory: a restart silently breaks any meter in flight. Do not restart mid-demo.
+[Unit]
+Description=Elapse example merchant: Acme GPU (examples/saas)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/elapse/examples/saas
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target

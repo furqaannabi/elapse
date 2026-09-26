@@ -1,6 +1,6 @@
 # `examples/saas` (the merchant in the demo video) — FRD
 
-Status: **FR-EXM-032 amendment (bundle the page with esbuild) Signed 2026-09-17 (Furqaan)** · **FR-EXM-032 and the FR-EXM-003 amendment (`@elapse/react`) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md) (example-first build order, explicit `baseUrl`, local-API CI).
+Status: **FR-EXM-036/037, BR-EXM-011 (both examples on one subdomain, under path prefixes) Signed 2026-09-26 (Furqaan)** · **FR-EXM-032 amendment (bundle the page with esbuild) Signed 2026-09-17 (Furqaan)** · **FR-EXM-032 and the FR-EXM-003 amendment (`@elapse/react`) Signed 2026-09-17 (Furqaan)** · **Signed 2026-09-06 (William)** · Surface: Reference merchant (Node server, terminal) · Sources: detailed doc §4.2, §5.1–§5.3, §6, §7 step 5, §10 steps 1, 3, 4, §12 Weeks 3 and 6, §13, §14; `examples/saas/README.md`; [ADR 2026-09-06 docs site](../decisions/2026-09-06-docs-site-mintlify-and-quickstart-ci.md) (example-first build order, explicit `baseUrl`, local-API CI).
 
 ## Problem
 
@@ -54,6 +54,8 @@ The doc sets the judging bar as "Judges can clone `examples/saas` and receive a 
 | FR-EXM-033 | **Pause is asked for, not taken** ([ADR 2026-09-20](../decisions/2026-09-20-subscriber-cannot-pause.md)). `<Meter>` is passed `onPauseRequest` and `onResumeRequest`, so it renders Pause and Resume as requests: the button calls Acme's page, nothing is signed, and nothing reaches Elapse from the browser. Each handler posts `{ session }` to Acme's own `POST /pause` or `POST /resume`. The server maps the `cs_` id to its Subscription through FR-EXM-023's map (the browser never names a `sub_` id), answers `202 {status:"requested"}`, and `409 {error}` when that session has no running Subscription. | Route tests for both verbs: 202 with a running Subscription, 409 without, and 409 for an unknown session. |
 | FR-EXM-034 | **Acme decides, at once.** On a `202` the server calls `subscriptions.pause` (or `resume`) through `@elapse/sdk` immediately — no approval queue — and logs one line in FR-EXM-020's format: `subscriber asked to pause · Acme approved → subscriptions.pause sub_…`. The decision is Acme's and is visible as Acme's, which is the point of the example. A platform refusal is logged and answered `502`; the meter is unchanged and the subscriber may ask again. The SDK call is injected like FR-EXM-003's `createSession`, so tests need no API. | Unit test on the injected dep: approve calls it once with the mapped `sub_` id; a rejection logs and answers 502 without touching entitlements. |
 | FR-EXM-035 | ~~**The wait belongs to Acme's page.**~~ **Withdrawn 2026-09-21 (Furqaan: "sdk should have the meter ui not example"), superseded by React FR-RCT-046 before it shipped.** The waiting line is `<Meter>`'s, so every merchant gets it and none writes it. Acme passes `onPauseRequest`/`onResumeRequest` that return the promise of its own `POST /pause`, and renders nothing else. | The example contains no pause-status UI of its own; the promise it returns is what the meter reports. |
+| FR-EXM-036 | **The saas page works under any path prefix** (new 2026-09-26, signed 2026-09-26, [ADR 2026-09-26](../decisions/2026-09-26-examples-on-one-subdomain.md)). Every URL the browser requests is relative — assets, links, and the `fetch` calls in `src/web`. The example behaves identically at `/` and under a prefix ending in `/`. Server routes are unchanged; the proxy strips the prefix. | A test fails on any root-absolute `src`/`href` in `public/*.html` or root-absolute `fetch` in `src/web`. |
+| FR-EXM-037 | **Both examples on `examples.elapse.finance`** (new 2026-09-26, signed 2026-09-26, [ADR 2026-09-26](../decisions/2026-09-26-examples-on-one-subdomain.md)). `examples/deploy/` holds one nginx server block (`/saas/` → `127.0.0.1:3001`, `/lambda/` → `127.0.0.1:3002` with `proxy_read_timeout 120s`, a 301 from each no-slash path), two systemd units, and a root page linking both. `BASE_URL` carries the prefix (`https://examples.elapse.finance/saas`). Webhook endpoints are registered in the dashboard at `…/saas/webhooks` and `…/lambda/webhooks`; no CLI listener in production. Installs use `npm ci`. | `nginx -t` accepts the server block; the root page links both prefixes; the units start `npm start` in each example directory. |
 
 ## Business rules
 
@@ -69,6 +71,7 @@ The doc sets the judging bar as "Judges can clone `examples/saas` and receive a 
 | BR-EXM-008 | Dependencies: `@elapse/sdk`, `tsx`, `dotenv` at most; no framework unless Undecided 1 chooses one. |
 | BR-EXM-009 | FR-EXM-033's routes are **unauthenticated**, exactly like FR-EXM-012's `/access/:sub`: anyone holding a `cs_` id can ask Acme to pause that meter. Harmless in the example — a pause only stops Acme's own service and saves the subscriber money, and it can never move money or reveal anything — but the README and the route's comment must say in one line that a production merchant authenticates the subscriber before acting on the ask. |
 | BR-EXM-010 | Entitlements are untouched by this feature: FR-EXM-023 already sets `entitled: false, reason: "paused"` from `subscription.updated`, which is correct — a paused meter stops the billing and the serving together. No pause path writes to the entitlement map directly (BR-EXM-002). |
+| BR-EXM-011 | **One origin, two merchants** (2026-09-26). Both pages share `https://examples.elapse.finance`, so neither may treat origin-scoped storage as its own. Today nothing does — `@elapse/react` keeps only the mute preference there. The Elapse window's `frame-ancestors` resolves to the shared origin, which is correct for both. |
 
 ## Interfaces
 
@@ -106,6 +109,7 @@ Listening on :3000
 3. ~~**Product reuse across restarts.**~~ **Decided 2026-09-06: reuse by name** via `products.list` (FR-EXM-003).
 4. ~~**Triggering `payment_failed` for the demo.**~~ **Decided 2026-09-06: the real cap end** (proven live 2026-09-05, API FR-API-051) for the video; the dashboard test-delivery button exists for rehearsal.
 5. ~~**Language.**~~ **Decided 2026-09-06: TypeScript via `tsx`**; the docs snippets are TS.
+6. **Basic auth on `/lambda/`** (open 2026-09-26). The runner executes arbitrary JavaScript with outbound internet, and its own header says not to expose it to untrusted users as-is. Checkout, `DAILY_RUN_LIMIT` and the invoke-only IAM scope bound the damage but don't prevent use as an outbound proxy. Built without auth until Furqaan decides.
 
 ## Open
 
@@ -132,3 +136,5 @@ Listening on :3000
 | 2026-09-21 | Furqaan | **Signed** FR-EXM-033/034/035, BR-EXM-009/010, and the FR-EXM-003 and FR-EXM-032 amendments. |
 | 2026-09-21 | Claude (for Furqaan) | **FR-EXM-035 withdrawn, awaiting sign-off** (React FR-RCT-046): the waiting line moves out of the example and into `<Meter>`. Acme's handlers just return the promise of its own request. FR-EXM-033/034 are unaffected and built. |
 | 2026-09-21 | Furqaan | **Signed** the FR-EXM-035 withdrawal; the waiting line is React FR-RCT-046's. |
+| 2026-09-26 | Claude (for Furqaan) | **FR-EXM-036/037, BR-EXM-011 written** ([ADR 2026-09-26](../decisions/2026-09-26-examples-on-one-subdomain.md)): the saas page becomes prefix-safe and both examples move onto `examples.elapse.finance`. Undecided 6 records the open question of basic auth on `/lambda/`. |
+| 2026-09-26 | Furqaan | **Signed** FR-EXM-036/037 and BR-EXM-011. |

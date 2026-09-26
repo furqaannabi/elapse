@@ -13,7 +13,7 @@ describe("FR-EXM-114 postRun", () => {
     const out = await postRun(fetchFn as unknown as typeof fetch, "sub_1", "return 2+2");
     expect(out).toEqual({ k: "result", body: { ok: true, result: 4, ms: 3, logs: [] } });
     const [url, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("/run?sub=sub_1");
+    expect(url).toBe("./run?sub=sub_1");
     expect(JSON.parse(init.body as string)).toEqual({ code: "return 2+2" });
   });
 
@@ -21,7 +21,7 @@ describe("FR-EXM-114 postRun", () => {
     const fetchFn = vi.fn(async () => json(409, { needs_start: true, session: "cs_7" }));
     const out = await postRun(fetchFn as unknown as typeof fetch, null, "return 1");
     expect(out).toEqual({ k: "needs_auth", session: "cs_7" });
-    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toBe("/run?sub=none");
+    expect((fetchFn.mock.calls[0] as unknown as [string])[0]).toBe("./run?sub=none");
   });
 
   it("passes the server's own sentence through on a refusal", async () => {
@@ -100,7 +100,7 @@ describe("FR-EXM-157 the console claims its subscription", () => {
     }) as unknown as typeof fetch;
 
     expect(await postClaim(fetchFn, "sub_1")).toEqual({ k: "ready" });
-    expect(calls).toEqual(["POST /claim?sub=sub_1"]);
+    expect(calls).toEqual(["POST ./claim?sub=sub_1"]);
   });
 
   it("passes the platform's refusal through, so the subscriber is not asked to authorise again", async () => {

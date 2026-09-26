@@ -22,7 +22,7 @@ export type RunOutcome =
 /** POST /run for this subscription, or `null` when there is no session yet. */
 export async function postRun(fetchFn: typeof fetch, sub: string | null, code: string): Promise<RunOutcome> {
   try {
-    const res = await fetchFn(`/run?sub=${sub ?? "none"}`, {
+    const res = await fetchFn(`./run?sub=${sub ?? "none"}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code }),
@@ -50,7 +50,7 @@ export async function resolveSub(
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   for (let i = 0; i < attempts; i += 1) {
     try {
-      const res = await fetchFn(`/session/${session}`);
+      const res = await fetchFn(`./session/${session}`);
       if (res.ok) return ((await res.json()) as { sub: string }).sub;
     } catch {
       // the server may be restarting; try again until the attempts run out
@@ -101,7 +101,7 @@ export type ClaimOutcome =
  */
 export async function postClaim(fetchFn: typeof fetch, sub: string): Promise<ClaimOutcome> {
   try {
-    const res = await fetchFn(`/claim?sub=${sub}`, { method: "POST" });
+    const res = await fetchFn(`./claim?sub=${sub}`, { method: "POST" });
     const body = (await res.json()) as { state?: string; error?: string; needs_start?: boolean };
     if (res.ok) return { k: "ready" };
     if (res.status === 409) return { k: "needs_auth" };
