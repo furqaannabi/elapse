@@ -6,8 +6,8 @@ export const links = {
   docs: "https://docs.elapse.finance",
   quickstart: "https://docs.elapse.finance/quickstart",
   github: "https://github.com/furqaannabi/elapse",
-  /** Acme GPU, live (examples FRD FR-EXM-037): the example the Quickstart is built from. */
-  examples: "https://examples.elapse.finance/saas/",
+  /** Northwind, live (examples FRD FR-EXM-037): real code on AWS Lambda, billed by the second. */
+  examples: "https://examples.elapse.finance/lambda/",
   dashboard: "/dashboard",
   x: "https://x.com/elapsefinance",
 } as const;
