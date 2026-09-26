@@ -1,5 +1,5 @@
 # The Lambda example's meter runs until the subscriber ends it
-2026-09-21 · Decided by William · Status: accepted
+2026-09-21 · Decided by William · Status: superseded by [2026-09-26 the Lambda session ends with its run](./2026-09-26-lambda-session-ends-with-its-run.md)
 
 ## Context
 

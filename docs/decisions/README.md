@@ -70,6 +70,7 @@ What this makes easier, what it rules out, what to watch.
 | 2026-09-19 | [Only the merchant stops a merchant-started meter, including before it starts](./2026-09-19-only-the-merchant-stops-a-held-meter.md) | Furqaan |
 | 2026-09-20 | [Authorise in a window only; the modal frame is withdrawn](./2026-09-20-authorise-in-a-window-only.md) | Furqaan |
 | 2026-09-20 | [The subscriber never pauses a meter; they ask the merchant](./2026-09-20-subscriber-cannot-pause.md) | Furqaan |
-| 2026-09-21 | [The Lambda example's meter runs until the subscriber ends it](./2026-09-21-the-lambda-meter-runs-until-you-end-it.md) | William |
+| 2026-09-21 | [The Lambda example's meter runs until the subscriber ends it](./2026-09-21-the-lambda-meter-runs-until-you-end-it.md) (superseded) | William |
 | 2026-09-22 | [Northwind learns a subscription from a verified claim, and reconciles its own meters on boot](./2026-09-22-northwind-learns-a-subscription-without-the-webhook.md) | William |
 | 2026-09-26 | [Both examples live on one subdomain, under path prefixes](./2026-09-26-examples-on-one-subdomain.md) | Furqaan |
+| 2026-09-26 | [The Lambda session ends with its run](./2026-09-26-lambda-session-ends-with-its-run.md) | Furqaan |
