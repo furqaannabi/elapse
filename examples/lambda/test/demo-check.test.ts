@@ -23,7 +23,6 @@ async function serve(secret: string) {
     createCheckoutSession: async () => ({ id: "cs_1" }),
     startSubscription: async () => {},
     cancelSubscription: async () => {},
-    pauseSubscription: async () => {},
     resumeSubscription: async () => {},
     product: { name: "Serverless runtime", rateUsdPerSecond: "0.002" },
     maxDurationSeconds: 3600,

@@ -16,8 +16,8 @@ const console_ = read("../src/web/console.tsx");
 const northwind = read("../public/northwind.css");
 
 /**
- * The JSX guarded by `phase.k === "session"` that renders the meter. There is more than one such
- * branch — the End session control is guarded the same way (FR-EXM-155) — so this finds the one
+ * The JSX guarded by `phase.k === "session"` that renders the meter. There has been more than one
+ * such branch (the End session control, FR-EXM-155, withdrawn 2026-09-26), so this finds the one
  * that actually contains `<Meter>` rather than whichever comes first, and closes it by counting
  * brackets instead of matching a fixed indent, since the meter's nesting depth is not the test's
  * business.

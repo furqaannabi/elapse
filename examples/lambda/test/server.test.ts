@@ -32,7 +32,6 @@ async function start(over: Record<string, unknown> = {}) {
   const lines: string[] = [];
   const canceled: string[] = [];
   const startedSubs: string[] = [];
-  const pausedSubs: string[] = [];
   const resumedSubs: string[] = [];
   const deps = {
     sessions,
@@ -48,11 +47,6 @@ async function start(over: Record<string, unknown> = {}) {
     retrievePauseMs: 1,
     startSubscription: async (sub: string) => {
       startedSubs.push(sub);
-    },
-    pauseSubscription: async (sub: string) => {
-      pausedSubs.push(sub);
-      // The platform answers 202 and the webhook follows; the fake lands it immediately.
-      sessions.applyPaused(sub, { nowMs: NOW });
     },
     resumeSubscription: async (sub: string) => {
       resumedSubs.push(sub);
@@ -73,7 +67,7 @@ async function start(over: Record<string, unknown> = {}) {
   await new Promise<void>((r) => server.listen(0, r));
   close = () => new Promise((r) => server.close(() => r()));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  return { base, sessions, executor, lines, canceled, startedSubs, pausedSubs, resumedSubs, deps };
+  return { base, sessions, executor, lines, canceled, startedSubs, resumedSubs, deps };
 }
 
 const CODE = "return 2+2";
@@ -111,8 +105,8 @@ describe("FR-EXM-125 the first Run starts the meter", () => {
     expect(res.status).toBe(200);
     expect(startedSubs).toEqual(["sub_1"]);
     expect(executor.calls).toEqual([CODE]);
-    // FR-EXM-153 (amended 2026-09-21): the meter stays on after the run; the subscriber ends it.
-    expect(canceled).toEqual([]);
+    // FR-EXM-153 (restored 2026-09-26): the session ends with its run.
+    expect(canceled).toEqual(["sub_1"]);
   });
 
   it("a second Run while starting waits on the same start instead of starting again", async () => {
@@ -141,16 +135,16 @@ describe("FR-EXM-125 the first Run starts the meter", () => {
     expect(sessions.tryConsumeRun(NOW)).toBe(true); // both of the day's runs are still there
   });
 
-  it("a later Run reuses the open session and starts nothing a second time", async () => {
+  it("a later Run starts nothing on the spent session and asks for a new one", async () => {
     const { base, sessions, executor, startedSubs } = await start();
     sessions.applyAuthorised("sub_1", { nowMs: NOW });
     await startAndConfirm({ base, sessions, sub: "sub_1", after: 10 });
 
-    // FR-EXM-153 (amended 2026-09-21): the meter is still running, so this Run just invokes.
+    // FR-EXM-153 (restored 2026-09-26): the first run ended its session, so this one needs another.
     const res = await run(base, "sub_1", "return 1");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(409);
     expect(startedSubs).toEqual(["sub_1"]);
-    expect(executor.calls).toEqual([CODE, "return 1"]);
+    expect(executor.calls).toEqual([CODE]);
   });
 });
 
@@ -177,7 +171,7 @@ describe("FR-EXM-125 a start refused because the escrow has not ingested yet", (
     expect(res.status).toBe(200);
     expect(attempts).toEqual(["sub_1", "sub_1"]);
     expect(executor.calls).toEqual([CODE]);
-    expect(canceled).toEqual([]);
+    expect(canceled).toEqual(["sub_1"]); // then ended with its run (FR-EXM-153 restored)
   });
 
   it("gives up at the window rather than retrying for ever", async () => {
@@ -247,9 +241,9 @@ describe("FR-EXM-125 a Run that arrives before the webhook does", () => {
   });
 });
 
-describe("FR-EXM-153 the meter runs only while code runs", () => {
-  it("the first Run starts the meter and leaves it running", async () => {
-    const { base, sessions, executor, startedSubs, pausedSubs, canceled } = await start();
+describe("FR-EXM-153 one session per execution (restored 2026-09-26)", () => {
+  it("the first Run starts the meter, runs the code, and ends the session", async () => {
+    const { base, sessions, executor, startedSubs, canceled, lines } = await start();
     sessions.applyAuthorised("sub_1", { nowMs: NOW });
     const pending = run(base, "sub_1");
     setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
@@ -257,26 +251,34 @@ describe("FR-EXM-153 the meter runs only while code runs", () => {
 
     expect(startedSubs).toEqual(["sub_1"]);
     expect(executor.calls).toEqual([CODE]);
-    // FR-EXM-153 (amended 2026-09-21): the meter runs until the subscriber ends it. Ending it with
-    // the run is what forced a fresh authorisation on every Run and left nothing to press.
-    expect(canceled).toEqual([]);
-    expect(pausedSubs).toEqual([]);
-    expect(sessions.isActive("sub_1")).toBe(true);
+    // ADR 2026-09-26: a run that has finished has finished billing. The cancel goes out before the
+    // Run is answered, so the subscriber never sees a result while the meter is still going.
+    expect(canceled).toEqual(["sub_1"]);
+    expect(lines.some((l) => l === "⏹ ended (run finished) sub_1")).toBe(true);
   });
 
-  it("a second Run invokes on the same session, asking for no second authorisation", async () => {
-    const { base, sessions, executor, startedSubs, resumedSubs, canceled } = await start();
+  it("ends the session even when the code throws", async () => {
+    const { base, sessions, canceled } = await start();
+    sessions.applyAuthorised("sub_1", { nowMs: NOW });
+    const pending = run(base, "sub_1", "throw new Error('boom')");
+    setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
+    await pending;
+    expect(canceled).toEqual(["sub_1"]);
+  });
+
+  it("the next Run opens a new Checkout session rather than invoking on the spent one", async () => {
+    const { base, sessions, executor, startedSubs } = await start();
     sessions.applyAuthorised("sub_1", { nowMs: NOW });
     const first = run(base, "sub_1");
     setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
     await first;
 
+    // The cancel is in flight and subscription.canceled has not landed: the session is spent.
     const second = await run(base, "sub_1", "return 1");
-    expect(second.status).toBe(200);
-    expect(executor.calls).toEqual([CODE, "return 1"]);
-    expect(startedSubs).toEqual(["sub_1"]); // started once, ever
-    expect(resumedSubs).toEqual([]); // nothing was paused, so nothing had to resume
-    expect(canceled).toEqual([]);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toEqual({ needs_start: true, session: "cs_1" });
+    expect(executor.calls).toEqual([CODE]);
+    expect(startedSubs).toEqual(["sub_1"]);
   });
 
   it("resumes a meter the sweep paused, so pressing Run simply works", async () => {
@@ -293,18 +295,16 @@ describe("FR-EXM-153 the meter runs only while code runs", () => {
     expect(executor.calls).toEqual(["return 1"]);
   });
 
-  it("a run that fails leaves the meter running, so the subscriber can fix it and run again", async () => {
+  it("a run whose code fails ends the session too", async () => {
     const executor = { calls: [] as string[], async run(code: string) { this.calls.push(code); return { ok: false as const, error: "boom", ms: 1, logs: [] }; } };
-    const { base, sessions, pausedSubs, canceled } = await start({ executor });
+    const { base, sessions, canceled } = await start({ executor });
     sessions.applyAuthorised("sub_1", { nowMs: NOW });
     const pending = run(base, "sub_1");
     setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
     expect((await pending).status).toBe(200);
-    // Throwing is the normal case while writing code; ending the session for it would charge a
-    // fresh authorisation for every typo.
-    expect(canceled).toEqual([]);
-    expect(pausedSubs).toEqual([]);
-    expect(sessions.isActive("sub_1")).toBe(true);
+    // ADR 2026-09-26 accepts the cost the old test named: a typo now costs a fresh authorisation,
+    // because a finished run — successful or not — has finished billing.
+    expect(canceled).toEqual(["sub_1"]);
   });
 
 });
@@ -322,24 +322,15 @@ describe("FR-EXM-113 /access and a paused meter", () => {
   });
 });
 
-describe("FR-EXM-156 Northwind pauses and resumes for the subscriber", () => {
-  it("pauses the viewer's meter when asked, and resumes it", async () => {
-    const { base, sessions, pausedSubs, resumedSubs } = await start();
+describe("FR-EXM-156 withdrawn: Northwind neither pauses nor resumes (ADR 2026-09-26)", () => {
+  it("has no pause or resume route to ask", async () => {
+    const { base, sessions, resumedSubs } = await start();
     sessions.applyOpen("sub_1", { startedAt: NOW, nowMs: NOW });
-
-    // The subscriber pressed Pause in <Meter>; the ask travels over Northwind's own wire and
-    // Northwind is the one that calls Elapse (FR-RCT-021).
-    expect((await fetch(`${base}/pause?sub=sub_1`, { method: "POST" })).status).toBe(204);
-    expect(pausedSubs).toEqual(["sub_1"]);
-
-    expect((await fetch(`${base}/resume?sub=sub_1`, { method: "POST" })).status).toBe(204);
-    expect(resumedSubs).toEqual(["sub_1"]);
-  });
-
-  it("refuses a session it has never heard of, rather than calling Elapse about it", async () => {
-    const { base, pausedSubs } = await start();
-    expect((await fetch(`${base}/pause?sub=sub_nope`, { method: "POST" })).status).toBe(404);
-    expect(pausedSubs).toEqual([]);
+    for (const what of ["pause", "resume"]) {
+      const res = await fetch(`${base}/${what}?sub=sub_1`, { method: "POST" });
+      expect({ what, status: res.status }).toEqual({ what, status: 404 });
+    }
+    expect(resumedSubs).toEqual([]);
   });
 });
 
@@ -418,7 +409,7 @@ describe("FR-EXM-140 daily execution cap", () => {
 
   it("ends the meter it just started when the cap refuses the run", async () => {
     const sessions = createSessionStore({ dailyRunLimit: 0 });
-    const { base, executor, canceled, pausedSubs } = await start({ sessions });
+    const { base, executor, canceled } = await start({ sessions });
     sessions.applyAuthorised("sub_1", { nowMs: NOW });
     const pending = run(base, "sub_1");
     setTimeout(() => sessions.applyActive("sub_1", { startedAt: NOW, nowMs: NOW }), 30);
@@ -427,7 +418,6 @@ describe("FR-EXM-140 daily execution cap", () => {
     expect(executor.calls).toEqual([]);
     // Nothing ran, but the meter was started: it must not be left accruing.
     expect(canceled).toEqual(["sub_1"]);
-    expect(pausedSubs).toEqual([]);
   });
 });
 
@@ -506,11 +496,11 @@ describe("FR-EXM-117 the server ends sessions by itself", () => {
   });
 });
 
-describe("FR-EXM-154 (amended 2026-09-21) the sweep pauses an idle meter, it does not end it", () => {
+describe("FR-EXM-154 the sweep ends an idle session (ADR 2026-09-26)", () => {
   const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
 
-  it("pauses the subscriber who is still there and ends the one who left", async () => {
-    const { sessions, lines, canceled: ended, pausedSubs, deps } = await start();
+  it("ends the idle session and the one whose tab left, and pauses nothing", async () => {
+    const { sessions, lines, canceled: ended, deps } = await start();
     sessions.applyOpen("sub_idle", { startedAt: NOW, nowMs: NOW });
     sessions.applyOpen("sub_left", { startedAt: NOW, nowMs: NOW });
 
@@ -519,11 +509,9 @@ describe("FR-EXM-154 (amended 2026-09-21) the sweep pauses an idle meter, it doe
 
     await sweepOnce(deps, later, windows);
 
-    // Presence is the whole difference: one is at their desk thinking, the other's tab is gone.
-    // Pausing the first costs them nothing and keeps their authorisation alive.
-    expect(pausedSubs).toEqual(["sub_idle"]);
-    expect(ended).toEqual(["sub_left"]);
-    expect(lines.some((l) => l.includes("auto-paused (idle) sub_idle"))).toBe(true);
+    // ADR 2026-09-26: no session outlives its run, so both are leftovers, and both are returned.
+    expect(ended.sort()).toEqual(["sub_idle", "sub_left"]);
+    expect(lines.some((l) => l.includes("auto-ended (idle) sub_idle"))).toBe(true);
   });
 });
 

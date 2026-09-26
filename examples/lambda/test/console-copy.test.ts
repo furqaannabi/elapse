@@ -8,6 +8,10 @@
  * the session runs on wall-clock time until the subscriber ends it, so the true sentence is the one
  * this file used to forbid. The assertions move with the behaviour; what does not move is the rule
  * they enforce — a page may not describe a lifecycle the server does not implement.
+ *
+ * Inverted a second time on 2026-09-26 ([ADR](../../../docs/decisions/2026-09-26-lambda-session-ends-with-its-run.md),
+ * Furqaan): the session ends with its run again, so the 2026-09-19 assertions come back — nothing
+ * pauses, the pages bill for the seconds the code runs, and there is no End control to offer.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -21,55 +25,52 @@ const consolePage = read("../public/console.html");
 const phrase = (words: string) => new RegExp(words.split(" ").join("\\s+"), "i");
 
 describe("FR-EXM-153 the pages say what the code does", () => {
-  it("bills for the session being open on both pages, in the same words", () => {
+  /** Only what reaches the screen: a comment may say why something is gone; a string may not. */
+  const shown = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/<!--[\s\S]*?-->/g, "").replace(/^\s*\/\/.*$/gm, "");
+
+  it("never tells the subscriber a session is paused, because none ever is", () => {
+    const paused = [...shown(console_).matchAll(/^.*\bPaused?\b.*$/gim)].map((m) => m[0].trim());
+    expect(paused, `${paused.join(" / ")} — the session ends with the run; nothing pauses`).toEqual([]);
+  });
+
+  it("does not bill anyone for a session merely being open", () => {
     for (const [name, page] of [["landing", landing], ["console", consolePage]] as const) {
-      expect(page, `${name} should say the seconds are the ones the session is open`).toMatch(phrase("seconds your session is open"));
+      expect(page, `${name}: the session ends with the run, so an open session is not what is billed`).not.toMatch(
+        phrase("seconds your session is open"),
+      );
     }
   });
 
-  it("no longer claims anywhere that the session ends with the run", () => {
-    for (const [name, page] of [["landing", landing], ["console page", consolePage], ["console", console_]] as const) {
-      expect(page, `${name} still describes the superseded per-run lifecycle`).not.toMatch(/(ends?|closes?)\s+with\s+(the|your)\s+run/i);
+  it("bills for running code on both pages, in the same words", () => {
+    for (const [name, page] of [["landing", landing], ["console", consolePage]] as const) {
+      expect(shown(page), `${name} should say the seconds are the ones the code runs`).toMatch(phrase("seconds your code runs"));
     }
+  });
+
+  it("offers no End control, because every session ends itself", () => {
+    expect(shown(console_), "FR-EXM-155 is withdrawn").not.toMatch(/End session/);
+    expect(shown(landing), "the landing should not tell anyone to press End").not.toMatch(/Press End/i);
   });
 
   it("does not call a meter running when the run that would have started it failed", () => {
     // 2026-09-23, from the recording: a start refused because the escrow had not ingested yet came
     // back 503, and the console set the running status anyway — so the page said the meter was on
-    // and costing money while nothing had started. The session is open and worth ending; it is the
-    // word "Running" that is untrue.
+    // and costing money while nothing had started.
     expect(console_, "a failed run must not set the running status").not.toMatch(
-      /outcome\.k === "error"[\s\S]{0,300}RUNNING_STATUS/,
+      /outcome\.k === "error"[\s\S]{0,300}SETTLING_STATUS/,
     );
     expect(console_).toMatch(/RUN_FAILED_STATUS/);
   });
 
-  it("explains a pause the subscriber did not ask for", () => {
-    // FR-EXM-154: the sweep pauses an idle meter. <Meter> narrates the pauses a subscriber asked
-    // for (FR-RCT-046); an automatic one has no other voice, and a meter that silently stops
-    // reads as a meter that broke.
-    const shown = console_.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    const paused = shown.match(/const AUTO_PAUSED = "([^"]+)"/)?.[1] ?? "";
-    expect(paused, "the automatic pause should say it happened and why").toMatch(/paused/i);
-    expect(paused, "and what to do about it").toMatch(/run|resume/i);
-  });
-
   it("says whose choice it is that leaving ends the meter", () => {
-    // FR-EXM-155: without this, a judge who watches a closed tab cancel a subscription concludes
-    // Elapse cannot bill anything that outlives a tab. It can; Northwind chooses not to ask it to.
+    // FR-EXM-126: a run in flight still ends if its tab goes. Without this, a judge who watches a
+    // closed tab cancel a subscription concludes Elapse cannot bill anything that outlives a tab.
     expect(console_, "the console should name the merchant as the one who ends on leaving").toMatch(/never calls cancel/i);
-  });
-
-  it("offers the subscriber a way to end the session", () => {
-    expect(console_, "FR-EXM-155: the gesture the product exists to show").toMatch(/End session/);
   });
 
   it("never runs a clock on the landing", () => {
     // William, 2026-09-21: "what time is running on landing page with a button, that is misleading,
-    // no time should be running there". A meter that ticks before a subscriber has agreed to
-    // anything reads as a charge already in progress, whatever the caption underneath says — and on
-    // a page whose whole claim is billing honesty that is the one thing worth getting right. The
-    // meter belongs on the console, where it is real and the subscriber asked for it.
+    // no time should be running there". The meter belongs on the console, where it is real.
     expect(landing, "the landing should carry no script at all").not.toMatch(/<script/i);
     expect(landing, "nothing on the landing should be counting").not.toMatch(/setInterval|requestAnimationFrame|Date\.now/);
   });
@@ -86,7 +87,7 @@ describe("FR-EXM-157 the console never answers a refusal with a second authorisa
     // confirm your session" as "no session yet" — is exactly the loop that stranded three
     // authorisations of $7.20 on 2026-09-22.
     expect(console_).toMatch(/postClaim/);
-    const claim = console_.slice(console_.indexOf("const authorised"), console_.indexOf("const ask = ("));
+    const claim = console_.slice(console_.indexOf("const authorised"), console_.indexOf("const onRun"));
     expect(claim).toMatch(/postClaim\(fetch, found\)/);
     expect(claim).toMatch(/refused/);
     // The refusal must not put the page back into the authorising phase.

@@ -23,15 +23,16 @@
        whose whole claim is billing honesty that is the one thing worth getting right. The meter
        lives on the console, where it is real. -->
   <h1>Compute you pay for by the second.</h1>
-  <p class="sub">Write JavaScript, run it on real AWS Lambda, and pay for the seconds your session is
-  open — not per month, not per request, not rounded up to the hour.</p>
+  <p class="sub">Write JavaScript, run it on real AWS Lambda, and pay for the seconds your code runs
+  — not per month, not per request, not rounded up to the hour.</p>
 
   <h2 class="engraved">How it works</h2>
   <ol class="steps">
     <li><b>Write JavaScript</b> in the console. Editing is free and takes as long as you like.</li>
-    <li><b>Press Run.</b> That is what opens the meter, and it runs from that second.</li>
-    <li><b>Press End</b> when you are done. You pay for the seconds it was open, and the rest of your
-    deposit comes back.</li>
+    <li><b>Press Run.</b> That opens the meter, runs your code on Lambda, and closes the meter the
+    moment your code returns.</li>
+    <li><b>Pay for the seconds your code runs.</b> The rest of your deposit comes back, and your next
+    Run opens a fresh meter.</li>
   </ol>
 
   <dl class="plate">
@@ -40,16 +41,16 @@
       <dd class="lead">{{price}}</dd>
     </div>
     <div>
-      <dt>A short session</dt>
+      <dt>A typical run</dt>
       <dd>{{typical_run}}</dd>
     </div>
     <div>
       <dt>Billed</dt>
-      <dd>every second it is open</dd>
+      <dd>only while your code runs</dd>
     </div>
     <div>
       <dt>Ends</dt>
-      <dd>when you press End</dd>
+      <dd>when your code returns</dd>
     </div>
   </dl>
 

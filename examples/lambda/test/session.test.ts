@@ -69,11 +69,13 @@ describe("FR-EXM-117 auto-end sweep", () => {
     return s;
   };
 
-  it("ends a vanished viewer's session and pauses a present-but-inactive one", () => {
+  it("ends a vanished viewer's session and a present-but-idle one alike", () => {
+    // ADR 2026-09-26: a session exists only while its run does, so one sitting idle is stuck, not
+    // resting — there is no pause to protect it with.
     const due = store().dueForSweep(now, windows);
     expect(due).toEqual(expect.arrayContaining([
       { sub: "sub_left", action: "end", reason: "left" },
-      { sub: "sub_idle", action: "pause", reason: "idle" },
+      { sub: "sub_idle", action: "end", reason: "idle" },
     ]));
     expect(due.map((d) => d.sub)).not.toContain("sub_ok");
   });
@@ -135,17 +137,17 @@ describe("FR-EXM-154 the idle timeout is cleanup, not billing", () => {
   });
 });
 
-describe("FR-EXM-154 (amended 2026-09-21) an idle meter pauses rather than ends", () => {
+describe("FR-EXM-154 an idle session is ended, not paused (ADR 2026-09-26)", () => {
   const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
 
-  it("pauses a subscriber who is present but has run nothing, instead of ending their session", () => {
+  it("ends a session that has run nothing for the idle window, even with its tab present", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
     // Still here — the heartbeats keep arriving — but nothing has run for longer than the window.
     s.touch("sub_1", t0 + 70_000);
-    // Paused seconds are never billed (BR-CON-003), so walking away from the tab costs the
-    // subscriber a minute of meter, not the session and not a second authorisation.
-    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "pause", reason: "idle" }]);
+    // FR-EXM-153 restored: every run ends its own session, so an open one this old is left over
+    // from a run that never finished cleanly. Ending it returns the escrow.
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "idle" }]);
   });
 
   it("ends a session whose tab is gone rather than pausing someone who is not there", () => {
@@ -172,15 +174,15 @@ describe("FR-EXM-154 (amended 2026-09-21) an idle meter pauses rather than ends"
     expect(s.dueForSweep(t0 + 700_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "abandoned" }]);
   });
 
-  it("does not ask for a second pause while the first is still confirming", () => {
+  it("does not ask for a second end while the first is still confirming", () => {
     const s = createSessionStore({ dailyRunLimit: 20 });
     s.applyOpen("sub_1", { startedAt: t0, nowMs: t0 });
     s.touch("sub_1", t0 + 70_000);
-    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "pause", reason: "idle" }]);
+    expect(s.dueForSweep(t0 + 70_000, windows)).toEqual([{ sub: "sub_1", action: "end", reason: "idle" }]);
 
-    // `paused` arrives by webhook a second or two later. Until it does the meter still reads active,
-    // so without a guard every sweep tick would send another relayer transaction (BR-EXM-110).
-    s.markPausing("sub_1");
+    // `canceled` arrives by webhook a second or two later. Until it does the meter still reads
+    // active, so without a guard every sweep tick would send another cancel (BR-EXM-110).
+    s.markCanceling("sub_1");
     expect(s.dueForSweep(t0 + 75_000, windows)).toEqual([]);
   });
 

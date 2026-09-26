@@ -221,15 +221,15 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
     dueForSweep(
       nowMs: number,
       windows: { idleTimeoutMs: number; heartbeatStaleMs: number; pausedEndMs: number },
-    ): Array<{ sub: string; action: "pause" | "end"; reason: "left" | "idle" | "abandoned" }> {
-      const due: Array<{ sub: string; action: "pause" | "end"; reason: "left" | "idle" | "abandoned" }> = [];
+    ): Array<{ sub: string; action: "end"; reason: "left" | "idle" | "abandoned" }> {
+      const due: Array<{ sub: string; action: "end"; reason: "left" | "idle" | "abandoned" }> = [];
       for (const [sub, s] of sessions) {
         if (s.state === "ended" || s.canceling || s.pausing) continue;
         // FR-EXM-126: nothing to measure until the console has been heard from at least once.
         if (!s.seen) continue;
         if (nowMs - s.lastSeen > windows.heartbeatStaleMs) due.push({ sub, action: "end", reason: "left" });
-        // An end was asked for and the cancel was refused. The intent stands: retry it rather than
-        // pause, or the escrow stays held for a subscriber who already asked for it back.
+        // An end was asked for and the cancel was refused. The intent stands: retry it, or the
+        // escrow stays held for a subscriber who already asked for it back.
         else if (s.cancelAttempts) due.push({ sub, action: "end", reason: "abandoned" });
         // A paused meter accrues nothing, so there is nothing to reclaim until the escrow has been
         // held long enough that nobody is coming back for it.
@@ -237,8 +237,10 @@ export function createSessionStore(opts: { dailyRunLimit: number }) {
           if (nowMs - (s.pausedAt ?? s.updatedAt) > windows.pausedEndMs) due.push({ sub, action: "end", reason: "abandoned" });
         }
         // FR-EXM-126: before the meter starts there is no idle timeout — editing code costs nothing.
+        // FR-EXM-153 restored (ADR 2026-09-26): every run ends its own session, so a running one this
+        // idle is left over from a run that did not finish cleanly. End it; nothing is paused.
         else if (s.state !== "authorised" && s.state !== "starting" && nowMs - s.lastRun > windows.idleTimeoutMs) {
-          due.push({ sub, action: "pause", reason: "idle" });
+          due.push({ sub, action: "end", reason: "idle" });
         }
       }
       return due;

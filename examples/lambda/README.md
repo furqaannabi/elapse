@@ -3,11 +3,10 @@
 ## What this is
 
 A merchant that rents you **compute by the second**. You write JavaScript, press Run, and it
-executes on a real AWS Lambda. **Run opens the meter, and it stays open until you end it**
-([ADR 2026-09-21](../../docs/decisions/2026-09-21-the-lambda-meter-runs-until-you-end-it.md)):
-edit, run again, read the output, pause while you think. Press **End session** and you pay for
-the seconds it was open — press it at 83 seconds and you pay 83 seconds — with the unspent part
-of your deposit refunded.
+executes on a real AWS Lambda. **Each Run opens a meter and closes it the moment your code
+returns** ([ADR 2026-09-26](../../docs/decisions/2026-09-26-lambda-session-ends-with-its-run.md)):
+you pay for the seconds your code runs — if it runs for 30 seconds you pay 30 seconds — and the
+unspent part of your deposit comes back. The next Run opens a fresh meter, with a fresh Face ID.
 
 **Try it live:** <https://examples.elapse.finance/lambda/> — test mode on Monad testnet, nothing real is charged.
 
@@ -120,13 +119,10 @@ Runner:   elapse-lambda-runner @ us-east-1
 14:02:11  evt_…  subscription.created   → session authorised sub_…
 14:02:12  ▶ starting meter sub_…
 14:02:13  evt_…  subscription.updated   → meter started sub_…
-14:02:19  ▶ run sub_…  return 2 + 2  → 4  (9ms)   [1/20 today]
-14:02:44  ▶ run sub_…  return crypto.randomUUID()  → "5f2…"  (3ms)   [2/20 today]
-14:03:48  ⏸ auto-paused (idle) sub_…
-14:04:10  ▶ resumed (asked) sub_…
-14:04:31  ⏹ ended (subscriber) sub_…
-14:04:33  evt_…  subscription.canceled  → session closed · 121s · $0.242
-14:04:40  ▶ run sub_…  → 409 needs_start   (a new session, a fresh authorisation)
+14:02:43  ⏹ ended (run finished) sub_…
+14:02:43  ▶ run sub_…  30 s of hashing  → {"seconds":30,…}  (30012ms)   [1/20 today]
+14:02:45  evt_…  subscription.canceled  → session closed · 32s · $0.064
+14:03:10  (next Run: 409 needs_start — a new session, a fresh authorisation)
 ```
 
 The console is a React page with the **VS Code editor** (Monaco) holding the JavaScript, the
@@ -138,14 +134,11 @@ page** — one signature, in a window Elapse opens ([ADR 2026-09-20](../../docs/
 When the meter starts and when it ends, a card drops in with that transaction (`proof`), since
 this console is read by developers. Nobody is sent to a hosted checkout.
 
-The controls divide the way the ownership does. **End session** is Northwind's own, beside Run,
-because a merchant-started meter is the merchant's to stop (`canStop` stays false, FR-CHK-037).
-**Pause** and **Resume** are `<Meter>`'s: the subscriber asks, and Northwind is what calls Elapse.
-Leave the console alone for `IDLE_TIMEOUT_SECONDS` (60) and Northwind pauses the meter for you and
-says why — paused seconds are never billed, so walking away costs you a minute. A session left
-paused for `PAUSED_END_SECONDS` (600) is ended and refunded, and closing the tab ends it within
-seconds. That last one is **Northwind's policy for a compute product, not a rule of Elapse's
-billing**: a subscription meant to outlive the tab simply never calls cancel.
+There is nothing to press but Run. The meter is Northwind's to stop (`canStop` stays false,
+FR-CHK-037), and Northwind stops it itself the moment your code returns, whether it returned a
+value or threw. Closing the tab mid-run ends it within seconds too. That last one is **Northwind's
+policy for a compute product, not a rule of Elapse's billing**: a subscription meant to outlive
+the tab simply never calls cancel.
 
 `npm start` bundles the page with esbuild first; Monaco still loads from a pinned CDN, and if that
 CDN is unreachable the editor falls back to a plain textarea.
@@ -157,20 +150,16 @@ CDN is unreachable the editor falls back to a plain textarea.
 | First Run, no session | `checkout.sessions.create` with `max_duration_seconds`; the server answers `409 needs_start` with the session id, and `<Authorize>` appears in the page |
 | Subscriber authorises once | the permit is signed for `rate × max_duration_seconds` — the most this session can ever cost. Nothing is accruing yet: the Product is **merchant-started** |
 | The meter starts | the first Run calls `subscriptions.start`; nothing is invoked until `subscription.updated` says `active`, so the seconds you spent editing are free. If the start does not confirm within 30 s the session is cancelled and refunded in full |
-| Each later run | nothing to authorise and nothing to start: the meter is already open, so the run is simply invoked. One authorisation covers every Run in the session |
-| Subscriber asks to pause or resume | `<Meter>`'s Pause and Resume post to Northwind's own `/pause` and `/resume`, which call `subscriptions.pause` / `subscriptions.resume`. Nothing is signed and nothing goes to Elapse from the page |
-| Idle for `IDLE_TIMEOUT_SECONDS` | the sweep pauses the meter through `subscriptions.pause` and the console says why. Paused seconds are never billed |
-| Paused for `PAUSED_END_SECONDS` | the sweep treats the session as abandoned and ends it |
-| Subscriber presses End session | `subscriptions.cancel`, through Northwind's `/end` |
+| The code returns, or throws | the run ends the session: `subscriptions.cancel` before the Run is answered, so you pay for the seconds your code ran plus a confirmation either side |
+| A session still open after `IDLE_TIMEOUT_SECONDS` | left over from a run that did not finish cleanly: the sweep ends it and the escrow comes back. Nothing is ever paused |
 | Tab closed, or the heartbeat goes stale | the server calls `subscriptions.cancel` itself, retried a few times if it fails |
 | Meter stops | `subscription.canceled` → the session closes and the exact settled amount is recorded |
 | Next Run | `409 needs_start` — a new session, because the webhook closed the old one |
 
-`<Meter>` ticks for as long as the session is open and freezes while it is paused; the figure it
-shows when the session ends is the **settled** amount, not the estimate. The meter is on chain, so
-its edges cost a confirmation each: about one to three seconds between pressing Run and the first
-billable second, and the same again at the end. Everything between them is wall-clock — the
-seconds you were open, whether Lambda was working or you were reading the output.
+`<Meter>` ticks while your code runs; the figure it shows when the session ends is the
+**settled** amount, not the estimate. The meter is on chain, so its edges cost a confirmation
+each: about one to three seconds between pressing Run and the first billable second, and the same
+again at the end — so a 30-second run settles for roughly 32.
 
 ## Security
 

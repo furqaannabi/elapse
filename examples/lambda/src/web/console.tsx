@@ -16,20 +16,18 @@ type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "sessi
 // an instruction rather than a state readout — it is the first thing a subscriber reads, and "not
 // running" answers a question they have not asked yet. Every other line names what is costing money.
 const IDLE_STATUS = "Press Run — editing is free, the meter opens with your first run";
-const RUNNING_STATUS = "Running — end the session when you are done";
-// FR-EXM-125 (amended 2026-09-23): a run can fail with the session still open — most often a start
-// refused because the escrow has not ingested yet, which charges nothing. Saying "Running" there
-// tells the subscriber money is moving when none is. What is true either way is that the session is
-// open, that another Run is free to try, and that End session closes it.
-const RUN_FAILED_STATUS = "Your session is open — press Run to try again, or End session to close it";
-// FR-EXM-154/155: a pause the subscriber did not ask for has to say so. <Meter> narrates the ones
-// they did ask for (FR-RCT-046); this is the only voice the automatic one has.
-const AUTO_PAUSED = "Paused — nothing has run for a minute. Press Run or Resume to carry on.";
+// FR-EXM-153 (restored 2026-09-26): the run is over and so is its session. Until <Meter> reports the
+// cancel landing, the honest word is "settling", not "running".
+const SETTLING_STATUS = "Run finished — closing the meter and settling the seconds your code ran";
+// FR-EXM-125 (amended 2026-09-23): a run can fail before the meter starts — most often a start
+// refused because the escrow has not ingested yet. Saying "Running" there tells the subscriber money
+// is moving when none is, so the line says only what is certain: that run did not go through.
+const RUN_FAILED_STATUS = "That run didn't go through — press Run to try again";
 /**
  * FR-EXM-158: the meter is on chain, so it kept billing while this server was restarting. Saying
  * that plainly is what keeps the number trustworthy when the console rejoins a session.
  */
-const READOPTED = "This meter kept running while Northwind restarted — those seconds are on it. Press End session when you're done.";
+const READOPTED = "This meter kept running while Northwind restarted — those seconds are on it, and it closes by itself.";
 const isImage = (v: unknown): v is string => typeof v === "string" && v.startsWith("data:image/");
 
 function resultLine(body: RunBody): string {
@@ -45,10 +43,6 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   const [busy, setBusy] = useState(false);
   const editor = useEditor();
   const stashed = useRef<string | null>(null);
-  const [ending, setEnding] = useState(false);
-  // Whether the last pause or resume was one the subscriber asked for. <Meter> narrates those
-  // itself; only the sweep's automatic pause needs this page to explain it.
-  const asked = useRef(false);
   /** FR-EXM-158: said once, on the first poll that reports an adopted meter. */
   const readopted = useRef(false);
 
@@ -64,19 +58,17 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
     const beat = setInterval(() => {
       if (navigator.sendBeacon) navigator.sendBeacon(`./heartbeat?sub=${sub}`);
       else void fetch(`./heartbeat?sub=${sub}`, { method: "POST" });
-      // FR-EXM-111/154: the server is the authority on whether this session is still open. It can
-      // be paused by the sweep or ended from anywhere — the merchant's dashboard, a `sk_` call —
-      // and `<Meter>` reports neither of those to this page, so `/access` is what tells it.
+      // FR-EXM-111: the server is the authority on whether this session is still open. It can be
+      // ended from anywhere — the merchant's dashboard, a `sk_` call — and `<Meter>` does not report
+      // that to this page, so `/access` is what tells it.
       void fetch(`./access/${sub}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((a) => {
           const signal = readAccess(a);
           if (signal === "ended") {
-            // Settled elsewhere. Drop the session so the beacon, the heartbeat and the End control
-            // all stop with it, rather than offering to end something already closed.
+            // Settled. Drop the session so the beacon and the heartbeat stop with it.
             setPhase({ k: "idle" });
-            setStatus(`Session ended — ${merchant} settled the exact seconds you were open. Press Run to start another.`);
-            setEnding(false);
+            setStatus(`Session ended — ${merchant} settled the exact seconds your code ran. Press Run to start another.`);
             return;
           }
           // FR-EXM-158: a meter this server adopted at boot was billing while the server was down,
@@ -86,9 +78,6 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
             setStatus(READOPTED);
             return;
           }
-          if (asked.current) return;
-          if (signal === "paused") setStatus(AUTO_PAUSED);
-          if (signal === "running") setStatus((was) => (was === AUTO_PAUSED ? RUNNING_STATUS : was));
         })
         .catch(() => {});
     }, 5_000);
@@ -126,9 +115,9 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         return;
       }
       setOut(outcome.body.ok ? { body: outcome.body } : { error: outcome.body.error ?? "run failed" });
-      // FR-EXM-153 (amended 2026-09-21): the run is over, the session is not. It keeps costing
-      // money until they pause or end it, so the line says that rather than congratulating them.
-      setStatus(RUNNING_STATUS);
+      // FR-EXM-153 (restored 2026-09-26): the server ended the session with the run. The <Meter>
+      // stays on screen until the cancel lands, so its receipt and end transaction still show.
+      setStatus(SETTLING_STATUS);
     },
     [],
   );
@@ -168,36 +157,6 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
     [editor, execute],
   );
 
-  /**
-   * FR-EXM-156: the subscriber asks Northwind; Northwind is the one that calls Elapse. Nothing here
-   * is signed and nothing here reaches the platform — the ask travels over Northwind's own wire
-   * (FR-RCT-021). Throwing is how `<Meter>` learns to say the merchant could not do it.
-   */
-  const ask = (what: "pause" | "resume") => async () => {
-    if (phase.k !== "session") return;
-    asked.current = true;
-    const res = await fetch(`./${what}?sub=${phase.sub}`, { method: "POST" });
-    if (!res.ok) {
-      asked.current = false;
-      throw new Error(`${merchant} could not ${what} that meter.`);
-    }
-  };
-
-  // FR-EXM-155: the gesture this product exists to show. Northwind's control, in Northwind's
-  // chrome — `<Meter>` offers the subscriber no Stop for a merchant-started meter (FR-CHK-037).
-  const endSession = async () => {
-    if (phase.k !== "session" || ending) return;
-    setEnding(true);
-    setStatus("Ending your session…");
-    try {
-      // FR-EXM-155: say who ended it. The beacon posts to the same route when the tab goes.
-      await fetch(`./end?sub=${phase.sub}&by=subscriber`, { method: "POST" });
-    } catch (e) {
-      setEnding(false);
-      setOut({ error: (e as Error).message });
-    }
-  };
-
   const onRun = () => void execute(editor.getValue(), phase);
   const body = out.body;
 
@@ -235,13 +194,6 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         <button className="key" id="run" type="button" disabled={busy} onClick={onRun}>
           Run
         </button>
-        {phase.k === "session" && (
-          // Engraved on the casing rather than moulded as a second amber key: one is the control you
-          // press all day, the other is the one that stops the money. They must not look alike.
-          <button className="switch" id="end" type="button" disabled={ending} onClick={() => void endSession()}>
-            {ending ? "Ending…" : "End session"}
-          </button>
-        )}
       </div>
 
       {/* FR-EXM-152: the instrument card Furqaan signed, positioned by Northwind rather than
@@ -259,21 +211,16 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
           <div className="screen">
             <Meter
               session={phase.session}
-              // FR-EXM-152 (amended 2026-09-21): controls are on. This does not hand over a Stop —
-              // `canStop` needs `subscriber_can_stop`, false for a started merchant-mode meter
-              // (FR-API-139) — so Pause and Resume render and Stop does not, and FR-CHK-037 holds
-              // without a special case. Stopping stays Northwind's, on the End session control above.
-              controls
-              onPauseRequest={ask("pause")}
-              onResumeRequest={ask("resume")}
+              // Northwind's meter is Northwind's to stop (FR-CHK-037), and every run stops its own
+              // (FR-EXM-153 restored): nothing here for the subscriber to press.
+              controls={false}
               // FR-RCT-045: this console's audience is developers and judges, so the start and the end
               // drop in with their transactions — the one place chain words belong on a subscriber's
               // screen is the one a merchant asked for (BR-RCT-001).
               proof
               onStopped={() => {
-                setEnding(false);
                 setPhase({ k: "idle" });
-                setStatus(`Session ended — ${merchant} settled the exact seconds you were open. Press Run to start another.`);
+                setStatus(`Session ended — ${merchant} settled the exact seconds your code ran. Press Run to start another.`);
               }}
               onError={(e) => setOut({ error: e.message })}
             />
@@ -281,8 +228,8 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         )}
       </div>
       <p className="note">
-        Write JavaScript and Run it on real AWS Lambda — fetch, node builtins via require, anything you like. Your session
-        stays open between runs and you pay for every second it does, so pause it while you think and end it when you are done.
+        Write JavaScript and Run it on real AWS Lambda — fetch, node builtins via require, anything you like. Each Run opens a
+        meter, runs your code, and closes the meter when it returns, so you pay for the seconds your code runs.
       </p>
 
       {/* FR-EXM-155: whose choice this is. Without it, a judge who watches a closed tab cancel a

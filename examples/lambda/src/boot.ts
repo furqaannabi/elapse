@@ -111,9 +111,6 @@ export async function boot(config: Config, io: BootIO) {
       await elapse.subscriptions.cancel(sub);
     },
     // FR-EXM-156: the subscriber asks Northwind to pause; Northwind is the one that calls Elapse.
-    pauseSubscription: async (sub) => {
-      await elapse.subscriptions.pause(sub);
-    },
     resumeSubscription: async (sub) => {
       await elapse.subscriptions.resume(sub);
     },
