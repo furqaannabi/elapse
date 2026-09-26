@@ -9,6 +9,8 @@ edit, run again, read the output, pause while you think. Press **End session** a
 the seconds it was open — press it at 83 seconds and you pay 83 seconds — with the unspent part
 of your deposit refunded.
 
+**Try it live:** <https://examples.elapse.finance/lambda/> — test mode on Monad testnet, nothing real is charged.
+
 Anything JavaScript can do works: `fetch` calls, sorting, `require("node:crypto")`, async. The
 editor opens on a hello-world, so the first Run is immediate. For something that actually burns
 compute, paste `MANDELBROT_SNIPPET` from `runner/snippet.mjs`: it renders a tile, and asking for

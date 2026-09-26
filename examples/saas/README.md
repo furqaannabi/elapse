@@ -6,6 +6,8 @@ The smallest correct Elapse merchant. It creates a Product billed at $0.004 per 
 
 It is the code the [Quickstart](https://docs.elapse.finance/quickstart) is built from, and the server in the demo video.
 
+**Try it live:** <https://examples.elapse.finance/saas/> — test mode on Monad testnet, nothing real is charged.
+
 ## Prerequisites
 
 - Node 20 or newer.

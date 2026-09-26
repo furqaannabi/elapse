@@ -13,6 +13,7 @@ Track 2 · Monad Metropolis · Consumer Products & Payments. Submission 13 Octob
 | App: landing, `/authorize`, subscriber account, merchant dashboard | https://elapse.finance |
 | API | https://api.elapse.finance (`GET /v1/status` is public) |
 | Docs | https://docs.elapse.finance — start at the Quickstart |
+| Live examples | https://examples.elapse.finance/saas/ (Acme GPU) · https://examples.elapse.finance/lambda/ (Northwind, real AWS Lambda) |
 | SDK | `npm install @elapse/sdk` (0.3.1, Node 20+) |
 | React | `npm install @elapse/react` (0.5.1) — `<Authorize>` and `<Meter>` in your own page |
 | CLI | `npx @elapse/cli listen --forward http://localhost:3000/webhooks` (0.1.5) |
