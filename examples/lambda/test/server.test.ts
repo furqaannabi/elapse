@@ -740,6 +740,30 @@ describe("FR-EXM-157 the console claims the subscription", () => {
   });
 });
 
+describe("FR-EXM-157 a refused claim says so in Northwind's terminal", () => {
+  // Found live 2026-09-26: the console showed a subscriber a refusal while the merchant's journal
+  // showed nothing at all, so the only record of why a paid-for session never started was in a
+  // browser nobody was watching. Every refusal is the merchant's to see.
+  const found = (over: Record<string, unknown> = {}) => ({
+    k: "found" as const, checkoutSession: "cs_1", product: "prod_northwind", status: "incomplete", ...over,
+  });
+
+  it.each([
+    ["a subscription on another product", { retrieveSubscription: async () => found({ product: "prod_other" }) }, 403, /not ours/],
+    ["a checkout session it never issued", { retrieveSubscription: async () => found({ checkoutSession: "cs_foreign" }) }, 403, /not ours/],
+    ["a meter the platform says is over", { retrieveSubscription: async () => found({ status: "canceled" }) }, 409, /spent/],
+  ])("logs %s", async (_label, over, status, why) => {
+    const { base, sessions, lines } = await start({ ourProduct: "prod_northwind", ...over });
+    sessions.issueCheckout("cs_1");
+
+    const res = await fetch(`${base}/claim?sub=sub_9`, { method: "POST" });
+
+    expect(res.status).toBe(status);
+    expect(lines.at(-1)).toMatch(/^✗ claim sub_9 refused/);
+    expect(lines.at(-1)).toMatch(why);
+  });
+});
+
 describe("FR-EXM-158 a re-adopted meter says it kept running", () => {
   it("tells the console the meter ran while the server was down", async () => {
     // The meter is on chain, not in this process, so the seconds a restart takes are billed. A

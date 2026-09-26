@@ -287,8 +287,18 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
       if (verdict.status === "paused") deps.sessions.applyPaused(sub, { nowMs });
       return send(res, 200, "application/json", JSON.stringify({ state: verdict.status }));
     }
-    if (verdict.k === "spent") return send(res, 409, "application/json", JSON.stringify({ needs_start: true }));
+    // Every refusal is logged: the console shows the subscriber one sentence, and without this line
+    // the merchant's terminal would show nothing at all for a session someone has paid into.
+    if (verdict.k === "spent") {
+      deps.log(`✗ claim ${sub} refused: spent — the platform says this meter is over`);
+      return send(res, 409, "application/json", JSON.stringify({ needs_start: true }));
+    }
     const status = verdict.reason === "not_ours" ? 403 : 503;
+    deps.log(
+      verdict.reason === "not_ours"
+        ? `✗ claim ${sub} refused: not ours — not on this Product, or from a Checkout session this process did not issue`
+        : `✗ claim ${sub} refused: unverifiable — Elapse did not answer`,
+    );
     return send(res, status, "application/json", JSON.stringify({ error: REFUSAL[verdict.reason] }));
   }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { grossUsd, handleWebhook } from "../src/webhooks";
 import { createSessionStore } from "../src/session";
-import { authorised, canceled, created, sign, started } from "./sign";
+import { authorised, canceled, created, event, sign, started } from "./sign";
 
 const SECRET = "whsec_test";
 const deps = (sessions = createSessionStore({ dailyRunLimit: 20 })) => ({
@@ -109,5 +109,28 @@ describe("BR-EXM-103 redelivery", () => {
     handleWebhook(body, sign(body, SECRET), d).work!();
     expect(lines.filter((l) => l.includes("session open"))).toHaveLength(1);
     expect(lines.some((l) => l.startsWith("↺ duplicate"))).toBe(true);
+  });
+});
+
+describe("FR-EXM-132 a failed payment closes the subscription's session", () => {
+  it("closes the session named by the invoice's subscription, not by the invoice id", () => {
+    // The object of invoice.payment_failed is an invoice: its `id` is `in_…` and the subscription
+    // it belongs to is `subscription`. Keying on `id` closed a session that never existed and left
+    // the real one running — the next Run would have gone ahead on a meter that could not pay.
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const open = created();
+    handleWebhook(open, sign(open, SECRET), deps(sessions)).work!();
+    expect(sessions.isActive("sub_4QeABC")).toBe(true);
+
+    const failed = event("invoice.payment_failed", {
+      id: "in_9ZzQ", object: "invoice", subscription: "sub_4QeABC", status: "payment_failed", amount_settled: "0",
+    }, "evt_fail1");
+    const lines: string[] = [];
+    handleWebhook(failed, sign(failed, SECRET), { ...deps(sessions), log: (l) => lines.push(l) }).work!();
+
+    expect(sessions.isActive("sub_4QeABC")).toBe(false);
+    expect(sessions.state("sub_4QeABC")).toBe("ended");
+    expect(sessions.state("in_9ZzQ")).toBeUndefined();
+    expect(lines.at(-1)).toContain("session closed (payment failed)");
   });
 });

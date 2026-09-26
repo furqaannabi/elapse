@@ -84,7 +84,9 @@ export function displayUsd(amount: string): string {
 
 function apply(event: { type: string; data: { object: unknown } }, deps: WebhookDeps): string {
   const o = event.data.object as SubObject;
-  const sub = o.id ?? "";
+  // FR-EXM-132: an invoice event's object is the invoice — its `id` is `in_…` and the subscription
+  // is `subscription`. Every other event here carries the subscription as the object itself.
+  const sub = (event.type.startsWith("invoice.") ? o.subscription : o.id) ?? "";
   const nowMs = deps.now();
 
   switch (event.type) {
