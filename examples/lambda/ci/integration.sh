@@ -89,7 +89,9 @@ grep "^Product:\|^Runner:" "$WORK/lambda.log"
 
 # FR-EXM-152: the console is bundled and served, authorises in place, and carries no secret key.
 CONSOLE="$(curl -sf "http://localhost:$EX_PORT/console")"
-echo "$CONSOLE" | grep -q 'src="/web.js"' || { dump; echo "the console does not load its bundle"; exit 1; }
+# Relative on purpose (FR-EXM-159): /console and /lambda/console must each find their own bundle.
+echo "$CONSOLE" | grep -q 'src="web.js"' || { dump; echo "the console does not load its bundle"; exit 1; }
+curl -sf "http://localhost:$EX_PORT/web.js" > /dev/null || { dump; echo "the console bundle is not served"; exit 1; }
 echo "$CONSOLE" | grep -q "data-publishable-key=\"pk_test" || { dump; echo "the console has no publishable key"; exit 1; }
 ! echo "$CONSOLE" | grep -q "sk_test" || { dump; echo "a secret key reached the page"; exit 1; }
 ! echo "$CONSOLE" | grep -q "/c/" || { dump; echo "the console still links to a hosted checkout"; exit 1; }

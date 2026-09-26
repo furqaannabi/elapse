@@ -83,7 +83,8 @@ grep "^Product:\|^Session:" "$WORK/saas.log"
 
 # FR-EXM-032: the product page authorises in place — the bundle is served and nothing links to /c/.
 PAGE="$(curl -sf "http://localhost:$EX_PORT/")"
-echo "$PAGE" | grep -q 'src="/web.js"' || { echo "$PAGE" | head -40; echo "the page does not load its bundle"; exit 1; }
+# Relative on purpose (FR-EXM-036): the same page runs at / and at examples.elapse.finance/saas/.
+echo "$PAGE" | grep -q 'src="web.js"' || { echo "$PAGE" | head -40; echo "the page does not load its bundle"; exit 1; }
 ! echo "$PAGE" | grep -q "/c/cs_" || { echo "the page still links to a hosted checkout"; exit 1; }
 curl -sf "http://localhost:$EX_PORT/web.js" > /dev/null || { echo "the page bundle is not served"; exit 1; }
 
