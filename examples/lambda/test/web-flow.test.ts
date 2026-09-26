@@ -3,7 +3,7 @@
  * → resolve the subscription → auto-run. No navigation to a hosted page anywhere in here.
  */
 import { describe, expect, it, vi } from "vitest";
-import { postRun, readAccess, resolveSub, postClaim } from "../src/web/flow";
+import { postRun, readAccess, resolveSub, postClaim, meterShown } from "../src/web/flow";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -120,5 +120,25 @@ describe("FR-EXM-157 the console claims its subscription", () => {
   it("asks for a fresh session only when Northwind says this one is spent", async () => {
     const fetchFn = (async () => new Response(JSON.stringify({ needs_start: true }), { status: 409 })) as unknown as typeof fetch;
     expect(await postClaim(fetchFn, "sub_1")).toEqual({ k: "needs_auth" });
+  });
+});
+
+describe("FR-EXM-152 amended: the ended meter stays on screen", () => {
+  it("shows the live session's meter while there is one", () => {
+    expect(meterShown({ k: "session", session: "cs_2", sub: "sub_2" }, "cs_1")).toBe("cs_2");
+  });
+
+  it("keeps showing the last session's meter after it ends, so its receipt stays", () => {
+    // Every run ends its session (FR-EXM-153 restored), so without this each receipt — seconds,
+    // amount, the start and end transactions — would flash up and vanish as the cancel landed.
+    expect(meterShown({ k: "idle" }, "cs_1")).toBe("cs_1");
+  });
+
+  it("keeps it while the next session is being authorised, until that one's meter replaces it", () => {
+    expect(meterShown({ k: "authorising", session: "cs_2" }, "cs_1")).toBe("cs_1");
+  });
+
+  it("shows nothing before the first session", () => {
+    expect(meterShown({ k: "idle" }, null)).toBeNull();
   });
 });

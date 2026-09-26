@@ -23,7 +23,9 @@ const northwind = read("../public/northwind.css");
  * business.
  */
 function sessionBranch(src: string): string {
-  const guard = '{phase.k === "session" && (';
+  // FR-EXM-152 amended 2026-09-26: the meter renders for the session `meterShown` picks — the live one,
+  // or the last one once it has ended — not only while a session is live.
+  const guard = "{shown && (";
   // The JSX tag, not the prose: this file's own header comment mentions `<Meter>` too.
   const meter = src.search(/<Meter\n/);
   expect(meter, "the console should render a meter").toBeGreaterThan(-1);
@@ -76,5 +78,14 @@ describe("FR-EXM-152 the console's meter wears Northwind's colours", () => {
 
     const selfScreened = [...console_.matchAll(/<pre\b[^>]*className="screen"/g)].map((m) => m[0]);
     expect(selfScreened, `${selfScreened.join(", ")} — wrap it in <div className="screen"> instead`).toEqual([]);
+  });
+});
+
+describe("FR-EXM-152 amended: the ended meter stays on screen", () => {
+  it("renders the meter for the session meterShown picks, keyed so a new session gets a new meter", () => {
+    expect(console_).toMatch(/const shown = meterShown\(phase, ended\)/);
+    const branch = sessionBranch(console_);
+    expect(branch).toMatch(/<Meter\s[\s\S]*?key=\{shown\}/);
+    expect(branch).toMatch(/session=\{shown\}/);
   });
 });

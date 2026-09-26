@@ -110,3 +110,16 @@ export async function postClaim(fetchFn: typeof fetch, sub: string): Promise<Cla
     return { k: "refused", message: (err as Error).message };
   }
 }
+
+/**
+ * FR-EXM-152 (amended 2026-09-26): whose meter the console shows. A live session's, or — once it has
+ * ended — the last one's, so its receipt (the seconds, the amount, the start and end transactions)
+ * stays on screen until the next session's meter replaces it. Every run ends its session
+ * (FR-EXM-153 restored), so without this each receipt would vanish the moment the cancel landed.
+ */
+export function meterShown(
+  phase: { k: "idle" } | { k: "authorising"; session: string } | { k: "session"; session: string; sub: string },
+  lastEnded: string | null,
+): string | null {
+  return phase.k === "session" ? phase.session : lastEnded;
+}

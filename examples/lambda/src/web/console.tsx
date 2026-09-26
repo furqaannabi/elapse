@@ -8,7 +8,7 @@
 import { Authorize, Meter } from "@elapse/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEditor } from "./editor";
-import { postRun, readAccess, resolveSub, type RunBody, postClaim } from "./flow";
+import { meterShown, postRun, readAccess, resolveSub, type RunBody, postClaim } from "./flow";
 
 type Phase = { k: "idle" } | { k: "authorising"; session: string } | { k: "session"; session: string; sub: string };
 
@@ -42,6 +42,8 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState(false);
   const editor = useEditor();
+  /** FR-EXM-152 (amended 2026-09-26): the last session to end, whose receipt stays on screen. */
+  const [ended, setEnded] = useState<string | null>(null);
   const stashed = useRef<string | null>(null);
   /** FR-EXM-158: said once, on the first poll that reports an adopted meter. */
   const readopted = useRef(false);
@@ -53,6 +55,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   // FR-EXM-116/118: while a session is open the console says "still here", and says "I'm gone"
   // when the tab closes, so the server ends the meter instead of waiting for the sweep.
   const sub = phase.k === "session" ? phase.sub : null;
+  const cs = phase.k === "session" ? phase.session : null;
   useEffect(() => {
     if (!sub) return;
     const beat = setInterval(() => {
@@ -66,7 +69,9 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
         .then((a) => {
           const signal = readAccess(a);
           if (signal === "ended") {
-            // Settled. Drop the session so the beacon and the heartbeat stop with it.
+            // Settled. Drop the session so the beacon and the heartbeat stop with it; its meter
+            // stays on screen with the receipt (FR-EXM-152 amended).
+            if (cs) setEnded(cs);
             setPhase({ k: "idle" });
             setStatus(`Session ended — ${merchant} settled the exact seconds your code ran. Press Run to start another.`);
             return;
@@ -87,7 +92,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
       clearInterval(beat);
       window.removeEventListener("pagehide", bye);
     };
-  }, [sub, merchant]);
+  }, [sub, cs, merchant]);
 
   const execute = useCallback(
     async (code: string, on: Phase) => {
@@ -158,6 +163,7 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
   );
 
   const onRun = () => void execute(editor.getValue(), phase);
+  const shown = meterShown(phase, ended);
   const body = out.body;
 
   return (
@@ -201,7 +207,10 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
           readout you must never lose, so it sticks to the bottom of the viewport as you scroll
           through output and source. Same component, same card — only the position is ours. */}
       <div className="gauge">
-        {phase.k === "session" && (
+        {shown && (
+          // FR-EXM-152 (amended 2026-09-26): the live session's meter, or the last one's once it has
+          // ended — its receipt stays until the next session's meter replaces it. `key` makes that a
+          // new meter, not the old one re-pointed.
           // FR-EXM-152 (amended 2026-09-21): the instrument, in the page, where <Authorize> stood —
           // the meter on elapse.finance, in Northwind's colours. It was a capsule in the corner until
           // now; the meter is what this console exists to show, so it gets the room.
@@ -210,7 +219,8 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
           // near-black default. `<Authorize>` has always sat in one; the meter takes the same slot.
           <div className="screen">
             <Meter
-              session={phase.session}
+              key={shown}
+              session={shown}
               // Northwind's meter is Northwind's to stop (FR-CHK-037), and every run stops its own
               // (FR-EXM-153 restored): nothing here for the subscriber to press.
               controls={false}
@@ -219,8 +229,13 @@ export function Console({ merchant, cap }: { merchant: string; cap: number }) {
               // screen is the one a merchant asked for (BR-RCT-001).
               proof
               onStopped={() => {
-                setPhase({ k: "idle" });
-                setStatus(`Session ended — ${merchant} settled the exact seconds your code ran. Press Run to start another.`);
+                setEnded(shown);
+                // Only the live session returns the console to idle. A receipt still on screen must
+                // never knock a new authorisation back to idle.
+                if (phase.k === "session" && phase.session === shown) {
+                  setPhase({ k: "idle" });
+                  setStatus(`Session ended — ${merchant} settled the exact seconds your code ran. Press Run to start another.`);
+                }
               }}
               onError={(e) => setOut({ error: e.message })}
             />
