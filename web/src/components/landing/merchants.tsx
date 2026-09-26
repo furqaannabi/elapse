@@ -7,8 +7,6 @@
  * meter math. Categories only; there are no customers to show, and none are
  * invented (BR-LND-002).
  *
- * `id="merchants"` is the hero's "See the demo" target until the video exists.
- *
  * Maps to: FR-LND-016 (folds in FR-LND-009).
  */
 import { formatUsd, parseRate, perHour } from "@/lib/meter/math";

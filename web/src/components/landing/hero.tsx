@@ -113,7 +113,7 @@ export function Hero() {
                 <ArrowRight data-icon="inline-end" className="size-4" />
               </a>
               <a
-                href="#merchants"
+                href={links.examples}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "h-11 px-5 text-[15px]",
