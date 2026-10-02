@@ -10,7 +10,8 @@ export interface DropWindow {
   oldest: Date | null;
 }
 
-type Scope = { wallet: string } | { ip: string } | "all";
+/** `merchant` counts only the drops that merchant asked for on the dashboard (FR-API-151). */
+type Scope = { wallet: string } | { ip: string } | { merchant: string } | "all";
 
 export async function dropWindow(scope: Scope): Promise<DropWindow> {
   const where =
@@ -18,7 +19,9 @@ export async function dropWindow(scope: Scope): Promise<DropWindow> {
       ? sql`TRUE`
       : "wallet" in scope
         ? sql`wallet_address = ${scope.wallet.toLowerCase()}`
-        : sql`ip = ${scope.ip}`;
+        : "ip" in scope
+          ? sql`ip = ${scope.ip}`
+          : sql`merchant_id = ${scope.merchant} AND via = 'dashboard'`;
   const [row] = await sql`
     SELECT count(*)::int AS count, min(created_at) AS oldest
     FROM faucet_drops
@@ -26,8 +29,8 @@ export async function dropWindow(scope: Scope): Promise<DropWindow> {
   return { count: row.count, oldest: row.oldest ?? null };
 }
 
-export async function recordDrop(drop: { wallet: string; ip: string | null; units: bigint; txHash: string }): Promise<void> {
+export async function recordDrop(drop: { wallet: string; ip: string | null; units: bigint; txHash: string; merchantId: string; via: "checkout" | "dashboard" }): Promise<void> {
   await sql`
-    INSERT INTO faucet_drops (wallet_address, ip, amount_units, tx_hash)
-    VALUES (${drop.wallet.toLowerCase()}, ${drop.ip}, ${drop.units.toString()}, ${drop.txHash})`;
+    INSERT INTO faucet_drops (wallet_address, ip, amount_units, tx_hash, merchant_id, via)
+    VALUES (${drop.wallet.toLowerCase()}, ${drop.ip}, ${drop.units.toString()}, ${drop.txHash}, ${drop.merchantId}, ${drop.via})`;
 }

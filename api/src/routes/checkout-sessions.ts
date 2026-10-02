@@ -541,7 +541,7 @@ checkoutSessions.openapi(
     // The drop goes to the wallet the identity token proves, never to an address the caller names.
     const who = await subscriberIdentity(c);
     try {
-      const drop = await dropFaucet({ session, wallet: who.walletAddress as Address, ip: clientIp(c) });
+      const drop = await dropFaucet({ livemode: session.livemode, wallet: who.walletAddress as Address, ip: clientIp(c), merchantId: session.merchant_id, via: "checkout" });
       return c.json({ amount_usd: drop.amountUsd, tx_hash: drop.txHash }, 202);
     } catch (e) {
       if (e instanceof FaucetRefusal) {

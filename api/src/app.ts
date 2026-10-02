@@ -14,6 +14,7 @@ import { dashboardMe } from "./routes/dashboard-me";
 import { dashboardLogo } from "./routes/dashboard-logo";
 import { dashboardOverview } from "./routes/dashboard-overview";
 import { dashboardOps } from "./routes/dashboard-ops";
+import { dashboardFaucet } from "./routes/dashboard-faucet";
 import { deliveries } from "./routes/deliveries";
 import { events } from "./routes/events";
 import { internal } from "./routes/internal";
@@ -85,6 +86,7 @@ app.route("/v1", dashboardMe);
 app.route("/v1", dashboardLogo);
 app.route("/v1", dashboardOverview);
 app.route("/v1", dashboardOps);
+app.route("/v1", dashboardFaucet);
 app.route("/v1", apiKeys);
 
 // /internal/* takes only the platform ingest token (FR-API-070); a cookie or merchant key is refused.

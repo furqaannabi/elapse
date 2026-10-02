@@ -14,10 +14,12 @@ import { dropWindow, recordDrop } from "../db/faucet";
 
 /** FR-API-148: rolling 24-hour limits. */
 export const FAUCET_LIMITS = { perWallet: 1, perIp: 5, perDay: 300 } as const;
+/** FR-API-151: the dashboard door's own limit, per merchant over a rolling 24 hours. */
+export const DASHBOARD_FAUCET_PER_MERCHANT = 3;
 /** The drop as a decimal string, as the API speaks money. */
 export const FAUCET_AMOUNT_USD = "15";
 
-export type FaucetCode = "faucet_unavailable" | "faucet_wallet_daily" | "faucet_wallet_funded" | "faucet_ip_daily" | "faucet_daily";
+export type FaucetCode = "faucet_unavailable" | "faucet_merchant_daily" | "faucet_wallet_daily" | "faucet_wallet_funded" | "faucet_ip_daily" | "faucet_daily";
 
 export class FaucetRefusal extends Error {
   constructor(
@@ -40,15 +42,28 @@ const aDayAfter = (d: Date | null) => (d ? Math.floor(d.getTime() / 1000) + 86_4
 
 let queue: Promise<unknown> = Promise.resolve();
 
-export function dropFaucet(input: { session: { livemode: boolean }; wallet: Address; ip: string | null }): Promise<{ amountUsd: string; txHash: Hex }> {
+export interface DropInput {
+  /** The mode the request came in: a live-mode request is refused before anything else. */
+  livemode: boolean;
+  wallet: Address;
+  ip: string | null;
+  /** FR-API-151: who asked — the checkout session's merchant, or the signed-in merchant. */
+  merchantId: string;
+  /** Which door. A dashboard drop counts toward the merchant's three a day unless `exempt`. */
+  via: "checkout" | "dashboard";
+  /** FR-API-151: the demo merchant is spared the per-merchant limit, and only that one. */
+  exempt?: boolean;
+}
+
+export function dropFaucet(input: DropInput): Promise<{ amountUsd: string; txHash: Hex }> {
   const turn = queue.then(() => dropNow(input));
   queue = turn.catch(() => {});
   return turn;
 }
 
-async function dropNow({ session, wallet, ip }: { session: { livemode: boolean }; wallet: Address; ip: string | null }) {
-  // BR-API-009: test mode only. A live session is refused before the key is even looked at.
-  if (session.livemode) {
+async function dropNow({ livemode, wallet, ip, merchantId, via, exempt }: DropInput) {
+  // BR-API-009: test mode only. A live request is refused before the key is even looked at.
+  if (livemode) {
     throw new FaucetRefusal(403, "faucet_unavailable", "The test faucet serves test mode only.");
   }
   const faucet = faucetClient();
@@ -59,6 +74,12 @@ async function dropNow({ session, wallet, ip }: { session: { livemode: boolean }
   const mine = await dropWindow({ wallet });
   if (mine.count >= FAUCET_LIMITS.perWallet) {
     throw new FaucetRefusal(429, "faucet_wallet_daily", "This wallet already had its test AUSD today.", aDayAfter(mine.oldest));
+  }
+  if (via === "dashboard" && !exempt) {
+    const ours = await dropWindow({ merchant: merchantId });
+    if (ours.count >= DASHBOARD_FAUCET_PER_MERCHANT) {
+      throw new FaucetRefusal(429, "faucet_merchant_daily", "You've used your 3 test drops for today.", aDayAfter(ours.oldest));
+    }
   }
   // Without a forwarded address there is no IP to count; behind nginx there always is one.
   if (ip) {
@@ -83,6 +104,6 @@ async function dropNow({ session, wallet, ip }: { session: { livemode: boolean }
     // the subscriber is told the faucet cannot pay and keeps the address as the way forward.
     throw new FaucetRefusal(503, "faucet_unavailable", "The test faucet can't pay right now.");
   }
-  await recordDrop({ wallet, ip, units: FAUCET_DROP_UNITS, txHash });
+  await recordDrop({ wallet, ip, units: FAUCET_DROP_UNITS, txHash, merchantId, via });
   return { amountUsd: FAUCET_AMOUNT_USD, txHash };
 }
