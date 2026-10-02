@@ -17,7 +17,7 @@ Read from the deployment record in the repository at build time.
 
 Both modes run on the test network until the mainnet factory is published here. The token is chosen by the mode:
 
-- **Test mode** escrows the same testnet AUSD. Nothing is minted in either mode: a wallet short of the cap sees the Add funds step and the meter starts once the money lands, so a checkout that passes in test mode behaves the same in live mode.
+- **Test mode** escrows the same testnet AUSD. Nothing is minted in either mode: a wallet short of the cap sees the Add funds step (in test mode it can also take 15 testnet AUSD from Elapse's faucet) and the meter starts once the money lands, so a checkout that passes in test mode behaves the same in live mode.
 - **Live mode** escrows AUSD from Agora. Nothing is minted: a subscriber whose wallet is short sees the Add funds step and needs AUSD sent to it.
 
 ## Events

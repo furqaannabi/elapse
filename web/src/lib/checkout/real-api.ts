@@ -8,8 +8,8 @@
  * Start and cancel return once the chain has confirmed: the API answers 202 with a pending
  * transaction and the client polls the session until the status flips (BR-API-005).
  */
-import type { CheckoutApi, Receipt } from "./mock-api";
-import { CheckoutApiError } from "./mock-api";
+import type { CheckoutApi, FaucetRefusalCode, Receipt } from "./mock-api";
+import { CheckoutApiError, FaucetRefusedError } from "./mock-api";
 import type { CheckoutSession, Customer, Subscription } from "./types";
 import { parseRate } from "@/lib/meter/math";
 import { parseUsd } from "./funding";
@@ -183,9 +183,13 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
     } catch {
       throw new CheckoutApiError("network", "We couldn't reach Elapse. Check your connection and try again.");
     }
-    const json = (await res.json().catch(() => null)) as { error?: { type?: string; code?: string; message?: string } } | null;
+    const json = (await res.json().catch(() => null)) as { error?: { type?: string; code?: string; message?: string; resets_at?: number } } | null;
     if (!res.ok) {
       const serverCode = json?.error?.code;
+      // FR-CHK-041: a faucet refusal keeps its limit and its reset; the step words it for the subscriber.
+      if (serverCode?.startsWith("faucet_")) {
+        throw new FaucetRefusedError(serverCode as FaucetRefusalCode, json?.error?.resets_at ?? null, json?.error?.message ?? "The test faucet said no.");
+      }
       if (res.status === 503 && serverCode === "subscriber_auth_unconfigured") throw new CheckoutApiError("unconfigured", "Checkout is not set up yet.");
       if (res.status === 401 && serverCode === "subscriber_auth_invalid") throw new StaleIdentity();
       if (res.status === 403 && serverCode === "subscriber_mismatch") throw new CheckoutApiError("sign_in_required", "Sign in again.");
@@ -286,8 +290,21 @@ export function createRealCheckoutApi(o: RealApiOptions): CheckoutApi {
 
     // FR-CHK-031: read before the cap step; polled while Add funds is open.
     async getBalance(id) {
-      const w = await bindingCall<{ balance_usd: string; needs_funding: boolean; receive_address: string; token: string; network: string }>(`/v1/checkout/sessions/${id}/balance`, undefined, "GET");
-      return { balanceUsd: w.balance_usd, needsFunding: w.needs_funding, receiveAddress: w.receive_address, token: w.token, network: w.network };
+      const w = await bindingCall<{ balance_usd: string; needs_funding: boolean; receive_address: string; token: string; network: string; faucet_amount_usd?: string | null }>(`/v1/checkout/sessions/${id}/balance`, undefined, "GET");
+      return {
+        balanceUsd: w.balance_usd,
+        needsFunding: w.needs_funding,
+        receiveAddress: w.receive_address,
+        token: w.token,
+        network: w.network,
+        // FR-API-149: present on every API that has the faucet; "15" or null.
+        ...(w.faucet_amount_usd !== undefined ? { faucetAmountUsd: w.faucet_amount_usd } : {}),
+      };
+    },
+
+    // FR-CHK-041: one drop from the test faucet into the wallet the identity token proves.
+    async requestFaucet(id) {
+      await bindingCall(`/v1/checkout/sessions/${id}/faucet`, undefined, "POST");
     },
 
     // FR-CHK-030: pause and resume are relayed like cancel (contracts FR-CON-018); no money moves.

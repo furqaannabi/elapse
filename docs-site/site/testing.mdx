@@ -13,7 +13,9 @@ Test and live are separate worlds, not a flag on an object. A test id under a li
 
 ## Getting testnet AUSD
 
-A subscriber wallet needs testnet AUSD before a meter can start; the checkout's **Add funds** step shows the wallet's receiving address to send it to. Agora runs a faucet contract for it on Monad testnet — call `requestFunds(address)` on `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C` from any wallet holding a little testnet MON for gas, naming the receiving address, and 10,000 testnet AUSD arrives in a block or two:
+A subscriber wallet needs testnet AUSD before a meter can start. In test mode the **Add funds** step has a **Get 15 test AUSD** button: Elapse's own faucet sends 15 testnet AUSD straight to the subscriber — enough for a one-hour meter at $0.004/s, and whatever the meter does not use comes back when it stops. One drop per wallet a day.
+
+For more than that, or for a wallet you script against, the step also shows the wallet's receiving address to send to. Agora runs a faucet contract for it on Monad testnet — call `requestFunds(address)` on `0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C` from any wallet holding a little testnet MON for gas, naming the receiving address, and 10,000 testnet AUSD arrives in a block or two:
 
 ```bash
 cast send 0xd236c18D274E54FAccC3dd9DDA4b27965a73ee6C \

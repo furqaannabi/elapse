@@ -125,4 +125,6 @@ export type CheckoutBalance = {
   receiveAddress: string;
   token: string;
   network: string;
+  /** FR-CHK-041: the drop the test faucet would send here ("15"), or null/absent when it does not serve this session. */
+  faucetAmountUsd?: string | null;
 };

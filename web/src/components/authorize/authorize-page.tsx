@@ -222,6 +222,8 @@ export function AuthorizePage({
             refresh={() => api.getBalance(sessionId)}
             onFunded={() => setState({ kind: "ready", session: state.session })}
             cancelHref={state.session.merchant.cancelUrl}
+            // FR-CHK-041: offered only when the balance says the test faucet serves this session.
+            faucet={state.balance.faucetAmountUsd ? { amountUsd: state.balance.faucetAmountUsd, request: () => api.requestFaucet(sessionId) } : undefined}
           />
         )}
 

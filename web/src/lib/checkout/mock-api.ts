@@ -93,6 +93,20 @@ export class CheckoutApiError extends Error {
   }
 }
 
+/** FR-API-148: which faucet limit refused a drop. */
+export type FaucetRefusalCode = "faucet_unavailable" | "faucet_wallet_daily" | "faucet_wallet_funded" | "faucet_ip_daily" | "faucet_daily";
+
+/** FR-CHK-041: the faucet said no. `resetsAt` is unix seconds, or null when the limit does not ease with time. */
+export class FaucetRefusedError extends Error {
+  constructor(
+    public code: FaucetRefusalCode,
+    public resetsAt: number | null,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export interface CheckoutApi {
   getSession(id: string): Promise<CheckoutSession>;
   signIn(id: string, input: { email?: string }): Promise<CheckoutSession>;
@@ -100,6 +114,8 @@ export interface CheckoutApi {
   setCap(id: string, seconds: number): Promise<CheckoutSession>;
   /** The signed-in wallet's balance and whether it must be funded by the subscriber (FR-CHK-031). */
   getBalance(id: string): Promise<CheckoutBalance>;
+  /** FR-CHK-041: ask the test faucet for a drop into the signed-in wallet; throws `FaucetRefusedError` when refused. */
+  requestFaucet(id: string): Promise<void>;
   start(id: string): Promise<CheckoutSession>;
   cancel(id: string): Promise<{ session: CheckoutSession; receipt: Receipt }>;
   /** The receipt for a stopped session, however it stopped. */
@@ -247,8 +263,11 @@ export function createMockCheckoutApi(
   // FR-CHK-031: only cs_short is ever short; its wallet fills up 6 s after the mock was created.
   const seededAt = now();
   const SHORT_ADDRESS = "0x2f1e8c9a4b7d6e5f0a1b2c3d4e5f60718293a4b5";
+  /** FR-CHK-041: sessions whose wallet has had its test drop today. */
+  const dropped = new Set<string>();
   const balanceOf = (id: string): { usd: string; short: boolean } => {
     if (id !== "cs_short") return { usd: "250.00", short: false };
+    if (dropped.has(id)) return { usd: "15.50", short: false };
     return now() - seededAt >= 6_000 ? { usd: "20.00", short: false } : { usd: "0.50", short: true };
   };
   let evt = 0;
@@ -342,7 +361,23 @@ export function createMockCheckoutApi(
       await wait();
       get(id);
       const b = balanceOf(id);
-      return { balanceUsd: b.usd, needsFunding: id === "cs_short", receiveAddress: SHORT_ADDRESS, token: "AUSD", network: "Monad testnet" };
+      return {
+        balanceUsd: b.usd,
+        needsFunding: id === "cs_short",
+        receiveAddress: SHORT_ADDRESS,
+        token: "AUSD",
+        network: "Monad testnet",
+        // FR-CHK-041: only the short wallet is offered a drop, as the API offers it only in test mode.
+        ...(id === "cs_short" ? { faucetAmountUsd: "15" } : {}),
+      };
+    },
+
+    async requestFaucet(id) {
+      await wait();
+      get(id);
+      if (id !== "cs_short") throw new FaucetRefusedError("faucet_wallet_funded", null, "This wallet already holds 15 test AUSD or more.");
+      if (dropped.has(id)) throw new FaucetRefusedError("faucet_wallet_daily", Math.floor(now() / 1000) + 86_400, "This wallet already had its test AUSD today.");
+      dropped.add(id);
     },
 
     async start(id) {

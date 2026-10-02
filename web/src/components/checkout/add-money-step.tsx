@@ -9,7 +9,10 @@
  * and the network (BR-CHK-001 exception). It never shows a token contract, an
  * explorer link, a fee, a seed or a key.
  *
- * Maps to: FR-CHK-031; BR-CHK-001 (exception), BR-CHK-007.
+ * In test mode it can also offer a drop from the test faucet (FR-CHK-041): one button above the
+ * address. The button only asks; the poll is still what moves the window on, once the money shows.
+ *
+ * Maps to: FR-CHK-031, FR-CHK-041; BR-CHK-001 (exception), BR-CHK-007.
  */
 "use client";
 
@@ -17,11 +20,41 @@ import { Check, Copy } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { parseUsd } from "@/lib/checkout/funding";
+import { FaucetRefusedError, type FaucetRefusalCode } from "@/lib/checkout/mock-api";
 import type { CheckoutBalance } from "@/lib/checkout/types";
 import { formatUsd } from "@/lib/meter/math";
 
 /** How often the balance is re-read while this step is open (FR-CHK-031). */
 export const BALANCE_POLL_MS = 5_000;
+
+/** "14:32", or "tomorrow at 14:32" when the limit eases after midnight — the faucet's windows are 24 hours. */
+function when(resetsAt: number | null): string {
+  if (resetsAt === null) return "a while";
+  const at = new Date(resetsAt * 1000);
+  const time = at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return at.toDateString() === new Date().toDateString() ? time : `tomorrow at ${time}`;
+}
+
+/**
+ * FR-CHK-041: one sentence per refusal, naming the limit and when it eases. Only "test AUSD" and
+ * "address" may be said here (BR-CHK-001 exception) — never wallet, network or connection.
+ */
+function refusalSentence(code: FaucetRefusalCode, resetsAt: number | null, amountUsd: string): string {
+  switch (code) {
+    case "faucet_wallet_daily":
+      return `You’ve already had your test AUSD today. Ask again after ${when(resetsAt)}.`;
+    case "faucet_ip_daily":
+      return `Too many requests from here today. Try again after ${when(resetsAt)}.`;
+    case "faucet_daily":
+      return `The test faucet has given out its share for today. Try again after ${when(resetsAt)}.`;
+    case "faucet_wallet_funded":
+      return `You already have ${amountUsd} test AUSD or more, so the faucet can’t add to it.`;
+    case "faucet_unavailable":
+      return "The test faucet can’t pay right now. Send test AUSD to the address below instead.";
+  }
+}
+
+type FaucetState = { k: "ready" } | { k: "sending" } | { k: "sent" } | { k: "refused"; sentence: string } | { k: "unreachable" };
 
 export function AddMoneyStep({
   neededUsd,
@@ -29,6 +62,7 @@ export function AddMoneyStep({
   refresh,
   onFunded,
   cancelHref,
+  faucet,
 }: {
   /** The cap's escrow, USD decimal string. */
   neededUsd: string;
@@ -39,10 +73,13 @@ export function AddMoneyStep({
   onFunded: (balance: CheckoutBalance) => void;
   /** The merchant's cancel URL, for "Not now". */
   cancelHref: string;
+  /** FR-CHK-041: offered only when the balance says the test faucet serves this session. */
+  faucet?: { amountUsd: string; request: () => Promise<void> };
 }) {
   const [balance, setBalance] = useState(initial);
   const [svg, setSvg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [drop, setDrop] = useState<FaucetState>({ k: "ready" });
   const funded = useRef(false);
   const needed = parseUsd(neededUsd);
 
@@ -73,6 +110,18 @@ export function AddMoneyStep({
     return () => clearInterval(id);
   }, [refresh, onFunded, needed]);
 
+  const askFaucet = async () => {
+    if (!faucet || drop.k === "sending" || drop.k === "sent") return;
+    setDrop({ k: "sending" });
+    try {
+      await faucet.request();
+      // On its way. The poll below notices the balance and moves the window on.
+      setDrop({ k: "sent" });
+    } catch (e) {
+      setDrop(e instanceof FaucetRefusedError ? { k: "refused", sentence: refusalSentence(e.code, e.resetsAt, faucet.amountUsd) } : { k: "unreachable" });
+    }
+  };
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(balance.receiveAddress);
@@ -98,6 +147,20 @@ export function AddMoneyStep({
         <dt className="text-ink-soft">Needed</dt>
         <dd className="numerals text-right">{formatUsd(needed)}</dd>
       </dl>
+
+      {faucet && drop.k === "refused" && (
+        <p className="text-sm text-ink-soft" role="status">{drop.sentence}</p>
+      )}
+      {faucet && drop.k !== "refused" && (
+        <div className="flex flex-col gap-2">
+          <Button onClick={() => void askFaucet()} disabled={drop.k === "sending" || drop.k === "sent"} className="h-11 w-full">
+            {drop.k === "sending" || drop.k === "sent" ? "On its way…" : `Get ${faucet.amountUsd} test AUSD`}
+          </Button>
+          {drop.k === "unreachable" && (
+            <p className="text-sm text-ink-soft" role="status">We couldn&rsquo;t reach the test faucet. Try again.</p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col items-center gap-3 rounded-lg border border-border bg-card p-4">
         <div

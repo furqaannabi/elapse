@@ -7,7 +7,7 @@
  * rest), BR-CHK-003.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildReceipt, createMockCheckoutApi } from "./mock-api";
+import { FaucetRefusedError, buildReceipt, createMockCheckoutApi } from "./mock-api";
 
 const NOW = 1_756_800_000_000;
 
@@ -160,5 +160,24 @@ describe("mock checkout api · FR-CHK-038 submit", () => {
     const c = await api.submit("cs_running", "cancel");
     expect(c.txHash).not.toBe(a.txHash);
     expect((await api.getSession("cs_running")).subscription?.status).toBe("canceled");
+  });
+});
+
+describe("FR-CHK-041 the mock test faucet", () => {
+  it("FR_CHK_041_offers_the_short_wallet_a_drop_that_covers_the_cap_and_refuses_a_second", async () => {
+    const api = createMockCheckoutApi({ now: () => Date.UTC(2026, 9, 2, 10, 0, 0), latencyMs: 0 });
+    const before = await api.getBalance("cs_short");
+    expect(before.faucetAmountUsd).toBe("15");
+    await api.requestFaucet("cs_short");
+    const after = await api.getBalance("cs_short");
+    expect(after.balanceUsd).toBe("15.50");
+    const e = await api.requestFaucet("cs_short").catch((x) => x);
+    expect(e).toBeInstanceOf(FaucetRefusedError);
+    expect(e).toMatchObject({ code: "faucet_wallet_daily" });
+  });
+
+  it("FR_CHK_041_a_funded_wallet_is_offered_nothing", async () => {
+    const api = createMockCheckoutApi({ now: () => Date.UTC(2026, 9, 2, 10, 0, 0), latencyMs: 0 });
+    expect((await api.getBalance("cs_ready")).faucetAmountUsd ?? null).toBeNull();
   });
 });

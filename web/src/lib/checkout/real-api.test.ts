@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRealCheckoutApi, mapSession, type SubscriberWallet } from "./real-api";
+import { FaucetRefusedError } from "./mock-api";
 
 const BASE = "http://api.test";
 const T0 = 1_757_000_000;
@@ -310,5 +311,35 @@ describe("FR-CHK-038 the popup submits and returns the transaction hash without 
     calls = [];
     expect(await a.submit("cs_abc", "cancel")).toEqual({ subscription: "sub_1", txHash: "0x" + "22".repeat(32) });
     expect(calls).toHaveLength(2);
+  });
+});
+
+describe("FR-CHK-041 the test faucet through the real API", () => {
+  it("FR_CHK_041_getBalance_carries_whether_the_faucet_is_offered", async () => {
+    responses = [{ balance_usd: "0.00", needs_funding: true, receive_address: "0xabc", token: "AUSD", network: "Monad testnet", chain_id: 10143, faucet_amount_usd: "15" }];
+    expect((await api().getBalance("cs_abc")).faucetAmountUsd).toBe("15");
+    responses = [{ balance_usd: "0.00", needs_funding: true, receive_address: "0xabc", token: "AUSD", network: "Monad testnet", chain_id: 10143, faucet_amount_usd: null }];
+    expect((await api().getBalance("cs_abc")).faucetAmountUsd).toBeNull();
+  });
+
+  it("FR_CHK_041_requestFaucet_posts_to_the_faucet_with_the_identity_token", async () => {
+    responses = [{ amount_usd: "15", tx_hash: "0x" + "ab".repeat(32) }];
+    await api().requestFaucet("cs_abc");
+    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/checkout/sessions/cs_abc/faucet` });
+    expect(calls[0]!.headers?.["x-privy-token"]).toBe("tok_fresh");
+  });
+
+  it("FR_CHK_041_a_limit_is_a_FaucetRefusedError_with_its_code_and_reset", async () => {
+    responses = [{ __status: 429, error: { type: "rate_limit_error", code: "faucet_wallet_daily", message: "This wallet already had its test AUSD today.", resets_at: 1_790_000_000 } }];
+    const e = await api().requestFaucet("cs_abc").catch((x) => x);
+    expect(e).toBeInstanceOf(FaucetRefusedError);
+    expect(e).toMatchObject({ code: "faucet_wallet_daily", resetsAt: 1_790_000_000 });
+  });
+
+  it("FR_CHK_041_an_unavailable_faucet_is_a_refusal_too_not_a_network_error", async () => {
+    responses = [{ __status: 503, error: { type: "api_error", code: "faucet_unavailable", message: "The test faucet can't pay right now." } }];
+    const e = await api().requestFaucet("cs_abc").catch((x) => x);
+    expect(e).toBeInstanceOf(FaucetRefusedError);
+    expect(e).toMatchObject({ code: "faucet_unavailable", resetsAt: null });
   });
 });

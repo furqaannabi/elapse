@@ -18,7 +18,7 @@
 # api/.env holds everything from api/.env.example; DATABASE_URL is set below and overrides it:
 #   PORT WEBHOOK_SECRET_KEK DASHBOARD_ORIGIN DOCS_ORIGIN PUBLIC_API_URL NEXT_PUBLIC_CHECKOUT_URL
 #   PRIVY_APP_ID PRIVY_VERIFICATION_KEY RESEND_API_KEY EMAIL_FROM INGEST_TOKEN MONAD_RPC_URL CHAIN_ID
-#   RELAYER_PRIVATE_KEY INDEXER_GRAPHQL_URL
+#   RELAYER_PRIVATE_KEY INDEXER_GRAPHQL_URL FAUCET_PRIVATE_KEY (optional: unset = no test faucet, FR-API-147)
 # RELAYER_PRIVATE_KEY controls a funded wallet: prefer AWS Secrets Manager / SSM over a file on the disk.
 #
 # Done at cutover, kept for the record — moving the data off Neon (stop the old worker first so nothing writes):

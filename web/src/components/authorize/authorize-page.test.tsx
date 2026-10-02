@@ -126,3 +126,16 @@ describe("AuthorizePage · FR-CHK-038/039", () => {
     expect(opener.postMessage).not.toHaveBeenCalled();
   });
 });
+
+describe("AuthorizePage · FR-CHK-041", () => {
+  it("FR_CHK_041_a_short_test_wallet_can_take_a_drop_from_the_faucet", async () => {
+    const ask = vi.spyOn(api, "requestFaucet");
+    render(<AuthorizePage session="cs_short" action="authorise" cap="3600" nonce="n1" opener={null} close={vi.fn()} />);
+    // As a judge would meet it: Authorise, find the wallet short, and be offered the drop.
+    fireEvent.click(await screen.findByRole("button", { name: "Authorise" }));
+    expect(await screen.findByRole("heading", { name: /add funds to start/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Get 15 test AUSD" }));
+    await waitFor(() => expect(ask).toHaveBeenCalledWith("cs_short"));
+    expect(await screen.findByRole("button", { name: "On its way…" })).toBeDisabled();
+  });
+});

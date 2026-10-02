@@ -18,7 +18,7 @@ Track 2 · Monad Metropolis · Consumer Products & Payments. Submission 13 Octob
 | React | `npm install @elapse/react` (0.5.1) — `<Authorize>` and `<Meter>` in your own page |
 | CLI | `npx @elapse/cli listen --forward http://localhost:3000/webhooks` (0.1.5) |
 
-Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)); nothing is minted, and a wallet short of the cap sees Add funds in the Elapse window. Live mode (`sk_live_`) moves to mainnet AUSD when a chain-143 record lands, with no integration change.
+Both modes run real streams on Monad testnet and escrow testnet AUSD ([ADR 2026-09-13](docs/decisions/2026-09-13-ausd-only-mockusd-to-test-fixture.md)); nothing is minted, and a wallet short of the cap sees Add funds in the Elapse window, which in test mode offers 15 test AUSD from Elapse's faucet ([ADR 2026-10-02](docs/decisions/2026-10-02-testnet-faucet.md)). Live mode (`sk_live_`) moves to mainnet AUSD when a chain-143 record lands, with no integration change.
 
 ## Surfaces
 
