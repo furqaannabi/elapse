@@ -6,7 +6,7 @@
  * FR-DSH-014 (sign out), FR-DSH-110 (seeded merchants).
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { createMockDashboardApi, DashboardApiError, resetMockDashboardApi } from "./mock-api";
+import { createMockDashboardApi, DashboardApiError, FaucetRefused, resetMockDashboardApi } from "./mock-api";
 
 const NOW = 1_756_800_000_000;
 
@@ -84,5 +84,26 @@ describe("mock dashboard api — auth", () => {
     await api.verifyMagicLink(devToken);
     await api.signOut();
     await expect(api.me()).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+});
+
+describe("mock dashboard api — test AUSD (FR-DSH-145)", () => {
+  let api: ReturnType<typeof createMockDashboardApi>;
+  beforeEach(async () => {
+    localStorage.clear();
+    resetMockDashboardApi();
+    api = createMockDashboardApi({ now: () => NOW, latencyMs: 0 });
+    await api.verifyMagicLink((await api.requestMagicLink("demo@elapse.finance")).devToken);
+  });
+  const addr = (n: number) => `0x${n.toString(16).padStart(40, "0")}`;
+
+  it("drops once per address and three times per merchant, test mode only", async () => {
+    expect(await api.sendTestAusd("test", addr(1))).toMatchObject({ amountUsd: "15" });
+    await expect(api.sendTestAusd("test", addr(1))).rejects.toMatchObject({ code: "faucet_wallet_daily" });
+    await api.sendTestAusd("test", addr(2));
+    await api.sendTestAusd("test", addr(3));
+    await expect(api.sendTestAusd("test", addr(4))).rejects.toBeInstanceOf(FaucetRefused);
+    await expect(api.sendTestAusd("test", addr(4))).rejects.toMatchObject({ code: "faucet_merchant_daily" });
+    await expect(api.sendTestAusd("live", addr(5))).rejects.toMatchObject({ code: "faucet_unavailable" });
   });
 });

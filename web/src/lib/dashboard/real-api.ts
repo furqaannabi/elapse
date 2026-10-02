@@ -8,7 +8,7 @@
  * deliveries, events, products, subscriptions, customers, invoices, ledger, balance, payout
  * address, notifications, activity, search, delete test data.
  */
-import { DashboardApiError as MockError, type DashboardApi, type WriteOpts } from "./mock-api";
+import { DashboardApiError as MockError, FaucetRefused, type DashboardApi, type FaucetRefusalCode, type WriteOpts } from "./mock-api";
 import { newIdempotencyKey } from "./idempotency";
 import type {
   ApiKey, Attempt, AuditAction, AuditEntry, Balance, ChecklistState, Customer, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyStatus, LedgerEntry, Merchant, Mode, Notification, NotificationKind, Overview, Product, SearchHit, Subscription, WebhookEndpoint,
@@ -322,7 +322,11 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
       throw new DashboardApiError("network", "We couldn't reach Elapse. Check your connection and try again.", 0);
     }
     const text = await res.text();
-    const json = text ? (JSON.parse(text) as { error?: { code?: string; message?: string; param?: string } }) : null;
+    const json = text ? (JSON.parse(text) as { error?: { code?: string; message?: string; param?: string; resets_at?: number } }) : null;
+    // FR-DSH-145: a faucet refusal names its limit and when it eases; the card words it.
+    if (!res.ok && json?.error?.code?.startsWith("faucet_")) {
+      throw new FaucetRefused(json.error.code as FaucetRefusalCode, json.error.resets_at ?? null, json.error.message ?? "The test faucet refused.");
+    }
     if (!res.ok) throw new DashboardApiError(codeFor(res.status, json?.error?.code, path), json?.error?.message ?? "Something went wrong.", res.status, json?.error?.code, json?.error?.param);
     return json as T;
   }
@@ -602,6 +606,10 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
     async changePayoutAddress(input, opts) {
       await call("POST", "/v1/dashboard/payout_address", { body: { address: input.address, confirm: input.confirm }, idempotencyKey: idem(opts) });
       return mapMerchant(await call<WireProfile>("GET", "/v1/dashboard/me"));
+    },
+    async sendTestAusd(mode, address, opts) {
+      const r = await call<{ amount_usd: string; tx_hash: string }>("POST", "/v1/dashboard/faucet", { body: { address }, mode, idempotencyKey: idem(opts) });
+      return { amountUsd: r.amount_usd, txHash: r.tx_hash };
     },
     async getNotificationSettings() {
       const p = await call<WireProfile>("GET", "/v1/dashboard/me");

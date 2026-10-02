@@ -128,4 +128,17 @@ describe("KeysPage", () => {
     expect(screen.queryByText(/pk_live_/)).toBeNull();
     expect(screen.queryByRole("button", { name: /Create secret key/ })).toBeNull();
   });
+
+  it("offers Get test AUSD in test mode and not in live mode (FR-DSH-145)", async () => {
+    const m = await signIn(api);
+    mount(api, m);
+    expect(await screen.findByRole("heading", { name: "Get test AUSD" })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/testnet address/i), "0x2dc833BDE673AA92Bd9fea75B71B1CEd3F0D0240");
+    await user.click(screen.getByRole("button", { name: /send 15 test ausd/i }));
+    expect(await screen.findByRole("link", { name: /↗/ })).toBeInTheDocument();
+    setMode("live");
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Get test AUSD" })).toBeNull());
+  });
 });
+

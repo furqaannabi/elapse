@@ -154,6 +154,8 @@ export interface DashboardApiMore {
   removeLogo(opts?: WriteOpts): Promise<Merchant>;
   /** Requires the address typed twice; writes the audit log (FR-DSH-101). */
   changePayoutAddress(input: { address: string; confirm: string }, opts?: WriteOpts): Promise<Merchant>;
+  /** FR-DSH-145 / API FR-API-150: one 15 AUSD drop to any address, test mode only. Throws `FaucetRefused`. */
+  sendTestAusd(mode: Mode, address: string, opts?: WriteOpts): Promise<{ amountUsd: string; txHash: string }>;
   getNotificationSettings(): Promise<NotificationSettings>;
   updateNotificationSettings(input: Partial<NotificationSettings>, opts?: WriteOpts): Promise<NotificationSettings>;
   listNotifications(mode: Mode): Promise<Notification[]>;
@@ -185,6 +187,20 @@ export type EndpointInput = { url: string; events: EventType[] | "*" };
 
 /** Every mutating call carries an idempotency key (FR-DSH-112). */
 export type WriteOpts = { idempotencyKey?: string };
+
+/** The limit that stopped a dashboard faucet drop (API FR-API-148/151). */
+export type FaucetRefusalCode = "faucet_unavailable" | "faucet_merchant_daily" | "faucet_wallet_daily" | "faucet_wallet_funded" | "faucet_ip_daily" | "faucet_daily";
+
+/** A faucet refusal, with when it eases (unix seconds) or null when it does not ease with time. FR-DSH-145. */
+export class FaucetRefused extends Error {
+  constructor(
+    public code: FaucetRefusalCode,
+    public resetsAt: number | null,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 /** The mock always returns the token it would have emailed. */
 export type MockDashboardApi = Omit<DashboardApi, "requestMagicLink"> & {
@@ -386,6 +402,7 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
   };
 
   /** Replays a stored response for a repeated idempotency key. */
+  const faucetDrops: Array<{ to: string; merchant: string }> = [];
   const idempotent = async <T,>(key: string | undefined, run: () => Promise<T>): Promise<T> => {
     touch();
     if (!key) return run();
@@ -1024,6 +1041,22 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
         const next: Merchant = { ...m, branding: rest };
         store.merchants.set(m.id, next);
         return wait(next);
+      });
+    },
+
+    async sendTestAusd(mode, address, opts = {}) {
+      return idempotent(opts.idempotencyKey, async () => {
+        // The platform's rules in miniature (API FR-API-148/151): test mode, one drop per address,
+        // three per merchant. The per-IP and daily pool limits have no meaning in a single tab.
+        if (mode === "live") throw new FaucetRefused("faucet_unavailable", null, "The test faucet serves test mode only.");
+        if (!/^0x[0-9a-fA-F]{40}$/.test(address.trim())) throw new DashboardApiError("invalid_input", "Enter a 0x address");
+        const to = address.trim().toLowerCase();
+        const day = Math.floor(now() / 1000) + 86_400;
+        if (faucetDrops.some((d) => d.to === to)) throw new FaucetRefused("faucet_wallet_daily", day, "This address already had its test AUSD today.");
+        const mine = faucetDrops.filter((d) => d.merchant === current().id);
+        if (mine.length >= 3) throw new FaucetRefused("faucet_merchant_daily", day, "You've used your 3 test drops for today.");
+        faucetDrops.push({ to, merchant: current().id });
+        return wait({ amountUsd: "15", txHash: `0x${faucetDrops.length.toString(16).padStart(64, "0")}` });
       });
     },
 

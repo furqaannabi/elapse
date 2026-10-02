@@ -6,7 +6,9 @@
  * word, actions). Create reveals once; roll asks for a grace period and
  * reveals the new key; revoke confirms by name and keeps the row.
  *
- * Maps to: FR-DSH-070…074, FR-DSH-112; BR-DSH-001, BR-DSH-003, BR-DSH-010.
+ * Below the keys, in test mode, the Get test AUSD card (FR-DSH-145).
+ *
+ * Maps to: FR-DSH-070…074, FR-DSH-112, FR-DSH-145; BR-DSH-001, BR-DSH-003, BR-DSH-010.
  */
 "use client";
 
@@ -29,6 +31,7 @@ import { useMerchant } from "./merchant-context";
 import { Page, PageHeader } from "./page-header";
 import { SecretRevealDialog } from "./secret-reveal-dialog";
 import { StatusChip, type ChipTone } from "./status-chip";
+import { TestAusdCard } from "./test-ausd-card";
 
 const TONE: Record<ApiKey["status"], ChipTone> = { active: "neutral", expiring: "caution", expired: "muted", revoked: "destructive" };
 
@@ -164,6 +167,9 @@ export function KeysPage() {
         )}
       </section>
       )}
+
+      {/* FR-DSH-145: test mode only — in live mode the card is not rendered at all. */}
+      {mode === "test" && <TestAusdCard send={(address) => api.sendTestAusd("test", address, { idempotencyKey: newIdempotencyKey() })} />}
 
       <CreateKeyDialog open={creating} onCancel={() => setCreating(false)} onCreate={create} busy={busy} />
       <RollKeyDialog target={rolling} onCancel={() => setRolling(null)} onRoll={roll} busy={busy} />

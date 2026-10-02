@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRealDashboardApi, keyStatus, mapAudit, mapDelivery, mapEndpoint, mapEvent, mapKey, mapLedger, mapMerchant, mapNotification, mapProduct, mapSubscription, receiptOf } from "./real-api";
+import { FaucetRefused } from "./mock-api";
 
 const BASE = "http://api.test";
 const T0 = 1_757_000_000;
@@ -187,5 +188,24 @@ describe("real DashboardApi", () => {
     const m = await api().verifyMagicLink("tok");
     expect(calls.map((c) => c.url)).toEqual([`${BASE}/v1/dashboard/auth/verify`, `${BASE}/v1/dashboard/me`]);
     expect(m.email).toBe("m@acme.test");
+  });
+});
+
+describe("sendTestAusd (FR-DSH-145, API FR-API-150)", () => {
+  it("POSTs the address in the given mode and maps the drop", async () => {
+    responses.push({ amount_usd: "15", tx_hash: "0xabc" });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    expect(await api.sendTestAusd("test", "0x2dc833BDE673AA92Bd9fea75B71B1CEd3F0D0240")).toEqual({ amountUsd: "15", txHash: "0xabc" });
+    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/dashboard/faucet`, body: { address: "0x2dc833BDE673AA92Bd9fea75B71B1CEd3F0D0240" } });
+    expect(calls[0]!.headers["x-elapse-mode"]).toBe("test");
+    expect(calls[0]!.headers["idempotency-key"]).toBeTruthy();
+  });
+
+  it("turns a faucet refusal into FaucetRefused with its code and reset time", async () => {
+    responses.push({ __status: 429, error: { type: "rate_limit_error", code: "faucet_merchant_daily", message: "You've used your 3 test drops for today.", resets_at: T0 } });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    const err = await api.sendTestAusd("test", "0x2dc833BDE673AA92Bd9fea75B71B1CEd3F0D0240").catch((e) => e);
+    expect(err).toBeInstanceOf(FaucetRefused);
+    expect(err).toMatchObject({ code: "faucet_merchant_daily", resetsAt: T0 });
   });
 });

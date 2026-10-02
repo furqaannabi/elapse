@@ -22,18 +22,13 @@ import { Button } from "@/components/ui/button";
 import { parseUsd } from "@/lib/checkout/funding";
 import { FaucetRefusedError, type FaucetRefusalCode } from "@/lib/checkout/mock-api";
 import type { CheckoutBalance } from "@/lib/checkout/types";
+import { faucetResetTime } from "@/lib/faucet-reset";
 import { formatUsd } from "@/lib/meter/math";
 
 /** How often the balance is re-read while this step is open (FR-CHK-031). */
 export const BALANCE_POLL_MS = 5_000;
 
-/** "14:32", or "tomorrow at 14:32" when the limit eases after midnight — the faucet's windows are 24 hours. */
-function when(resetsAt: number | null): string {
-  if (resetsAt === null) return "a while";
-  const at = new Date(resetsAt * 1000);
-  const time = at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return at.toDateString() === new Date().toDateString() ? time : `tomorrow at ${time}`;
-}
+const when = faucetResetTime;
 
 /**
  * FR-CHK-041: one sentence per refusal, naming the limit and when it eases. Only "test AUSD" and
