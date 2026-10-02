@@ -15,6 +15,7 @@ process.env.INGEST_TOKEN = "ingest-test-token";
 // Test-only key-encryption key (32 zero-ish bytes, base64). Real environments use `openssl rand -base64 32`.
 process.env.WEBHOOK_SECRET_KEK = "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s=";
 delete process.env.RELAYER_PRIVATE_KEY;
+delete process.env.FAUCET_PRIVATE_KEY; // FR-API-147: a test must never reach a funded faucet wallet
 // The developer's Privy app must not leak into tests: FR-API-125 asserts the unconfigured path, and route tests mint their own keys.
 delete process.env.PRIVY_APP_ID;
 delete process.env.PRIVY_VERIFICATION_KEY;

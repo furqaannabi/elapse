@@ -17,6 +17,7 @@ export async function resetDb(): Promise<void> {
     try {
       await sql`TRUNCATE merchants CASCADE`;
       await sql`TRUNCATE relayer_balance_samples`;
+      await sql`TRUNCATE faucet_drops`; // not linked to merchants, so the cascade above never reaches it
       return;
     } catch (e) {
       if (attempt >= 2 || (e as { errno?: string }).errno !== "40P01") throw e;

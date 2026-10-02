@@ -1,4 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
+import type { Address } from "viem";
 import { config } from "../config";
 import { findCheckoutSession, findCheckoutSessionById, insertCheckoutSession, type CheckoutSessionRow } from "../db/checkout-sessions";
 import { judgeDeliveryLog } from "../db/deliveries";
@@ -13,6 +14,7 @@ import { RelayerUnavailable } from "../chain/relayer";
 import { SubscriberAuthError, SubscriberAuthUnconfigured, verifyIdentityToken, type SubscriberIdentity } from "../lib/privy";
 import { CheckoutStateError, prepareSession, startSession, prepareCancel, cancelSubscription, prepareRelay, submitRelay, readCheckoutBalance, PERMIT_TTL_SECONDS, CANCEL_TTL_SECONDS, isMerchantControlled } from "../services/checkout";
 import { PERMIT_TYPES } from "../chain/permit";
+import { FaucetRefusal, dropFaucet } from "../services/faucet";
 import { baseUnitsToDecimal } from "../lib/money";
 import { PUBLIC, router } from "../lib/openapi";
 import { merchantAuth, requireAuth, type AnyAuth, type Auth, type CheckoutAuthEnv, clientIp } from "../middleware/auth";
@@ -495,6 +497,7 @@ const BalanceResponse = z
     token: z.string(),
     network: z.string(),
     chain_id: z.number().int(),
+    faucet_amount_usd: z.string().nullable().openapi({ description: "FR-API-149: the drop the test faucet would send here, or null when it does not serve this session." }),
   })
   .openapi("CheckoutBalance");
 
@@ -514,6 +517,38 @@ checkoutSessions.openapi(
     const session = await loadSession(c.get("auth"), id);
     const who = await subscriberIdentity(c);
     return c.json(await readCheckoutBalance({ session, walletAddress: who.walletAddress }), 200);
+  },
+);
+
+// ─── Testnet faucet (FR-API-147/148, BR-API-009, ADR 2026-10-02) ─────────────────────────────────
+
+const FaucetResponse = z.object({ amount_usd: z.string(), tx_hash: z.string() }).openapi("CheckoutFaucetDrop");
+
+checkoutSessions.openapi(
+  createRoute({
+    method: "post",
+    path: "/checkout/sessions/{id}/faucet",
+    operationId: "checkout.sessions.faucet",
+    tags: ["Checkout"],
+    hide: true,
+    middleware: [requireAuth({ keys: ["pk"], session: false, checkout: true })] as const,
+    request: { params: z.object({ id: z.string() }) },
+    responses: { 202: { description: "15 testnet AUSD is on its way to the signed-in wallet.", content: { "application/json": { schema: FaucetResponse } } } },
+  }),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const session = await loadSession(c.get("auth"), id);
+    // The drop goes to the wallet the identity token proves, never to an address the caller names.
+    const who = await subscriberIdentity(c);
+    try {
+      const drop = await dropFaucet({ session, wallet: who.walletAddress as Address, ip: clientIp(c) });
+      return c.json({ amount_usd: drop.amountUsd, tx_hash: drop.txHash }, 202);
+    } catch (e) {
+      if (e instanceof FaucetRefusal) {
+        throw new ApiError(e.status, e.status === 429 ? "rate_limit_error" : e.status === 503 ? "api_error" : "invalid_request_error", e.message, undefined, e.code, e.resetsAt);
+      }
+      throw e;
+    }
   },
 );
 

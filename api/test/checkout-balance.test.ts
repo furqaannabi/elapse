@@ -45,6 +45,7 @@ describe("FR-API-048 balance", () => {
       token: "AUSD",
       network: "Monad testnet",
       chain_id: 10143,
+      faucet_amount_usd: null, // live mode is never offered the test faucet (FR-API-149)
     });
   });
 

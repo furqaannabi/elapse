@@ -8,6 +8,7 @@
  * and record `pending_tx`. `active` arrives from ingest, never from here (BR-API-005).
  */
 import type { Address, Hex } from "viem";
+import { FAUCET_AMOUNT_USD, faucetOffered } from "./faucet";
 import { sql } from "../db/client";
 import type { CheckoutSessionRow } from "../db/checkout-sessions";
 import { insertCustomer } from "../db/customers";
@@ -391,6 +392,8 @@ export async function readCheckoutBalance(input: { session: CheckoutSessionRow; 
     token: "AUSD",
     network: chainId === 143 ? "Monad" : "Monad testnet",
     chain_id: chainId,
+    // FR-API-149: whether the Add funds step should offer a drop. Limits are reported on the press.
+    faucet_amount_usd: faucetOffered(input.session) ? FAUCET_AMOUNT_USD : null,
   };
 }
 

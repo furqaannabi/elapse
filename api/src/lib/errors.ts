@@ -5,7 +5,8 @@ export const ERROR_TYPES = ["api_error", "authentication_error", "invalid_reques
 export type ErrorType = (typeof ERROR_TYPES)[number];
 
 export interface ApiErrorBody {
-  error: { type: ErrorType; message: string; code?: string; param?: string };
+  /** `resets_at` (unix seconds) rides only on a rate limit that eases with time, e.g. the faucet (FR-API-148). */
+  error: { type: ErrorType; message: string; code?: string; param?: string; resets_at?: number };
 }
 
 /** Thrown from handlers and middleware; `app.onError` turns it into the wire shape. */
@@ -16,6 +17,7 @@ export class ApiError extends Error {
     message: string,
     public readonly param?: string,
     public readonly code?: string,
+    public readonly resetsAt?: number,
   ) {
     super(message);
   }
@@ -24,6 +26,7 @@ export class ApiError extends Error {
     const error: ApiErrorBody["error"] = { type: this.type, message: this.message };
     if (this.code) error.code = this.code;
     if (this.param) error.param = this.param;
+    if (this.resetsAt !== undefined) error.resets_at = this.resetsAt;
     return { error };
   }
 }
