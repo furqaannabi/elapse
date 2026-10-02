@@ -29,6 +29,8 @@ export const ProfileSchema = z
     notifications: z.object({ endpoint_exhausted_email: z.boolean(), key_expiry_email: z.boolean() }),
     checklist: z.object({ key_created: z.boolean(), product_created: z.boolean(), endpoint_created: z.boolean(), first_delivery_succeeded: z.boolean() }),
     created: z.number().int(),
+    /** FR-API-152: true on a session minted by the demo PIN, so the dashboard can say so (FR-DSH-147). */
+    demo: z.boolean(),
   })
   .openapi("MerchantProfile");
 
@@ -65,7 +67,7 @@ dashboardMe.openapi(
     const auth = c.get("auth");
     const m = await getMerchantProfile(auth.merchantId);
     if (!m) throw notFound("merchant");
-    return c.json(serializeProfile(m, auth.livemode, await checklist(auth.merchantId, auth.livemode)), 200);
+    return c.json(serializeProfile(m, auth.livemode, await checklist(auth.merchantId, auth.livemode), auth.demo === true), 200);
   },
 );
 
@@ -112,6 +114,6 @@ dashboardMe.openapi(
       if (b.notifications?.key_expiry_email !== undefined) await tx`UPDATE merchants SET notify_key_expiry = ${b.notifications.key_expiry_email} WHERE id = ${auth.merchantId}`;
     });
     const after = (await getMerchantProfile(auth.merchantId))!;
-    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode)), 200);
+    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode), auth.demo === true), 200);
   },
 );

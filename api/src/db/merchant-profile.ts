@@ -54,8 +54,10 @@ export function feeBps(livemode: boolean): number {
   }
 }
 
-export function serializeProfile(m: MerchantProfileRow, livemode: boolean, list: Checklist) {
+/** `demo` is true on a session minted by the demo PIN (FR-API-152), so the dashboard can say so. */
+export function serializeProfile(m: MerchantProfileRow, livemode: boolean, list: Checklist, demo = false) {
   return {
+    demo,
     id: m.id,
     object: "merchant" as const,
     name: m.onboarded_at ? m.name : null,

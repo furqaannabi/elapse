@@ -1,6 +1,7 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import { getAddress, isAddress, type Address } from "viem";
 import { sql } from "../db/client";
+import { isDemoMerchant } from "../db/demo";
 import { ApiError, invalid } from "../lib/errors";
 import { router } from "../lib/openapi";
 import { clientIp, sessionAuth, type AuthEnv } from "../middleware/auth";
@@ -9,7 +10,8 @@ import { dropFaucet, FaucetRefusal } from "../services/faucet";
 /**
  * The faucet's dashboard door (FR-API-150/151, ADR 2026-10-02 dashboard faucet). A signed-in
  * merchant sends one 15 AUSD drop to any address they name. Cookie only: a secret key never reaches
- * this route, so the frozen SDK surface does not grow. Hidden from the public reference.
+ * this route, so the frozen SDK surface does not grow. Hidden from the public reference. Every judge
+ * shares the demo merchant, so it is spared the per-merchant limit; the shared limits still hold.
  */
 export const dashboardFaucet = router<AuthEnv>();
 dashboardFaucet.use("/dashboard/faucet", sessionAuth());
@@ -34,7 +36,7 @@ dashboardFaucet.openapi(
     const wallet = getAddress(address) as Address;
     const ip = clientIp(c);
     try {
-      const drop = await dropFaucet({ livemode: auth.livemode, wallet, ip, merchantId: auth.merchantId, via: "dashboard" });
+      const drop = await dropFaucet({ livemode: auth.livemode, wallet, ip, merchantId: auth.merchantId, via: "dashboard", exempt: await isDemoMerchant(auth.merchantId) });
       await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${auth.merchantId}, 'dashboard', 'faucet_drop', ${wallet.toLowerCase()}, ${ip})`;
       return c.json({ amount_usd: drop.amountUsd, tx_hash: drop.txHash }, 202);
     } catch (e) {

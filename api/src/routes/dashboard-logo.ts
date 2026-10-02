@@ -65,7 +65,7 @@ dashboardLogo.openapi(
       await tx`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${auth.merchantId}, 'dashboard', 'merchant.updated', 'logo', ${ip})`;
     });
     const after = (await getMerchantProfile(auth.merchantId))!;
-    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode)), 200);
+    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode), auth.demo === true), 200);
   },
 );
 
@@ -89,7 +89,7 @@ dashboardLogo.openapi(
       await tx`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${auth.merchantId}, 'dashboard', 'merchant.updated', 'logo_removed', ${ip})`;
     });
     const after = (await getMerchantProfile(auth.merchantId))!;
-    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode)), 200);
+    return c.json(serializeProfile(after, auth.livemode, await checklist(auth.merchantId, auth.livemode), auth.demo === true), 200);
   },
 );
 

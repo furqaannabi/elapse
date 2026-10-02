@@ -1,7 +1,7 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 
-/** FR-API-082 error types. `not_found` is used for ids in another mode or merchant too, never 403. */
-export const ERROR_TYPES = ["api_error", "authentication_error", "invalid_request_error", "rate_limit_error", "idempotency_error", "not_found"] as const;
+/** FR-API-082 error types. `not_found` is used for ids in another mode or merchant too, never 403. `permission_error` is a demo session refused a write (FR-API-153). */
+export const ERROR_TYPES = ["api_error", "authentication_error", "invalid_request_error", "rate_limit_error", "idempotency_error", "not_found", "permission_error"] as const;
 export type ErrorType = (typeof ERROR_TYPES)[number];
 
 export interface ApiErrorBody {

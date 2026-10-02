@@ -5,9 +5,10 @@ import { magicLinkMail } from "../lib/mail-templates";
 import { createApiKey } from "../db/api-keys";
 import { consumeMagicLink, issueMagicLink, MagicLinkRateLimited } from "../db/magic-links";
 import { createMerchant, findMerchantByEmail, type Merchant } from "../db/merchants";
-import { createSession, deleteSession, SESSION_IDLE_DAYS } from "../db/sessions";
+import { DEMO_EMAIL, demoPin, demoPinGate, findDemoMerchant, pinMatches, recordPinAttempt } from "../db/demo";
+import { createSession, DEMO_SESSION_HOURS, deleteSession, SESSION_IDLE_DAYS } from "../db/sessions";
 import { sql } from "../db/client";
-import { ApiError, unauthorized } from "../lib/errors";
+import { ApiError, notFound, unauthorized } from "../lib/errors";
 import { mailIsDevOnly, sendEmail } from "../lib/email";
 import { router } from "../lib/openapi";
 import { clientIp, SESSION_COOKIE } from "../middleware/auth";
@@ -28,6 +29,10 @@ export function serializeMerchant(m: Merchant) {
 
 export const dashboardAuth = router();
 
+function setSessionCookie(c: Parameters<typeof setCookie>[0], token: string, maxAge: number) {
+  setCookie(c, SESSION_COOKIE, token, { httpOnly: true, secure: config.dashboardOrigin.startsWith("https://"), sameSite: "Lax", path: "/", maxAge });
+}
+
 dashboardAuth.openapi(
   createRoute({
     method: "post",
@@ -40,6 +45,9 @@ dashboardAuth.openapi(
   }),
   async (c) => {
     const email = c.req.valid("json").email.toLowerCase();
+    // BR-API-010: the demo merchant is reached by its PIN only. Same answer as any address, so the
+    // route still says nothing about which accounts exist; no link is issued and no mail is sent.
+    if (email === DEMO_EMAIL) return c.json({ sent: true as const }, 200);
     let token: string;
     try {
       token = await issueMagicLink(email, clientIp(c));
@@ -83,13 +91,7 @@ dashboardAuth.openapi(
     }
     const session = await createSession(merchant.id, ip);
     await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${merchant.id}, 'dashboard', 'sign_in', ${session.id}, ${ip})`;
-    setCookie(c, SESSION_COOKIE, session.token, {
-      httpOnly: true,
-      secure: config.dashboardOrigin.startsWith("https://"),
-      sameSite: "Lax",
-      path: "/",
-      maxAge: SESSION_IDLE_DAYS * 24 * 3600,
-    });
+    setSessionCookie(c, session.token, SESSION_IDLE_DAYS * 24 * 3600);
     return c.json(serializeMerchant(merchant), 200);
   },
 );
@@ -108,5 +110,55 @@ dashboardAuth.openapi(
     if (token) await deleteSession(token);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.json({ signed_out: true as const }, 200);
+  },
+);
+
+// ─── Demo sign-in (FR-API-152, ADR 2026-10-02 demo account) ─────────────────────
+
+dashboardAuth.openapi(
+  createRoute({
+    method: "get",
+    path: "/dashboard/auth/demo",
+    operationId: "dashboard.auth.demoAvailable",
+    tags: ["Dashboard"],
+    hide: true,
+    responses: { 200: { description: "Whether the login page should offer the demo account.", content: { "application/json": { schema: z.object({ available: z.boolean() }) } } } },
+  }),
+  async (c) => c.json({ available: demoPin() !== null && (await findDemoMerchant()) !== null }, 200),
+);
+
+dashboardAuth.openapi(
+  createRoute({
+    method: "post",
+    path: "/dashboard/auth/demo",
+    operationId: "dashboard.auth.demo",
+    tags: ["Dashboard"],
+    hide: true,
+    request: { body: { content: { "application/json": { schema: z.strictObject({ pin: z.string().regex(/^\d{6}$/, "must be six digits") }) } }, required: true } },
+    responses: { 200: { description: "Signed in to the demo account; the session cookie is set.", content: { "application/json": { schema: MerchantSchema } } } },
+  }),
+  async (c) => {
+    const pin = demoPin();
+    const merchant = pin ? await findDemoMerchant() : null;
+    if (!pin || !merchant) throw notFound("demo");
+    const ip = clientIp(c);
+    const gate = await demoPinGate(ip);
+    if (!gate.ok) {
+      c.header("Retry-After", String(gate.retryAfter));
+      const message =
+        gate.code === "demo_pin_paused" ? "The demo is resting after too many wrong PINs. Try again later." : gate.code === "demo_pin_ip_limited" ? "Too many tries. Try again later." : "Too many demo sign-ins from here. Try again later.";
+      throw new ApiError(429, "rate_limit_error", message, undefined, gate.code === "rate_limited" ? undefined : gate.code);
+    }
+    const ok = pinMatches(c.req.valid("json").pin, pin);
+    await recordPinAttempt(ip, ok);
+    if (!ok) {
+      // The IP only, never the guess.
+      console.warn("demo_pin_invalid", { ip });
+      throw new ApiError(401, "authentication_error", "That PIN isn't right.", undefined, "demo_pin_invalid");
+    }
+    const session = await createSession(merchant.id, ip, { demo: true });
+    await sql`INSERT INTO audit_log (merchant_id, actor, action, target, ip) VALUES (${merchant.id}, 'dashboard', 'sign_in_demo', ${session.id}, ${ip})`;
+    setSessionCookie(c, session.token, DEMO_SESSION_HOURS * 3600);
+    return c.json(serializeMerchant(merchant), 200);
   },
 );

@@ -8,6 +8,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { api, resetDb, seedMerchant, type Fixture } from "./helpers";
 import { createSession } from "../src/db/sessions";
 import { sql } from "../src/db/client";
+import { ensureDemoMerchant } from "../src/db/demo";
 import { setFaucetClient } from "../src/chain/faucet";
 import { fakeFaucet } from "./fake-faucet";
 
@@ -116,6 +117,16 @@ describe("FR-API-151 dashboard faucet limits and record", () => {
     setFaucetClient(null);
     await send(address());
     expect(await sql`SELECT 1 FROM audit_log WHERE action = 'faucet_drop'`).toHaveLength(0);
+  });
+
+  it("FR_API_151_the_demo_merchant_is_spared_the_per_merchant_limit_and_only_that_one", async () => {
+    const demo = await ensureDemoMerchant();
+    const demoCookie = `elapse_session=${(await createSession(demo.id, null, { demo: true })).token}`;
+    for (let i = 0; i < 4; i += 1) expect((await send(address(), { ip: `192.0.2.${60 + i}`, as: demoCookie })).status).toBe(202);
+    // The shared limits still hold: one address, once a day.
+    const to = address();
+    expect((await send(to, { ip: "192.0.2.70", as: demoCookie })).status).toBe(202);
+    expect((await send(to, { ip: "192.0.2.71", as: demoCookie })).body.error.code).toBe("faucet_wallet_daily");
   });
 });
 

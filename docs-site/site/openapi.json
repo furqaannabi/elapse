@@ -1050,7 +1050,8 @@
                   "invalid_request_error",
                   "rate_limit_error",
                   "idempotency_error",
-                  "not_found"
+                  "not_found",
+                  "permission_error"
                 ]
               },
               "message": {

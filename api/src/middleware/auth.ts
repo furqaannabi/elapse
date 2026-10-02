@@ -5,6 +5,7 @@ import { authenticateKey } from "../db/api-keys";
 import { authenticateSession } from "../db/sessions";
 import { ApiError, invalid, unauthorized } from "../lib/errors";
 import type { KeyKind } from "../lib/keys";
+import { DEMO_REFUSAL, demoMayWrite } from "./demo-allowlist";
 
 export const SESSION_COOKIE = "elapse_session";
 
@@ -19,6 +20,8 @@ export interface Auth {
   keyKind?: KeyKind;
   /** Set when `via === "session"`. */
   sessionId?: string;
+  /** FR-API-153: a session minted by the demo PIN; its writes go through the allowlist. */
+  demo?: boolean;
 }
 
 /**
@@ -86,7 +89,11 @@ export function requireAuth(rule: AuthRule) {
     }
     const mode = c.req.header("x-elapse-mode") ?? "test";
     if (mode !== "test" && mode !== "live") throw invalid("X-Elapse-Mode must be 'test' or 'live'.", "X-Elapse-Mode");
-    c.set("auth", { merchantId: session.merchant_id, livemode: mode === "live", actor: "dashboard", via: "session", sessionId: session.id });
+    // FR-API-153: a demo session writes only what the allowlist names, in test mode only.
+    if (session.demo && !demoMayWrite(c.req.method, c.req.path, mode === "live")) {
+      throw new ApiError(403, "permission_error", DEMO_REFUSAL, undefined, "demo_read_only");
+    }
+    c.set("auth", { merchantId: session.merchant_id, livemode: mode === "live", actor: "dashboard", via: "session", sessionId: session.id, ...(session.demo ? { demo: true } : {}) });
     return next();
   });
 }
