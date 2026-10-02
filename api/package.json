@@ -14,6 +14,8 @@
     "reconcile": "bun scripts/reconcile.ts",
     "openapi": "bun scripts/openapi.ts",
     "seed-merchant": "bun scripts/seed-merchant.ts",
+    "demo:seed": "bun scripts/demo-seed.ts",
+    "demo:reset": "bun scripts/demo-reset.ts",
     "sync-deployments": "sh scripts/sync-deployments.sh"
   },
   "dependencies": {
