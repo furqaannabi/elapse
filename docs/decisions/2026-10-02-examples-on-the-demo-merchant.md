@@ -1,0 +1,19 @@
+# The hosted examples run on the demo merchant
+2026-10-02 · Decided by Furqaan · Status: accepted
+
+## Context
+The demo account (ADR 2026-10-02 demo-account) was deliberately a merchant of its own, so nothing a judge did in it could stop the examples. That left its history to the seed meters and whatever judges started by hand; a judge who ran Acme GPU or Northwind Compute at examples.elapse.finance saw their meter in the Elapse window and the example's console, and nowhere in the demo dashboard. Furqaan chose to put both hosted examples on the demo merchant, so every meter a judge runs shows up there.
+
+As built, that would have broken the examples within six hours: each example makes its own Product at boot, the reset archives every Product, revokes every key and deletes every endpoint the seed did not make, and the demo allowlist lets a judge revoke or roll any test key, delete any endpoint and archive any Product. Three ways were weighed: provision the examples from the seed and protect what it makes; provision them and rely on the reset; or keep the examples on their own merchants. The second leaves an example broken until someone notices, because the reset cannot restore secrets the examples hold.
+
+One merchant behind two storefronts also put one name in the Elapse window for both. Three answers were weighed: rename the demo merchant to something neutral, keep "Acme Cloud (demo)", or give a Product its own display name. A public field would change the frozen SDK surface; the seed making the examples' Products is what allows a name the seed alone sets.
+
+## Decision
+`demo:seed` provisions each hosted example on the demo merchant: a Product matching the example's `boot.ts` (so the example finds it instead of making one), a test secret key, and a webhook endpoint to its `/webhooks` on examples.elapse.finance. It prints each key and signing secret once, when it creates them, for the example's `.env` on the host, and `--reissue-examples` replaces them. Everything the seed makes carries a stable `demo_seed_key` — not its rate, which "GPU · 4090" shares with the demo's own "GPU time" — and is a protected seed object: a demo session's write that targets one is refused like any other the allowlist does not name, and the reset restores seed objects and never archives, revokes or deletes them. The examples' Products carry a `storefront_name` ("Acme GPU", "Northwind Compute") that only the seed writes and no request or response exposes; wherever a subscriber sees the merchant's name for a meter — the Elapse window, the receipt email, the subscriber account page — it comes from the Product's storefront name when there is one, and the merchant's name otherwise. The dashboard keeps saying "Acme Cloud (demo)".
+
+## Consequences
+Every meter judges run in either example lands in the demo dashboard as a real Subscription, Invoice, Event and Delivery, and the window still says the storefront's name. The examples can no longer be broken from the demo account or by the reset, at the cost that judges cannot edit anything the seed made — only what they create. The examples' credentials are now issued by a script and pasted on the host, so re-running the seed does not disturb them unless asked to. Settlements from both examples pay the faucet wallet, like the seed meters. `storefront_name` is an internal column, not a feature: a merchant cannot set one, and the SDK and docs do not mention it. Running an example locally with your own keys is unchanged.
+
+Partly supersedes [2026-10-02 demo account](./2026-10-02-demo-account.md): its "a separate demo merchant, so nothing a judge does can stop Northwind or Acme GPU" now holds by protection rather than separation.
+
+Specs: [api-frd](../specs/api-frd.md) FR-API-153/154 amended, FR-API-156 · [worker-frd](../specs/worker-frd.md) FR-WRK-076 amended · [examples-frd](../specs/examples-frd.md) FR-EXM-039 · [examples-lambda-frd](../specs/examples-lambda-frd.md) FR-EXM-161.

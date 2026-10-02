@@ -1,5 +1,5 @@
 # Judges get into a shared demo merchant account with one click
-2026-10-02 · Decided by Furqaan · Status: accepted
+2026-10-02 · Decided by Furqaan · Status: accepted; partly superseded by [2026-10-02 examples on the demo merchant](./2026-10-02-examples-on-the-demo-merchant.md)
 
 ## Context
 The submission form asks for "steps to try your product, including any test login details". Anyone can already sign in to the dashboard with their own email — the first magic link creates a merchant — but that merchant opens empty, and the link costs a trip to an inbox. Furqaan chose a shared, pre-filled demo account a judge reaches with one click, over "sign in with your own email", accepting that a button published in the form is effectively public.

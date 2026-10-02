@@ -78,3 +78,4 @@ What this makes easier, what it rules out, what to watch.
 | 2026-10-02 | [A testnet faucet drops 15 AUSD from a wallet the API holds](./2026-10-02-testnet-faucet.md) | Furqaan |
 | 2026-10-02 | [The merchant dashboard sends test AUSD to any address](./2026-10-02-dashboard-faucet.md) | Furqaan |
 | 2026-10-02 | [Judges get into a shared demo merchant account with one click](./2026-10-02-demo-account.md) | Furqaan |
+| 2026-10-02 | [The hosted examples run on the demo merchant](./2026-10-02-examples-on-the-demo-merchant.md) | Furqaan |
