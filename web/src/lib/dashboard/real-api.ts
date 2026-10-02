@@ -8,7 +8,7 @@
  * deliveries, events, products, subscriptions, customers, invoices, ledger, balance, payout
  * address, notifications, activity, search, delete test data.
  */
-import { DashboardApiError as MockError, FaucetRefused, type DashboardApi, type FaucetRefusalCode, type WriteOpts } from "./mock-api";
+import { DashboardApiError as MockError, DemoPinRefused, FaucetRefused, type DashboardApi, type DemoPinCode, type FaucetRefusalCode, type WriteOpts } from "./mock-api";
 import { newIdempotencyKey } from "./idempotency";
 import type {
   ApiKey, Attempt, AuditAction, AuditEntry, Balance, ChecklistState, Customer, Delivery, DeliveryStatus, Event, EventType, Invoice, KeyStatus, LedgerEntry, Merchant, Mode, Notification, NotificationKind, Overview, Product, SearchHit, Subscription, WebhookEndpoint,
@@ -49,6 +49,8 @@ type WireProfile = {
   notifications: { endpoint_exhausted_email: boolean; key_expiry_email: boolean };
   checklist: { key_created: boolean; product_created: boolean; endpoint_created: boolean; first_delivery_succeeded: boolean };
   created: number;
+  /** FR-API-152: present since the demo account; true on a demo session. */
+  demo?: boolean;
 };
 type WireKey = { id: string; kind: "sk" | "pk"; name: string; livemode: boolean; last4: string; redacted: string; publishable_key?: string; created: number; last_used_at: number | null; revoked_at: number | null; expires_at: number | null; secret?: string };
 type WireEndpoint = { id: string; url: string; events: string[]; disabled: boolean; livemode: boolean; created: number; previous_secret_expires_at: number | null; success_rate_7d: number; secret?: string };
@@ -93,6 +95,7 @@ export function mapMerchant(w: WireProfile): Merchant {
       ...(w.branding.support_url ? { supportUrl: w.branding.support_url } : {}),
     },
     createdAt: w.created * 1000,
+    ...(w.demo ? { demo: true } : {}),
   };
 }
 
@@ -350,6 +353,33 @@ export function createRealDashboardApi(o: RealDashboardOptions): DashboardApi {
     },
     async signOut() {
       await call("POST", "/v1/dashboard/auth/sign_out");
+    },
+    async demoAvailable() {
+      try {
+        return (await call<{ available: boolean }>("GET", "/v1/dashboard/auth/demo")).available;
+      } catch {
+        return false; // an API that predates the demo, or is unreachable: offer nothing
+      }
+    },
+    async signInDemo(pin) {
+      // Not `call()`: the refusal's wait lives in the Retry-After header, which the page words.
+      let res: Response;
+      try {
+        res = await fetch(`${o.baseUrl}/v1/dashboard/auth/demo`, {
+          method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-elapse-mode": "test" }, body: JSON.stringify({ pin }),
+        });
+      } catch {
+        throw new DashboardApiError("network", "We couldn't reach Elapse. Check your connection and try again.", 0);
+      }
+      if (!res.ok) {
+        const json = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+        const retry = Number(res.headers.get("retry-after"));
+        const code: DemoPinCode | null =
+          res.status === 401 ? "demo_pin_invalid" : res.status === 429 ? ((json?.error?.code as DemoPinCode | undefined) ?? "rate_limited") : null;
+        if (code) throw new DemoPinRefused(code, Number.isFinite(retry) && retry > 0 ? retry : null, json?.error?.message ?? "The demo sign-in was refused.");
+        throw new DashboardApiError(codeFor(res.status, json?.error?.code, "/v1/dashboard/auth/demo"), json?.error?.message ?? "Something went wrong.", res.status, json?.error?.code);
+      }
+      return mapMerchant(await call<WireProfile>("GET", "/v1/dashboard/me"));
     },
 
     // ── home ──

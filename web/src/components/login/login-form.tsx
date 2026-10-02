@@ -6,12 +6,15 @@
  * would have emailed (the mock does), a clearly-labelled development link
  * lets you follow it without an inbox.
  *
- * Maps to: FR-DSH-010.
+ * When the API offers it, "Try the demo account" sits under the form — or above it, as the primary
+ * action, at `/login?demo=1` (FR-DSH-146).
+ *
+ * Maps to: FR-DSH-010, FR-DSH-146.
  */
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowRight, MailCheck } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -22,12 +25,25 @@ import { check, rules } from "@/lib/forms/rules";
 import { getDashboardApi } from "@/lib/dashboard/client";
 import type { DashboardApi } from "@/lib/dashboard/mock-api";
 import { cn } from "@/lib/utils";
+import { DemoSignIn } from "./demo-sign-in";
 
 export const RESEND_COOLDOWN_S = 30;
 
 export function LoginForm({ api: injected }: { api?: DashboardApi }) {
   const api = injected ?? getDashboardApi();
-  const next = useSearchParams().get("next");
+  const params = useSearchParams();
+  const next = params.get("next");
+  const router = useRouter();
+  // FR-DSH-146: the demo account is offered only when the API says it can be reached.
+  const [demoOn, setDemoOn] = useState(false);
+  const demoFirst = params.get("demo") === "1";
+  useEffect(() => {
+    let live = true;
+    void api.demoAvailable().then((on) => live && setDemoOn(on));
+    return () => {
+      live = false;
+    };
+  }, [api]);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -101,6 +117,8 @@ export function LoginForm({ api: injected }: { api?: DashboardApi }) {
     );
   }
 
+  const demo = demoOn ? <DemoSignIn signInDemo={(pin) => api.signInDemo(pin)} onSignedIn={() => router.replace("/dashboard")} prominent={demoFirst} /> : null;
+
   return (
     <section className="flex flex-col gap-6">
       <div>
@@ -111,6 +129,12 @@ export function LoginForm({ api: injected }: { api?: DashboardApi }) {
           We&apos;ll email you a link. No password to remember.
         </p>
       </div>
+      {demoFirst && demo && (
+        <>
+          {demo}
+          <p className="placard text-center">or sign in with your email</p>
+        </>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -136,7 +160,7 @@ export function LoginForm({ api: injected }: { api?: DashboardApi }) {
           />
           <FieldHint id="email-hint" error={error ?? (email.trim() ? problem : null)} />
         </div>
-        <Button type="submit" size="lg" disabled={busy || problem !== null} className="h-11 w-full text-[15px]">
+        <Button type="submit" size="lg" variant={demoFirst && demo ? "outline" : "default"} disabled={busy || problem !== null} className="h-11 w-full text-[15px]">
           {busy ? "Sending…" : "Send sign-in link"}
           <ArrowRight data-icon="inline-end" className="size-4" />
         </Button>
@@ -144,6 +168,12 @@ export function LoginForm({ api: injected }: { api?: DashboardApi }) {
       <p className="text-[13px] text-ink-soft">
         New to Elapse? Use any email; we create your account when you open the link.
       </p>
+      {!demoFirst && demo && (
+        <div className="flex flex-col gap-3 border-t border-border pt-6">
+          <p className="text-[13px] text-ink-soft">Just looking? A shared demo account is filled with real testnet meters.</p>
+          {demo}
+        </div>
+      )}
     </section>
   );
 }

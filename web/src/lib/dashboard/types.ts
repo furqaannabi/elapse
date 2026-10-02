@@ -32,6 +32,8 @@ export type Merchant = {
   liveChainId: number;
   branding: Branding;
   createdAt: number;
+  /** FR-DSH-147: true on a session minted by the demo PIN (API FR-API-152). */
+  demo?: boolean;
 };
 
 export type ChecklistState = {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRealDashboardApi, keyStatus, mapAudit, mapDelivery, mapEndpoint, mapEvent, mapKey, mapLedger, mapMerchant, mapNotification, mapProduct, mapSubscription, receiptOf } from "./real-api";
-import { FaucetRefused } from "./mock-api";
+import { DashboardApiError, DemoPinRefused, FaucetRefused } from "./mock-api";
 
 const BASE = "http://api.test";
 const T0 = 1_757_000_000;
@@ -12,8 +12,8 @@ beforeEach(() => {
   responses = [];
   vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     calls.push({ method: init?.method ?? "GET", url: String(url), headers: (init?.headers ?? {}) as Record<string, string>, body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    const next = (responses.shift() ?? {}) as { __status?: number };
-    return new Response(JSON.stringify(next), { status: next.__status ?? 200 });
+    const next = (responses.shift() ?? {}) as { __status?: number; __headers?: Record<string, string> };
+    return new Response(JSON.stringify(next), { status: next.__status ?? 200, headers: next.__headers ?? {} });
   });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -207,5 +207,43 @@ describe("sendTestAusd (FR-DSH-145, API FR-API-150)", () => {
     const err = await api.sendTestAusd("test", "0x2dc833BDE673AA92Bd9fea75B71B1CEd3F0D0240").catch((e) => e);
     expect(err).toBeInstanceOf(FaucetRefused);
     expect(err).toMatchObject({ code: "faucet_merchant_daily", resetsAt: T0 });
+  });
+});
+
+describe("demo account (FR-DSH-146/147, API FR-API-152/153)", () => {
+  it("asks whether the demo is available, and treats an old or unreachable API as no", async () => {
+    responses.push({ available: true });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    expect(await api.demoAvailable()).toBe(true);
+    expect(calls[0]).toMatchObject({ method: "GET", url: `${BASE}/v1/dashboard/auth/demo` });
+    responses.push({ __status: 404, error: { message: "Unrecognized request URL" } });
+    expect(await api.demoAvailable()).toBe(false);
+  });
+
+  it("signs in with the PIN and reads the profile, demo flag included", async () => {
+    responses.push({ id: "mrc_demo", object: "merchant", name: "Acme Cloud (demo)", email: "demo@elapse.invalid", created: T0 }, { ...profile, id: "mrc_demo", demo: true });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    const m = await api.signInDemo("482913");
+    expect(calls[0]).toMatchObject({ method: "POST", url: `${BASE}/v1/dashboard/auth/demo`, body: { pin: "482913" } });
+    expect(m.demo).toBe(true);
+  });
+
+  it("a refused PIN carries its code and the Retry-After wait", async () => {
+    responses.push({ __status: 429, __headers: { "retry-after": "720" }, error: { type: "rate_limit_error", code: "demo_pin_ip_limited", message: "Too many tries." } });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    const err = await api.signInDemo("000000").catch((e) => e);
+    expect(err).toBeInstanceOf(DemoPinRefused);
+    expect(err).toMatchObject({ code: "demo_pin_ip_limited", retryAfterSeconds: 720 });
+    responses.push({ __status: 401, error: { type: "authentication_error", code: "demo_pin_invalid", message: "That PIN isn't right." } });
+    expect(await api.signInDemo("000001").catch((e) => e)).toMatchObject({ code: "demo_pin_invalid", retryAfterSeconds: null });
+  });
+
+  it("a write the demo may not make arrives with the API's sentence, for the page's toast", async () => {
+    const sentence = "Not available in the demo account. Sign in with your email to use it.";
+    responses.push({ __status: 403, error: { type: "permission_error", code: "demo_read_only", message: sentence } });
+    const api = createRealDashboardApi({ baseUrl: BASE });
+    const err = await api.createProduct("test", { name: "Judge's GPU", description: null, rateUsdPerSecond: "0.001", allowPause: false }).catch((e) => e);
+    expect(err).toBeInstanceOf(DashboardApiError);
+    expect(err.message).toBe(sentence);
   });
 });

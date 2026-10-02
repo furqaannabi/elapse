@@ -86,6 +86,10 @@ export interface DashboardApi extends DashboardApiMore {
   me(): Promise<Merchant>;
   completeFirstRun(input: { name: string; payoutAddress?: string }): Promise<Merchant>;
   signOut(): Promise<void>;
+  /** FR-DSH-146: whether the login page should offer the demo account (DEMO_PIN set and a demo merchant seeded). */
+  demoAvailable(): Promise<boolean>;
+  /** FR-DSH-146 / API FR-API-152: signs in to the demo account with its six-digit PIN. Throws `DemoPinRefused`. */
+  signInDemo(pin: string): Promise<Merchant>;
 
   /** Home checklist truth for the mode (FR-DSH-020). */
   checklist(mode: Mode): Promise<ChecklistState>;
@@ -187,6 +191,23 @@ export type EndpointInput = { url: string; events: EventType[] | "*" };
 
 /** Every mutating call carries an idempotency key (FR-DSH-112). */
 export type WriteOpts = { idempotencyKey?: string };
+
+/** The mock's demo PIN (FR-DSH-146). */
+export const MOCK_DEMO_PIN = "123456";
+
+/** Why a demo PIN was refused (API FR-API-152); `rate_limited` is twenty good sign-ins from one IP in an hour. */
+export type DemoPinCode = "demo_pin_invalid" | "demo_pin_ip_limited" | "demo_pin_paused" | "rate_limited";
+
+/** A refused demo PIN, with the server's `Retry-After` in seconds when the refusal eases with time. FR-DSH-146. */
+export class DemoPinRefused extends Error {
+  constructor(
+    public code: DemoPinCode,
+    public retryAfterSeconds: number | null,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 /** The limit that stopped a dashboard faucet drop (API FR-API-148/151). */
 export type FaucetRefusalCode = "faucet_unavailable" | "faucet_merchant_daily" | "faucet_wallet_daily" | "faucet_wallet_funded" | "faucet_ip_daily" | "faucet_daily";
@@ -575,6 +596,26 @@ export function createMockDashboardApi(opts: { now?: () => number; latencyMs?: n
     async signOut() {
       writeSession(null);
       return wait(undefined);
+    },
+
+    async demoAvailable() {
+      return wait(true);
+    },
+
+    async signInDemo(pin) {
+      // The mock's PIN is public on purpose; the real one lives only in DEMO_PIN on the host.
+      if (pin !== MOCK_DEMO_PIN) throw new DemoPinRefused("demo_pin_invalid", null, "That PIN isn't right.");
+      let merchant = byEmail("demo@elapse.invalid");
+      if (!merchant) {
+        merchant = {
+          id: newId("mrc") as Merchant["id"], email: "demo@elapse.invalid", name: "Acme Cloud (demo)", supportEmail: null, supportUrl: null,
+          payoutAddress: "0x2dc833bde673aa92bd9fea75b71b1ced3f0d0240", feeBps: 100, liveChainId: 10143, branding: { name: "Acme Cloud (demo)" }, createdAt: now(),
+        };
+        store.merchants.set(merchant.id, merchant);
+      }
+      writeSession(merchant.id);
+      touch();
+      return wait({ ...merchant, demo: true });
     },
 
     async checklist(mode) {
