@@ -6,6 +6,7 @@
  * `ChainClient` is the seam: production uses viem against `MONAD_RPC_URL`; tests inject a fake.
  */
 import { createPublicClient, createWalletClient, defineChain, http, type Address, type Hex, type PublicClient, type WalletClient } from "viem";
+import { sendWithResend } from "./nonce-resend";
 import { privateKeyToAccount } from "viem/accounts";
 import { factoryAbi, permitTokenAbi, streamAbi } from "./abi";
 import { deploymentFor } from "./deployments";
@@ -99,7 +100,11 @@ const monadChain = (chainId: number, rpcUrl: string) =>
     rpcUrls: { default: { http: [rpcUrl] } },
   });
 
-/** viem-backed client. Constructed lazily so tests and the worker never touch RPC. */
+/**
+ * viem-backed client. Constructed lazily so tests and the worker never touch RPC. Every write goes
+ * through `sendWithResend`, so a nonce clash with the other process, or with the RPC's lag, heals
+ * itself (FR-API-157).
+ */
 export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId: number }): ChainClient {
   const chain = monadChain(env.chainId, env.rpcUrl);
   const account = privateKeyToAccount(env.privateKey);
@@ -137,14 +142,17 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     async createWithPermit(a) {
       assertChain(a.chainId);
       const { factory } = deploymentFor(a.chainId);
-      return wallet.writeContract({
-        account,
-        chain,
-        address: factory,
-        abi: factoryAbi,
-        functionName: a.noStart ? "createWithPermitNoStart" : "createWithPermit",
-        args: [a.merchant, a.subscriber, a.token, a.ratePerSecond, a.maxEscrow, a.deadline, a.v, a.r, a.s],
-      });
+      const functionName = a.noStart ? "createWithPermitNoStart" : "createWithPermit";
+      return sendWithResend(functionName, () =>
+        wallet.writeContract({
+          account,
+          chain,
+          address: factory,
+          abi: factoryAbi,
+          functionName,
+          args: [a.merchant, a.subscriber, a.token, a.ratePerSecond, a.maxEscrow, a.deadline, a.v, a.r, a.s],
+        }),
+      );
     },
     async readRelayNonce(chainId, stream) {
       assertChain(chainId);
@@ -158,7 +166,7 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
       assertChain(chainId);
       const { factory } = deploymentFor(chainId);
       // Never the node's estimate for the batch: the factory's try/catch makes that the out-of-gas amount (FR-WRK-072).
-      return wallet.writeContract({ account, chain, address: factory, abi: factoryAbi, functionName: "settleBatch", args: [streams], gas });
+      return sendWithResend("settleBatch", () => wallet.writeContract({ account, chain, address: factory, abi: factoryAbi, functionName: "settleBatch", args: [streams], gas }));
     },
     async receiptLogCount(chainId, hash) {
       assertChain(chainId);
@@ -198,23 +206,23 @@ export function viemChainClient(env: { privateKey: Hex; rpcUrl: string; chainId:
     },
     async cancel(chainId, stream) {
       assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancel", args: [] });
+      return sendWithResend("cancel", () => wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancel", args: [] }));
     },
     async start(chainId, stream) {
       assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "start", args: [] });
+      return sendWithResend("start", () => wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "start", args: [] }));
     },
     async pause(chainId, stream) {
       assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "pause", args: [] });
+      return sendWithResend("pause", () => wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "pause", args: [] }));
     },
     async resume(chainId, stream) {
       assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "resume", args: [] });
+      return sendWithResend("resume", () => wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "resume", args: [] }));
     },
     async cancelFor(chainId, stream, deadline, signature) {
       assertChain(chainId);
-      return wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancelFor", args: [deadline, signature] });
+      return sendWithResend("cancelFor", () => wallet.writeContract({ account, chain, address: stream, abi: streamAbi, functionName: "cancelFor", args: [deadline, signature] }));
     },
   };
 }
