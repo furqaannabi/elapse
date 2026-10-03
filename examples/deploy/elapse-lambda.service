@@ -2,7 +2,8 @@
 #
 #   cd /elapse/examples/lambda && npm ci          # never `npm install` here: it rewrites the lockfile
 #   write .env (from .env.example) with PORT=3006 and BASE_URL=https://examples.elapse.finance/lambda,
-#   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/lambda/webhooks
+#   and the three ELAPSE_* keys from the demo merchant (FR-EXM-161): `docker compose -f api/docker-compose.ec2.yml exec -T api
+#   bun run demo:seed --no-meters` prints them once under examples/lambda/.env (`--reissue-examples` to mint new ones)
 #   chmod 600 .env
 #   AWS: prefer an instance role with lambda:InvokeFunction on elapse-lambda-runner only, and leave the
 #   AWS keys out of .env; the SDK finds the role by itself.

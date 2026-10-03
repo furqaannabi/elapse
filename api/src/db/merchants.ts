@@ -26,13 +26,18 @@ export interface MerchantBranding {
   support_url: string | null;
 }
 
-export async function getMerchantBranding(merchantId: string): Promise<MerchantBranding | null> {
+/**
+ * With `productId`, the name is the Product's storefront name when the seed gave it one (FR-API-156):
+ * what a subscriber sees as the merchant for a meter on that Product. Otherwise the merchant's.
+ */
+export async function getMerchantBranding(merchantId: string, productId?: string): Promise<MerchantBranding | null> {
   const [row] = await sql`
-    SELECT COALESCE(branding->>'display_name', name) AS name,
-           branding->>'logo_url' AS logo_url,
-           branding->>'accent' AS accent,
-           branding->>'support_url' AS support_url
-    FROM merchants WHERE id = ${merchantId}`;
+    SELECT COALESCE((SELECT p.storefront_name FROM products p WHERE p.id = ${productId ?? null} AND p.merchant_id = m.id),
+                    m.branding->>'display_name', m.name) AS name,
+           m.branding->>'logo_url' AS logo_url,
+           m.branding->>'accent' AS accent,
+           m.branding->>'support_url' AS support_url
+    FROM merchants m WHERE m.id = ${merchantId}`;
   return (row as MerchantBranding | undefined) ?? null;
 }
 

@@ -2,7 +2,8 @@
 #
 #   cd /elapse/examples/saas && npm ci            # never `npm install` here: it rewrites the lockfile
 #   write .env (from .env.example) with PORT=3007 and BASE_URL=https://examples.elapse.finance/saas,
-#   and ELAPSE_WEBHOOK_SECRET from a dashboard endpoint at https://examples.elapse.finance/saas/webhooks
+#   and the three ELAPSE_* keys from the demo merchant (FR-EXM-039): `docker compose -f api/docker-compose.ec2.yml exec -T api
+#   bun run demo:seed --no-meters` prints them once under examples/saas/.env (`--reissue-examples` to mint new ones)
 #   chmod 600 .env
 #   sudo cp /elapse/examples/deploy/elapse-saas.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now elapse-saas

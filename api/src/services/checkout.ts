@@ -240,7 +240,7 @@ async function actionableSubscription(session: CheckoutSessionRow, action: Relay
   // state, held included (contracts FR-CON-057). The subscriber's way out of a held session is the
   // unstarted sweep (worker FR-WRK-075) or the merchant itself, and `start_by` tells them when.
   if (current && (isMerchantControlled(current) || isHeld(current))) {
-    const merchant = (await getMerchantBranding(session.merchant_id))?.name ?? "the merchant";
+    const merchant = (await getMerchantBranding(session.merchant_id, session.product_id))?.name ?? "the merchant";
     throw new CheckoutStateError("merchant_controlled", `Only ${merchant} can stop this meter.`);
   }
   return runningSubscription(session);

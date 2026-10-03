@@ -5,7 +5,8 @@ import { authenticateKey } from "../db/api-keys";
 import { authenticateSession } from "../db/sessions";
 import { ApiError, invalid, unauthorized } from "../lib/errors";
 import type { KeyKind } from "../lib/keys";
-import { DEMO_REFUSAL, demoMayWrite } from "./demo-allowlist";
+import { DEMO_REFUSAL, demoMayWrite, demoWriteTarget } from "./demo-allowlist";
+import { sql } from "../db/client";
 
 export const SESSION_COOKIE = "elapse_session";
 
@@ -93,9 +94,20 @@ export function requireAuth(rule: AuthRule) {
     if (session.demo && !demoMayWrite(c.req.method, c.req.path, mode === "live")) {
       throw new ApiError(403, "permission_error", DEMO_REFUSAL, undefined, "demo_read_only");
     }
+    if (session.demo && (await targetsSeedObject(c.req.method, c.req.path, session.merchant_id))) {
+      throw new ApiError(403, "permission_error", DEMO_REFUSAL, undefined, "demo_read_only");
+    }
     c.set("auth", { merchantId: session.merchant_id, livemode: mode === "live", actor: "dashboard", via: "session", sessionId: session.id, ...(session.demo ? { demo: true } : {}) });
     return next();
   });
+}
+
+/** FR-API-153: whether a demo session's by-id write names one of the seed's objects. */
+async function targetsSeedObject(method: string, path: string, merchantId: string): Promise<boolean> {
+  const target = demoWriteTarget(method, path);
+  if (!target) return false;
+  const [row] = await sql`SELECT 1 FROM ${sql(target.table)} WHERE id = ${target.id} AND merchant_id = ${merchantId} AND demo_seed_key IS NOT NULL`;
+  return Boolean(row);
 }
 
 /** Merchant resources: secret key or dashboard cookie. */

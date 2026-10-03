@@ -263,7 +263,7 @@ checkoutSessions.openapi(
     if (!(await getPayoutAddress(auth.merchantId))) {
       throw new ApiError(400, "invalid_request_error", "Set a payout address in Settings before creating checkout links.", undefined, "no_payout_address");
     }
-    const merchant = (await getMerchantBranding(auth.merchantId))!;
+    const merchant = (await getMerchantBranding(auth.merchantId, product.id))!;
     const row = await insertCheckoutSession({
       merchantId: auth.merchantId,
       livemode: auth.livemode,
@@ -297,7 +297,7 @@ checkoutSessions.openapi(
     const auth = c.get("auth");
     const row = await loadSession(auth, id);
     const product = (await findProduct(row.merchant_id, row.livemode, row.product_id))!;
-    const merchant = (await getMerchantBranding(row.merchant_id))!;
+    const merchant = (await getMerchantBranding(row.merchant_id, row.product_id))!;
     if (isPage(auth)) {
       const sub = row.subscription_id ? await findSubscription(row.merchant_id, row.livemode, row.subscription_id) : null;
       const cus = row.customer_id ? await findCustomer(row.merchant_id, row.livemode, row.customer_id) : null;

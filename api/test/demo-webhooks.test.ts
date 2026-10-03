@@ -21,7 +21,7 @@ beforeEach(async () => {
   await resetDb();
   const demo = await ensureDemoMerchant();
   const ep = await insertWebhookEndpoint({ merchantId: demo.id, livemode: false, url: "https://api.test/v1/demo/webhooks", events: ["*"], actor: "demo_seed" });
-  await sql`UPDATE webhook_endpoints SET demo_seed = true WHERE id = ${ep.row.id}`;
+  await sql`UPDATE webhook_endpoints SET demo_seed = true, demo_seed_key = 'endpoint:sink' WHERE id = ${ep.row.id}`;
   secret = ep.secret;
 });
 

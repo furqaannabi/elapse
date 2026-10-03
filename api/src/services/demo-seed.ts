@@ -2,8 +2,10 @@
  * `demo:seed` (FR-API-154, ADR 2026-10-02 demo account): give the demo merchant a real history.
  *
  * Idempotent setup — the demo merchant (onboarded, paying out to the faucet wallet so the test AUSD
- * its meters settle flows back into the faucet), two test products and one webhook endpoint
- * pointing at the API's own sink (FR-API-155), each marked `demo_seed` for the reset (FR-WRK-076).
+ * its meters settle flows back into the faucet) and every object in the seed catalogue: the demo's
+ * two products and its endpoint to the API's own sink (FR-API-155), and each hosted example's
+ * Product, test secret key and endpoint (ADR 2026-10-02 examples on the demo merchant). The
+ * examples' secrets are returned only when this run minted them, for the caller to show once.
  *
  * Then real meters, on testnet, through the very services a subscriber's checkout calls: a wallet
  * generated in memory is funded by one faucet drop, signs each permit and each cancel, and is
@@ -17,23 +19,16 @@ import { config } from "../config";
 import { sql } from "../db/client";
 import { findCheckoutSessionById, insertCheckoutSession } from "../db/checkout-sessions";
 import { ensureDemoMerchant } from "../db/demo";
-import { insertProduct } from "../db/products";
-import { insertWebhookEndpoint } from "../db/webhook-endpoints";
 import { escrowTokenFor } from "../chain/deployments";
 import { FAUCET_DROP_UNITS, faucetClient } from "../chain/faucet";
 import { PERMIT_TYPES } from "../chain/permit";
 import { chainClient } from "../chain/relayer";
-import { decimalToBaseUnits } from "../lib/money";
 import { cancelSubscription, prepareCancel, prepareSession, startSession } from "./checkout";
 import { dropFaucet } from "./faucet";
-
-export const SEED_PRODUCTS = {
-  gpu: { name: "GPU time", rate: "0.004" },
-  inference: { name: "Inference API", rate: "0.0005" },
-} as const;
+import { demoPublishableKey, ensureExampleCredentials, ensureSeedEndpoints, ensureSeedProducts, SEED_PRODUCTS, type ExampleCredentials } from "./demo-catalog";
 
 export interface SeedMeter {
-  product: keyof typeof SEED_PRODUCTS;
+  product: "gpu" | "inference";
   capSeconds: number;
   /** Seconds before the subscriber cancels; `null` lets the meter run into its cap. */
   cancelAfterSeconds: number | null;
@@ -52,6 +47,12 @@ export const SEED_METERS: readonly SeedMeter[] = [
 const SEED_SUBSCRIBER_EMAIL = "subscriber@demo.elapse.invalid";
 
 export interface SeedOptions {
+  /** `--reissue-examples`: revoke and replace the examples' keys and roll their endpoint secrets. */
+  reissueExamples?: boolean;
+  /** `--no-meters`: provision only, no testnet meters (used to re-issue without waiting five minutes). */
+  meters?: boolean;
+  /** Called once setup is done and before any meter runs, so credentials are in hand without waiting. */
+  onProvisioned?: (result: SeedResult) => void;
   sleep?: (ms: number) => Promise<void>;
   /** Resolves once the indexer has made this Subscription active. Defaults to polling Postgres. */
   awaitActive?: (subscriptionId: string) => Promise<void>;
@@ -60,7 +61,13 @@ export interface SeedOptions {
 
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-export async function seedDemo(opts: SeedOptions = {}): Promise<void> {
+export interface SeedResult {
+  publishableKey: string | null;
+  /** Credentials minted by this run, for each example's `.env`. Shown once; never stored in plaintext. */
+  examples: ExampleCredentials[];
+}
+
+export async function seedDemo(opts: SeedOptions = {}): Promise<SeedResult> {
   const sleep = opts.sleep ?? realSleep;
   const log = opts.log ?? ((l: string) => console.log(l));
   const awaitActive = opts.awaitActive ?? ((id: string) => pollActive(id, sleep));
@@ -71,8 +78,12 @@ export async function seedDemo(opts: SeedOptions = {}): Promise<void> {
   const merchant = await ensureDemoMerchant();
   await sql`UPDATE merchants SET onboarded_at = COALESCE(onboarded_at, now()), payout_address = ${faucet.address.toLowerCase()} WHERE id = ${merchant.id}`;
   const products = await ensureSeedProducts(merchant.id);
-  await ensureSeedEndpoint(merchant.id);
-  log(`demo merchant ${merchant.id}: products and endpoint ready`);
+  const endpointSecrets = await ensureSeedEndpoints(merchant.id);
+  const examples = await ensureExampleCredentials(merchant.id, { reissue: opts.reissueExamples === true, endpointSecrets });
+  const result: SeedResult = { publishableKey: await demoPublishableKey(merchant.id), examples };
+  log(`demo merchant ${merchant.id}: products, endpoints and example credentials ready`);
+  opts.onProvisioned?.(result);
+  if (opts.meters === false) return result;
 
   const account = privateKeyToAccount(generatePrivateKey());
   const wallet = account.address;
@@ -107,38 +118,7 @@ export async function seedDemo(opts: SeedOptions = {}): Promise<void> {
     await cancelSubscription({ session: live, signature: cancelSig, deadline: relay.deadline });
     log(`${prep.subscription} canceled after ${meter.cancelAfterSeconds}s`);
   }
-}
-
-/**
- * The seed products, found or created. A seed product is recognised by `demo_seed` and its rate —
- * never its name, which a judge may change; a product's rate cannot change after creation.
- */
-export async function ensureSeedProducts(merchantId: string): Promise<Record<keyof typeof SEED_PRODUCTS, string>> {
-  const out = {} as Record<keyof typeof SEED_PRODUCTS, string>;
-  for (const [key, p] of Object.entries(SEED_PRODUCTS) as Array<[keyof typeof SEED_PRODUCTS, (typeof SEED_PRODUCTS)[keyof typeof SEED_PRODUCTS]]>) {
-    const [found] = await sql`SELECT id FROM products WHERE merchant_id = ${merchantId} AND NOT livemode AND demo_seed AND rate_usd_per_second = ${p.rate}::numeric ORDER BY created_at LIMIT 1`;
-    if (found) {
-      out[key] = found.id;
-      continue;
-    }
-    const row = await insertProduct({
-      merchantId, livemode: false, name: p.name, description: null, rateUsdPerSecond: p.rate, ratePerSecondWei: decimalToBaseUnits(p.rate, config.tokenDecimals)!, allowPause: false, // the seed rates are fixed decimal strings
-    });
-    await sql`UPDATE products SET demo_seed = true WHERE id = ${row.id}`;
-    out[key] = row.id;
-  }
-  return out;
-}
-
-/** The URL the seed endpoint delivers to: the API's own sink. */
-export const demoSinkUrl = () => `${config.publicApiUrl}/v1/demo/webhooks`;
-
-/** The seed endpoint, found or created, delivering to the sink. */
-export async function ensureSeedEndpoint(merchantId: string): Promise<void> {
-  const [found] = await sql`SELECT id FROM webhook_endpoints WHERE merchant_id = ${merchantId} AND NOT livemode AND demo_seed`;
-  if (found) return;
-  const ep = await insertWebhookEndpoint({ merchantId, livemode: false, url: demoSinkUrl(), events: ["*"], actor: "demo_seed" });
-  await sql`UPDATE webhook_endpoints SET demo_seed = true WHERE id = ${ep.row.id}`;
+  return result;
 }
 
 /** The drop is broadcast, not confirmed: wait until the wallet can fund every meter's cap. */

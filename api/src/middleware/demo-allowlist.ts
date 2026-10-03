@@ -33,3 +33,27 @@ export function demoMayWrite(method: string, path: string, livemode: boolean): b
   if (livemode) return false;
   return ALLOWLIST.some(([m, re]) => m === method && re.test(path));
 }
+
+/**
+ * FR-API-153 (amended 2026-10-02, ADR 2026-10-02 examples on the demo merchant): the allowlisted
+ * writes that name one object by id. If that object is a seed object — the demo's own or a hosted
+ * example's Product, key or endpoint — the write is refused even though the route is allowed: a
+ * judge changes only what they made.
+ */
+const TARGETS: ReadonlyArray<readonly [method: string, path: RegExp, table: "products" | "api_keys" | "webhook_endpoints"]> = [
+  ["POST", new RegExp(`^/v1/products/(${ID})$`), "products"],
+  ["POST", new RegExp(`^/v1/api_keys/(${ID})/roll$`), "api_keys"],
+  ["DELETE", new RegExp(`^/v1/api_keys/(${ID})$`), "api_keys"],
+  ["POST", new RegExp(`^/v1/webhook_endpoints/(${ID})$`), "webhook_endpoints"],
+  ["DELETE", new RegExp(`^/v1/webhook_endpoints/(${ID})$`), "webhook_endpoints"],
+  ["POST", new RegExp(`^/v1/webhook_endpoints/(${ID})/(?:roll_secret|test)$`), "webhook_endpoints"],
+];
+
+/** The table and id a write targets, when it is one of the by-id writes above. */
+export function demoWriteTarget(method: string, path: string): { table: "products" | "api_keys" | "webhook_endpoints"; id: string } | null {
+  for (const [m, re, table] of TARGETS) {
+    const hit = m === method ? re.exec(path) : null;
+    if (hit) return { table, id: decodeURIComponent(hit[1]!) };
+  }
+  return null;
+}

@@ -5,7 +5,7 @@
  * faucet drop.
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { resetDb } from "./helpers";
+import { api, resetDb } from "./helpers";
 import { sql } from "../src/db/client";
 import { setChainClient } from "../src/chain/relayer";
 import { setFaucetClient, type FaucetClient } from "../src/chain/faucet";
@@ -24,7 +24,7 @@ async function indexerMarksActive(subscriptionId: string) {
             stream_address = ${"0x" + streams.toString(16).padStart(40, "0")} WHERE id = ${subscriptionId}`;
 }
 
-const run = () => seedDemo({ sleep: async () => {}, awaitActive: indexerMarksActive, log: () => {} });
+const run = (o: { reissueExamples?: boolean; meters?: boolean } = {}) => seedDemo({ sleep: async () => {}, awaitActive: indexerMarksActive, log: () => {}, ...o });
 
 beforeEach(async () => {
   await resetDb();
@@ -57,13 +57,20 @@ describe("FR-API-154 demo:seed", () => {
     expect(merchants[0]).toMatchObject({ name: "Acme Cloud (demo)", onboarded: true });
     // Settlements pay the faucet wallet, so the test AUSD the meters spend flows back to the faucet.
     expect(merchants[0]!.payout_address).toBe(faucet.client.address.toLowerCase());
-    const products = await sql`SELECT name, rate_usd_per_second::text AS rate, demo_seed FROM products WHERE NOT livemode ORDER BY name`;
+    const products = await sql`SELECT demo_seed_key, name, rate_usd_per_second::text AS rate, allow_pause, start_mode, storefront_name FROM products WHERE NOT livemode ORDER BY demo_seed_key`;
     expect(products).toEqual([
-      { name: "GPU time", rate: "0.004000000000000000", demo_seed: true },
-      { name: "Inference API", rate: "0.000500000000000000", demo_seed: true },
+      { demo_seed_key: "product:gpu", name: "GPU time", rate: "0.004000000000000000", allow_pause: false, start_mode: "checkout", storefront_name: null },
+      { demo_seed_key: "product:inference", name: "Inference API", rate: "0.000500000000000000", allow_pause: false, start_mode: "checkout", storefront_name: null },
+      // Matching each example's boot.ts, so the example finds its Product instead of making one.
+      { demo_seed_key: "product:lambda", name: "Serverless runtime", rate: "0.002000000000000000", allow_pause: true, start_mode: "merchant", storefront_name: "Northwind Compute" },
+      { demo_seed_key: "product:saas", name: "GPU · 4090", rate: "0.004000000000000000", allow_pause: true, start_mode: "checkout", storefront_name: "Acme GPU" },
     ]);
-    const endpoints = await sql`SELECT url, events, demo_seed FROM webhook_endpoints`;
-    expect(endpoints).toEqual([{ url: "http://localhost:4000/v1/demo/webhooks", events: ["*"], demo_seed: true }]);
+    const endpoints = await sql`SELECT demo_seed_key, url, events FROM webhook_endpoints ORDER BY demo_seed_key`;
+    expect(endpoints).toEqual([
+      { demo_seed_key: "endpoint:lambda", url: "https://examples.elapse.finance/lambda/webhooks", events: ["*"] },
+      { demo_seed_key: "endpoint:saas", url: "https://examples.elapse.finance/saas/webhooks", events: ["*"] },
+      { demo_seed_key: "endpoint:sink", url: "http://localhost:4000/v1/demo/webhooks", events: ["*"] },
+    ]);
   });
 
   it("FR_API_154_runs_real_meters_through_the_checkout_services_and_cancels_most", async () => {
@@ -96,4 +103,41 @@ describe("FR-API-154 demo:seed", () => {
     setFaucetClient(null);
     await expect(run()).rejects.toThrow(/faucet/i);
   });
+
+  it("FR_API_154_mints_each_examples_key_and_signing_secret_once_and_leaves_them_alone_after", async () => {
+    const first = await run({ meters: false });
+    expect(first.publishableKey).toMatch(/^pk_test_/);
+    expect(first.examples).toEqual([
+      { example: "saas", secretKey: expect.stringMatching(/^sk_test_/), webhookSecret: expect.stringMatching(/^whsec_/) },
+      { example: "lambda", secretKey: expect.stringMatching(/^sk_test_/), webhookSecret: expect.stringMatching(/^whsec_/) },
+    ]);
+    // The printed key works and belongs to the demo merchant.
+    const me = await api("GET", "/v1/products", { key: first.examples[0]!.secretKey! });
+    expect(me.status).toBe(200);
+    expect(me.body.data.map((p: { name: string }) => p.name)).toContain("GPU · 4090");
+    // A second run mints nothing: the only copies live in the examples' .env files.
+    const second = await run({ meters: false });
+    expect(second.examples).toEqual([{ example: "saas" }, { example: "lambda" }]);
+    expect((await api("GET", "/v1/products", { key: first.examples[0]!.secretKey! })).status).toBe(200);
+  });
+
+  it("FR_API_154_reissue_revokes_and_replaces_the_examples_keys_and_rolls_their_secrets", async () => {
+    const first = await run({ meters: false });
+    const again = await run({ meters: false, reissueExamples: true });
+    for (const i of [0, 1]) {
+      expect(again.examples[i]!.secretKey).toMatch(/^sk_test_/);
+      expect(again.examples[i]!.secretKey).not.toBe(first.examples[i]!.secretKey);
+      expect(again.examples[i]!.webhookSecret).toMatch(/^whsec_/);
+      expect(again.examples[i]!.webhookSecret).not.toBe(first.examples[i]!.webhookSecret);
+    }
+    expect((await api("GET", "/v1/products", { key: first.examples[0]!.secretKey! })).status).toBe(401);
+    expect((await api("GET", "/v1/products", { key: again.examples[0]!.secretKey! })).status).toBe(200);
+  });
+
+  it("FR_API_154_meters_false_provisions_without_running_meters", async () => {
+    await run({ meters: false });
+    expect(chain.creates).toHaveLength(0);
+    expect(faucet.transfers).toHaveLength(0);
+  });
 });
+

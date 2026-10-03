@@ -26,7 +26,7 @@ export async function ensureDemoMerchant(): Promise<Merchant> {
   await sql`UPDATE merchants SET demo = true WHERE id = ${merchant.id}`;
   for (const livemode of [false, true]) {
     const key = await createApiKey({ merchantId: merchant.id, kind: "pk", livemode, name: "default", actor: "demo_seed" });
-    await sql`UPDATE api_keys SET demo_seed = true WHERE id = ${key.row.id}`;
+    await sql`UPDATE api_keys SET demo_seed = true, demo_seed_key = ${livemode ? "key:pk_live" : "key:pk"} WHERE id = ${key.row.id}`;
   }
   return merchant;
 }
@@ -90,7 +90,7 @@ export async function demoSinkSecrets(): Promise<string[]> {
   const [row] = await sql`
     SELECT w.secret_enc, w.previous_secret_enc, w.previous_secret_expires_at > now() AS previous_open
     FROM webhook_endpoints w JOIN merchants m ON m.id = w.merchant_id
-    WHERE m.demo AND w.demo_seed AND NOT w.livemode
+    WHERE m.demo AND w.demo_seed_key = 'endpoint:sink'
     LIMIT 1`;
   if (!row) return [];
   const secrets = [decryptSecret(row.secret_enc)];

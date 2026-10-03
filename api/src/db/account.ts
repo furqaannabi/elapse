@@ -35,7 +35,7 @@ const COLS = sql`s.id, s.merchant_id, s.livemode, s.product_id, s.customer_id, s
   (SELECT n.id FROM checkout_sessions n WHERE n.again_of = s.checkout_session_id ORDER BY n.created_at DESC LIMIT 1) AS restarted_as,
   p.name AS product_name,
   p.allow_pause AS product_allow_pause,
-  COALESCE(m.branding->>'display_name', m.name) AS merchant_name,
+  COALESCE(p.storefront_name, m.branding->>'display_name', m.name) AS merchant_name, -- FR-API-156
   m.branding->>'logo_url' AS merchant_logo_url,
   m.branding->>'support_url' AS merchant_support_url`;
 
