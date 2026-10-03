@@ -25,7 +25,8 @@ export async function demoCheck(o: { baseUrl: string; webhookSecret: string; fet
         id: sub,
         object: "subscription",
         status: "canceled",
-        product: "prod_check",
+        // No `product`: the server acts only on its own Product (FR-EXM-161, amended), whose id this
+        // script cannot know. Every platform event names one; a locally signed check names none.
         customer: "cus_check",
         rate_usd_per_second: RATE,
         seconds_elapsed: SECONDS,

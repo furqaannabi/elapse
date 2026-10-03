@@ -10,6 +10,7 @@ const deps = (sessions = createSessionStore({ dailyRunLimit: 20 })) => ({
   log: () => {},
   now: () => Date.UTC(2026, 8, 12, 10, 0, 0),
   logJson: false,
+  ourProduct: "prod_northwind",
 });
 
 describe("FR-EXM-130 verify before act", () => {
@@ -134,3 +135,40 @@ describe("FR-EXM-132 a failed payment closes the subscription's session", () => 
     expect(lines.at(-1)).toContain("session closed (payment failed)");
   });
 });
+
+describe("FR-EXM-161 (amended) on a shared merchant, only Northwind's own Product", () => {
+  it("acknowledges another Product's subscription event and ignores it", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const lines: string[] = [];
+    const body = created({ id: "sub_acme", product: "prod_acme" }, "evt_acme");
+    const res = handleWebhook(body, sign(body, SECRET), { ...deps(sessions), log: (l) => lines.push(l) });
+    expect(res.status).toBe(200);
+    res.work!();
+    expect(sessions.get("sub_acme")).toBeUndefined();
+    expect(lines.some((l) => l.includes("evt_acme") && l.includes("not ours"))).toBe(true);
+  });
+
+  it("ignores another Product's checkout.session.completed and updates", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    for (const body of [
+      event("checkout.session.completed", { id: "cs_acme", object: "checkout.session", status: "complete", subscription: "sub_acme", product: "prod_acme" }, "evt_c"),
+      started({ id: "sub_acme", product: "prod_acme" }, "evt_u"),
+      canceled({ id: "sub_acme", product: "prod_acme" }, "evt_x"),
+    ]) handleWebhook(body, sign(body, SECRET), deps(sessions)).work!();
+    expect(sessions.get("sub_acme")).toBeUndefined();
+  });
+
+  it("applies an invoice event only to a subscription it already tracks", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const failed = event("invoice.payment_failed", { id: "in_1", object: "invoice", subscription: "sub_stranger" }, "evt_f");
+    handleWebhook(failed, sign(failed, SECRET), deps(sessions)).work!();
+    expect(sessions.get("sub_stranger")).toBeUndefined();
+
+    const open = created({}, "evt_open");
+    handleWebhook(open, sign(open, SECRET), deps(sessions)).work!();
+    const mine = event("invoice.payment_failed", { id: "in_2", object: "invoice", subscription: "sub_4QeABC" }, "evt_f2");
+    handleWebhook(mine, sign(mine, SECRET), deps(sessions)).work!();
+    expect(sessions.get("sub_4QeABC")?.state).toBe("ended");
+  });
+});
+

@@ -327,6 +327,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
       sessions: deps.sessions,
       log: deps.log,
       now: deps.now,
+      ourProduct: deps.ourProduct,
       ...(deps.logJson === undefined ? {} : { logJson: deps.logJson }),
     });
     send(res, out.status, "application/json", out.body);

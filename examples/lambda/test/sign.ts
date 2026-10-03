@@ -10,7 +10,7 @@ export function event(type: string, object: Record<string, unknown>, id = "evt_1
 }
 
 const SUB = {
-  id: "sub_4QeABC", object: "subscription", status: "active", product: "prod_9f2", customer: "cus_7Ha",
+  id: "sub_4QeABC", object: "subscription", status: "active", product: "prod_northwind", customer: "cus_7Ha",
   rate_usd_per_second: "0.002",
 };
 

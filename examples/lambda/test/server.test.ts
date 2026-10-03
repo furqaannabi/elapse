@@ -788,3 +788,18 @@ describe("FR-EXM-155 the terminal distinguishes a subscriber ending from a tab c
     expect(lines.some((l) => l.includes("auto-ended (left) sub_2"))).toBe(true);
   });
 });
+
+describe("FR-EXM-161 on a shared merchant, Northwind leaves other products' meters alone", () => {
+  const windows = { idleTimeoutMs: 60_000, heartbeatStaleMs: 15_000, pausedEndMs: 600_000 };
+
+  it("never ends a meter on another product it hears about by webhook", async () => {
+    const { base, deps, canceled: ended, sessions } = await start();
+    // Acme GPU's meter on the same (demo) merchant: checkout-mode, so it arrives already active.
+    expect((await deliver(base, created({ id: "sub_acme", product: "prod_acme" }, "evt_acme"))).status).toBe(200);
+
+    for (const t of [20_000, 70_000, 700_000]) await sweepOnce(deps, Date.now() + t, windows);
+
+    expect([...ended]).toEqual([]);
+    expect(sessions.get("sub_acme")).toBeUndefined();
+  });
+});

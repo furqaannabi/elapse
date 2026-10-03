@@ -14,6 +14,12 @@ export interface WebhookDeps {
   sessions: SessionStore;
   log: (line: string) => void;
   now: () => number;
+  /**
+   * FR-EXM-161 (amended 2026-10-03): this server's Product. On a merchant shared with other
+   * storefronts (the hosted examples run on the demo merchant), every event of the merchant arrives
+   * here; only this Product's subscriptions are Northwind's to track — and so to end.
+   */
+  ourProduct: string;
   /** Print the event body after the header line. Default true. */
   logJson?: boolean;
 }
@@ -44,15 +50,19 @@ export function handleWebhook(rawBody: string, signature: string | undefined, de
       if (deps.sessions.seenEvent(event.id)) return log(`↺ duplicate ${event.id}`);
       const action = apply(event, deps);
       log(`${event.id}  ${event.type.padEnd(26)}→ ${action}`);
-      if (deps.logJson !== false) log(JSON.stringify(event, null, 2));
+      if (deps.logJson !== false && action !== NOT_OURS) log(JSON.stringify(event, null, 2));
     },
   };
   // endregion
 }
 
+/** What `apply` answers for an event about someone else's subscription: acknowledged, nothing done. */
+const NOT_OURS = "· not ours";
+
 /** Subscription fields this example reads off an Event (§5.3). */
 interface SubObject {
   id?: string;
+  product?: string;
   customer?: string;
   status?: string;
   subscription?: string;
@@ -88,6 +98,13 @@ function apply(event: { type: string; data: { object: unknown } }, deps: Webhook
   // is `subscription`. Every other event here carries the subscription as the object itself.
   const sub = (event.type.startsWith("invoice.") ? o.subscription : o.id) ?? "";
   const nowMs = deps.now();
+
+  // FR-EXM-161 (amended): the same rule as boot reconcile and claims (FR-EXM-157). An object that
+  // names another Product is another storefront's meter; adopting it would let the sweep cancel it.
+  // An invoice names no Product, so it counts only for a subscription this server already tracks.
+  if (event.type.startsWith("invoice.") ? deps.sessions.get(sub) === undefined : o.product !== undefined && o.product !== deps.ourProduct) {
+    return NOT_OURS;
+  }
 
   switch (event.type) {
     case "checkout.session.completed": {
