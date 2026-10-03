@@ -59,6 +59,12 @@ export function handleWebhook(rawBody: string, signature: string | undefined, de
 /** What `apply` answers for an event about someone else's subscription: acknowledged, nothing done. */
 const NOT_OURS = "· not ours";
 
+/**
+ * FR-EXM-161 (amended again): the Product every platform Send test delivery names (api
+ * `sample-objects`). It marks a synthetic test, not another storefront's meter, so it counts as ours.
+ */
+const TEST_DELIVERY_PRODUCT = "prod_test0000000000";
+
 /** Subscription fields this example reads off an Event (§5.3). */
 interface SubObject {
   id?: string;
@@ -102,7 +108,7 @@ function apply(event: { type: string; data: { object: unknown } }, deps: Webhook
   // FR-EXM-161 (amended): the same rule as boot reconcile and claims (FR-EXM-157). An object that
   // names another Product is another storefront's meter; adopting it would let the sweep cancel it.
   // An invoice names no Product, so it counts only for a subscription this server already tracks.
-  if (event.type.startsWith("invoice.") ? deps.sessions.get(sub) === undefined : o.product !== undefined && o.product !== deps.ourProduct) {
+  if (event.type.startsWith("invoice.") ? deps.sessions.get(sub) === undefined : o.product !== undefined && o.product !== deps.ourProduct && o.product !== TEST_DELIVERY_PRODUCT) {
     return NOT_OURS;
   }
 

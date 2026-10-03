@@ -172,3 +172,12 @@ describe("FR-EXM-161 (amended) on a shared merchant, only Northwind's own Produc
   });
 });
 
+
+describe("FR-EXM-161 (amended again) a platform test delivery counts as Northwind's", () => {
+  it("opens a session for the Send test delivery sample, so CI and the dashboard button still work", () => {
+    const sessions = createSessionStore({ dailyRunLimit: 20 });
+    const body = created({ id: "sub_test00000000000", product: "prod_test0000000000" }, "evt_test");
+    handleWebhook(body, sign(body, SECRET), deps(sessions)).work!();
+    expect(sessions.get("sub_test00000000000")?.state).toBe("active");
+  });
+});
