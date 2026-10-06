@@ -82,6 +82,8 @@ Indexer `elapse-2` in the `furqaannabi` organisation (recreated 2026-09-15; the 
 
 The GraphQL endpoint changes per deployment; read it with `envio-cloud deployment endpoint elapse-2 <commit> furqaannabi` and set it as `INDEXER_GRAPHQL_URL` on the API.
 
+**Telling from outside that it has stopped.** `GET /v1/status` on the platform reports `indexer.ok` and `last_ingest_at`: `ok: false` with `error: "unreachable"` means the API cannot reach this deployment's GraphQL, and a `last_ingest_at` hours old means no log has arrived whatever the deployment says about itself.
+
 ## Deferred to Week 4
 
 - `pnpm reconcile` (FR-IDX-024): re-POST every `StreamEvent` with `ingestStatus` in `pending`/`failed`.
