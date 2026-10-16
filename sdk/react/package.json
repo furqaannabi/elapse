@@ -1,7 +1,14 @@
 {
   "name": "@elapse/react",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Authorise, meter and receipt components for Elapse per-second billing.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furqaannabi/elapse.git",
+    "directory": "sdk/react"
+  },
+  "homepage": "https://docs.elapse.finance",
+  "bugs": "https://github.com/furqaannabi/elapse/issues",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
